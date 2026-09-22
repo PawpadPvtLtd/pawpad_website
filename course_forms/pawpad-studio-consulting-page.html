@@ -30,14 +30,17 @@
   .nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:18px 0;transition:background .3s ease,backdrop-filter .3s ease,padding .2s ease;}
   .nav.scrolled{background:color-mix(in oklab,var(--cream-bg),transparent 12%);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:10px 0;border-bottom:1px solid color-mix(in oklab,var(--ink),transparent 92%);}
   .container{max-width:1200px;margin:0 auto;padding:0 24px;}
-  .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;}
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:18px;}
   .nav-brand{display:flex;align-items:center;flex-shrink:0;}
   .nav-cta,.mobile-nav-actions,.nav-cart-btn{flex-shrink:0;}
-  .nav-brand img{height:140px;width:auto;max-width:min(46vw,380px);object-fit:contain;transition:height .2s ease;display:block;}
-  .nav.scrolled .nav-brand img{height:105px;}
+  .nav-brand img{height:118px;width:auto;max-width:min(40vw,300px);object-fit:contain;transition:height .2s ease;display:block;}
+  .nav.scrolled .nav-brand img{height:80px;}
+  @media(min-width:1025px) and (max-width:1380px){.nav-inner{gap:10px;}.nav-brand img{height:92px;max-width:220px;}.nav.scrolled .nav-brand img{height:72px;}.nav-links{gap:2px;}.nav-link{padding:6px 9px;font-size:13px;white-space:nowrap;}}
   @media(max-width:1024px){.nav-brand img{height:80px;}.nav.scrolled .nav-brand img{height:65px;}}
-  .nav-links{display:flex;gap:6px;align-items:center;}
-  .nav-link{padding:10px 16px;border-radius:999px;font-family:var(--f-body);font-size:14px;font-weight:500;color:var(--ink);opacity:.78;text-decoration:none;transition:all .2s ease;position:relative;}
+  @media(max-width:480px){.nav-brand img{height:68px;}.nav.scrolled .nav-brand img{height:54px;}}
+  .nav-links{display:flex;gap:4px;align-items:center;flex-wrap:nowrap;}
+  .nav-link{padding:8px 14px;border-radius:999px;font-family:var(--f-body);font-size:14px;font-weight:500;color:var(--ink);opacity:.78;text-decoration:none;transition:all .2s ease;position:relative;white-space:nowrap;flex-shrink:0;}
+  .m-link, .m-link span{white-space:nowrap;}
   .nav-link:hover{opacity:1;background:color-mix(in oklab,var(--champagne),transparent 30%);text-decoration:none;}
   .nav-link.active{opacity:1;color:var(--driftwood-deep);}
   .nav-link.active::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;background:var(--driftwood);border-radius:50%;}
@@ -333,6 +336,7 @@ color: #ffffff !important;
             <li><a href="../experience.html">Experience</a></li>
             <li><a href="../grooming.html">Grooming</a></li>
             <li><a href="../courses.html">Courses</a></li>
+            <li><a href="../studio-setup.html">Studio Setup</a></li>
             <li><a href="../boarding.html">Boarding</a></li>
             <li><a href="../myotherapy.html">Myotherapy</a></li>
             <li><a href="../contact.html">Contact</a></li>

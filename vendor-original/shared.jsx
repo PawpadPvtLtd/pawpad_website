@@ -243,7 +243,7 @@ function TopNav({ route, onBook }) {
           transition: height var(--t-fast) var(--ease);
         }
         .nav.scrolled .nav-brand img { height: 64px; }
-        .nav-links { display: flex; gap: 6px; align-items: center; }
+        .nav-links { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
         .nav-link {
           padding: 10px 16px;
           border-radius: 999px;
@@ -253,6 +253,8 @@ function TopNav({ route, onBook }) {
           opacity: .78;
           transition: all var(--t-fast) var(--ease);
           position: relative;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
         .nav-link:hover { opacity: 1; background: color-mix(in oklab, var(--champagne), transparent 30%); }
         .nav-link.active { opacity: 1; color: var(--driftwood-deep); }

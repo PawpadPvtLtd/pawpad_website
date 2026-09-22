@@ -17,23 +17,24 @@ function StudioSetupHero({ onBook }) {
         React.createElement("p", { className: "eyebrow reveal in" }, cms.eyebrow || "Studio Setup & Business Consulting"),
         React.createElement(
           "h1",
-          { className: "h-display reveal in ss-title", style: { marginTop: 20, maxWidth: "18ch" } },
+          { className: "h-display reveal in ss-title", style: { marginTop: 24, maxWidth: "16ch" } },
           cms.title || "Planning your ",
+          React.createElement("br", null),
           React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, cms.titleAccent !== undefined ? cms.titleAccent : "grooming space?")
         ),
         React.createElement(
           "p",
-          { className: "lead reveal in", style: { marginTop: 24, maxWidth: "56ch" } },
+          { className: "lead reveal in", style: { marginTop: 28, maxWidth: "54ch" } },
           cms.heroLead || "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist."
         ),
         React.createElement(
           "p",
-          { className: "ss-intro-sub reveal in", style: { marginTop: 16, maxWidth: "58ch", color: "var(--ink-soft)", fontSize: "15.5px", lineHeight: "1.7" } },
+          { className: "ss-intro-sub reveal in", style: { marginTop: 18, maxWidth: "54ch", color: "var(--ink-soft)", fontSize: "17px", lineHeight: "1.65" } },
           cms.introText || "Whether you're setting up your first grooming space or reworking an existing one, the equipment you choose and the way you lay out your studio shape everything downstream — how efficiently you can work, how safe it is for you and the animals, and how much you spend fixing avoidable mistakes later."
         ),
         React.createElement(
           "div",
-          { className: "ss-hero-actions reveal in", style: { display: "flex", gap: "14px", marginTop: "32px", flexWrap: "wrap" } },
+          { className: "ss-hero-actions reveal in", style: { display: "flex", gap: "14px", marginTop: "36px", flexWrap: "wrap" } },
           React.createElement(
             "a",
             {
@@ -66,11 +67,11 @@ function StudioSetupHero({ onBook }) {
           "div",
           { className: "ss-hero-img-card" },
           React.createElement("img", {
-            src: cms.heroImage || "assets/img/pawpad/studio-setup-overview.webp",
+            src: cms.heroImage || "assets/img/pawpad/studio-setup-overview-new.webp",
             alt: "Pawpad Grooming Studio Space Layout",
             fetchpriority: "high",
             decoding: "async",
-            onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/studio-setup-overview.webp"); }
+            onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/studio-setup-overview-new.webp"); }
           }),
           React.createElement(
             "span",
@@ -84,9 +85,20 @@ function StudioSetupHero({ onBook }) {
       "style",
       null,
       `
-        .ss-hero { padding: 180px 0 70px; background: var(--cream-bg); }
-        .ss-hero-grid { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 56px; align-items: center; }
-        .ss-title { font-size: clamp(34px, 4.2vw, 54px); line-height: 1.15; color: var(--ink); margin: 0; }
+        .ss-hero { padding: 180px 0 60px; background: var(--cream-bg); }
+        .ss-hero-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: start; }
+        .ss-title {
+          color: var(--ink);
+          margin: 0;
+        }
+        .ss-title em {
+          color: var(--driftwood);
+          font-style: italic;
+        }
+        .ss-hero-visual {
+          position: relative;
+          margin-top: 10px;
+        }
         .ss-hero-img-card {
           position: relative;
           border-radius: 28px;
@@ -134,6 +146,7 @@ function StudioSetupHero({ onBook }) {
         @media (max-width: 960px) {
           .ss-hero { padding: 140px 0 50px; }
           .ss-hero-grid { grid-template-columns: 1fr; gap: 40px; }
+          .ss-title em { white-space: normal !important; }
         }
       `
     )
@@ -515,15 +528,15 @@ function StudioGallery() {
 
   const gallery = (cms.gallery && Array.isArray(cms.gallery)) ? cms.gallery : [
     {
-      img: "assets/img/pawpad/studio-setup-overview.webp",
+      img: "assets/img/pawpad/studio-setup-overview-new.webp",
       caption: "Spacious studio layout with dedicated washing & drying zones"
     },
     {
-      img: "assets/img/pawpad/studio-setup-grooming-area.webp",
+      img: "assets/img/pawpad/studio-setup-grooming-area-new.webp",
       caption: "Ergonomic grooming table & stainless steel bathing station"
     },
     {
-      img: "assets/img/pawpad/studio-setup-hydraulic-table.webp",
+      img: "assets/img/pawpad/studio-setup-hydraulic-table-new.webp",
       caption: "Hydraulic lift table and high-velocity dryer positioning"
     }
   ];

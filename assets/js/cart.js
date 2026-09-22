@@ -57,6 +57,27 @@ const CART_CATALOG = [
     isCatOnly: true,
     img: "assets/img/pawpad/course-cat-grooming.webp"
   },
+  // Studio Setup & Business Consulting
+  {
+    id: "studio-consulting-online",
+    title: "Remote Video Consultation (Studio Setup)",
+    category: "Studio Setup",
+    price: 20000,
+    priceDisplay: "₹20,000",
+    desc: "1:1 remote video session with equipment review, spatial layout guidance, budget validation, and vendor notes",
+    requiresPetInfo: false,
+    img: "assets/img/pawpad/studio-setup-overview-new.webp"
+  },
+  {
+    id: "studio-consulting-in-person",
+    title: "On-Site Studio Blueprint & Setup (In-Person)",
+    category: "Studio Setup",
+    price: 60000,
+    priceDisplay: "₹60,000",
+    desc: "Full physical studio layout consultation, plumbing/electrical review, on-site walkthrough, and comprehensive equipment blueprint",
+    requiresPetInfo: false,
+    img: "assets/img/pawpad/studio-setup-overview-new.webp"
+  },
   // Boarding
   {
     id: "boarding-trial-day",

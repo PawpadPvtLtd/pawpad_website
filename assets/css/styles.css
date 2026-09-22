@@ -615,23 +615,43 @@ body[data-palette="dark"] .card {
   flex-shrink: 0;
 }
 
-@media (min-width: 1025px) and (max-width: 1280px) {
+.nav-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.nav-link {
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+.m-link {
+  white-space: nowrap;
+}
+
+.m-link span {
+  white-space: nowrap;
+}
+
+@media (min-width: 1025px) and (max-width: 1380px) {
   .nav-inner {
-    gap: 12px;
+    gap: 10px !important;
   }
   .nav-brand img {
-    height: 95px !important;
+    height: 92px !important;
     max-width: 220px !important;
   }
   .nav.scrolled .nav-brand img {
-    height: 75px !important;
+    height: 72px !important;
   }
   .nav-links {
     gap: 2px !important;
   }
   .nav-link {
-    padding: 8px 10px !important;
+    padding: 6px 9px !important;
     font-size: 13px !important;
+    white-space: nowrap !important;
   }
 }
 
@@ -643,11 +663,11 @@ body[data-palette="dark"] .card {
     padding: 8px 0;
   }
   .nav-brand img {
-    height: 85px;
+    height: 80px;
     max-width: min(50vw, 240px);
   }
   .nav.scrolled .nav-brand img {
-    height: 68px;
+    height: 65px;
   }
   .mobile-nav-actions {
     gap: 8px;
@@ -657,11 +677,11 @@ body[data-palette="dark"] .card {
 
 @media (max-width: 480px) {
   .nav-brand img {
-    height: 72px;
+    height: 68px;
     max-width: min(55vw, 190px);
   }
   .nav.scrolled .nav-brand img {
-    height: 58px;
+    height: 54px;
   }
 }
 

@@ -678,7 +678,7 @@
       titleAccent: "grooming space?",
       heroLead: "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist.",
       introText: "Whether you're setting up your first grooming space or reworking an existing one, the equipment you choose and the way you lay out your studio shape everything downstream — how efficiently you can work, how safe it is for you and the animals, and how much you spend fixing avoidable mistakes later. This consulting service gives you direct, practical guidance grounded in real operating experience, not a template.",
-      heroImage: "assets/img/pawpad/studio-setup-overview.webp",
+      heroImage: "assets/img/pawpad/studio-setup-overview-new.webp",
       whoThisIsFor: [
         "Anyone planning to open a grooming studio, whether your first or a new location",
         "Groomers reworking an existing space that isn't working well",
@@ -739,15 +739,15 @@
       ],
       gallery: [
         {
-          img: "assets/img/pawpad/studio-setup-overview.webp",
+          img: "assets/img/pawpad/studio-setup-overview-new.webp",
           caption: "Spacious studio layout with dedicated washing & drying zones"
         },
         {
-          img: "assets/img/pawpad/studio-setup-grooming-area.webp",
+          img: "assets/img/pawpad/studio-setup-grooming-area-new.webp",
           caption: "Ergonomic grooming table & stainless steel bathing station"
         },
         {
-          img: "assets/img/pawpad/studio-setup-hydraulic-table.webp",
+          img: "assets/img/pawpad/studio-setup-hydraulic-table-new.webp",
           caption: "Hydraulic lift table and high-velocity dryer positioning"
         }
       ],
@@ -875,6 +875,12 @@
             }
             if (!parsed.studioSetup.heroLead || parsed.studioSetup.heroLead.includes("Thinking about opening a grooming studio") || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist" || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start.") {
               parsed.studioSetup.heroLead = DEFAULT_CONTENT.studioSetup.heroLead;
+            }
+            if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage === "assets/img/pawpad/studio-setup-overview.webp") {
+              parsed.studioSetup.heroImage = DEFAULT_CONTENT.studioSetup.heroImage;
+            }
+            if (Array.isArray(parsed.studioSetup.gallery)) {
+              parsed.studioSetup.gallery = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup.gallery));
             }
           } else if (parsed) {
             parsed.studioSetup = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup));

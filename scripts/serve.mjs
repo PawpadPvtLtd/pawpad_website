@@ -446,8 +446,7 @@ async function handleRequest(req, res) {
 
     const ext = path.extname(resolvedPath).toLowerCase();
     const contentType = MIME[ext] || "application/octet-stream";
-    const isHtml = ext === ".html";
-    const cacheControl = isHtml ? "no-cache" : "public, max-age=3600, stale-while-revalidate=86400";
+    const cacheControl = "no-cache, must-revalidate";
 
     const stat = fs.statSync(resolvedPath);
     res.writeHead(200, {

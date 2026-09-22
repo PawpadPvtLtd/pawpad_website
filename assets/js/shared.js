@@ -110,19 +110,19 @@ function TopNav({ route, onBook, onOpenCart }) {
           padding: 10px 0;
           border-bottom: 1px solid color-mix(in oklab, var(--ink), transparent 92%);
         }
-        .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+        .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
         .nav-brand { display: flex; align-items: center; flex-shrink: 0; }
         .nav-brand img {
-          height: 140px;
+          height: 118px;
           width: auto;
-          max-width: min(46vw, 380px);
+          max-width: min(40vw, 300px);
           object-fit: contain;
           transition: height var(--t-fast) var(--ease);
         }
-        .nav.scrolled .nav-brand img { height: 105px; }
-        .nav-links { display: flex; gap: 6px; align-items: center; }
+        .nav.scrolled .nav-brand img { height: 80px; }
+        .nav-links { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
         .nav-link {
-          padding: 10px 16px;
+          padding: 8px 14px;
           border-radius: 999px;
           font-size: 14px;
           font-weight: 500;
@@ -130,6 +130,8 @@ function TopNav({ route, onBook, onOpenCart }) {
           opacity: .78;
           transition: all var(--t-fast) var(--ease);
           position: relative;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
         .nav-link:hover { opacity: 1; background: color-mix(in oklab, var(--champagne), transparent 30%); }
         .nav-link.active { opacity: 1; color: var(--driftwood-deep); }
@@ -174,22 +176,22 @@ function TopNav({ route, onBook, onOpenCart }) {
           100% { transform: scale(1); }
         }
         .mobile-nav-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-        @media (min-width: 1025px) and (max-width: 1280px) {
-          .nav-inner { gap: 12px; }
-          .nav-brand img { height: 95px; }
-          .nav.scrolled .nav-brand img { height: 75px; }
+        @media (min-width: 1025px) and (max-width: 1380px) {
+          .nav-inner { gap: 10px; }
+          .nav-brand img { height: 92px; max-width: 220px; }
+          .nav.scrolled .nav-brand img { height: 72px; }
           .nav-links { gap: 2px; }
-          .nav-link { padding: 8px 10px; font-size: 13px; }
+          .nav-link { padding: 6px 9px; font-size: 13px; white-space: nowrap; }
         }
         @media (max-width: 1024px) {
           .nav { padding: 12px 0; }
           .nav.scrolled { padding: 8px 0; }
-          .nav-brand img { height: 85px; max-width: min(50vw, 240px); }
-          .nav.scrolled .nav-brand img { height: 68px; }
+          .nav-brand img { height: 80px; max-width: min(50vw, 240px); }
+          .nav.scrolled .nav-brand img { height: 65px; }
         }
         @media (max-width: 480px) {
-          .nav-brand img { height: 72px; max-width: min(55vw, 190px); }
-          .nav.scrolled .nav-brand img { height: 58px; }
+          .nav-brand img { height: 68px; max-width: min(55vw, 190px); }
+          .nav.scrolled .nav-brand img { height: 54px; }
         }
         .hamburger {
           display: flex; flex-direction: column; gap: 5px; padding: 10px;
