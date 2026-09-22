@@ -45,7 +45,7 @@
           target: "grooming",
           price: "Gentle grooming",
           points: ["Dog and cat grooming", "Coat health", "Stress-free handling", "Emotional comfort"],
-          img: "assets/img/pawpad/grooming-snapshot-new.webp",
+          img: "assets/img/pawpad/grooming-snapshot.webp",
           accent: "champagne"
         },
         {
@@ -215,7 +215,7 @@
       eyebrow: "Grooming services",
       title: "Stress-free grooming",
       lead: "Conscious pet grooming in Bangalore — built around coat health, hygiene, gentle handling, and emotional wellbeing. Every session is paced around your pet's comfort.",
-      heroImage: "assets/img/pawpad/grooming-snapshot-new.webp",
+      heroImage: "assets/img/pawpad/grooming-snapshot.webp",
       packages: [
         {
           cat: "Puppy",
@@ -365,7 +365,7 @@
           priceNum: 250,
           duration: "Quick visit",
           allowPetTypeSelection: true,
-          img: "assets/img/pawpad/grooming-nail-clipping-new.webp",
+          img: "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp",
           includes: ["Nail trimming", "Paw handling support", "Breaks for anxious pets", "Comfort checks"],
           note: "Gentle nail care for pets who need a quick maintenance visit or extra patience around paw handling."
         },
@@ -442,7 +442,7 @@
       title1: "Learn Conscious",
       titleAccent: "Pet Grooming",
       lead: "Understand dogs and cats in ways you have never thought of before as you learn the fine art of pet grooming through this structured and wholesome course. Your learning will take you through a journey of understanding the nervous system, musculoskeletal structure and emotional dynamics of the animal all of which are core essentials for ideal grooming.",
-      heroImage: "assets/img/pawpad/courses-cover-new.webp",
+      heroImage: "assets/img/pawpad/courses-snapshot.webp",
       depositNotice: "A non-refundable deposit is required upon acceptance to secure your slot in the cohort.",
       allowSubmissions: true,
       web3FormsAccessKey: "a9a21b4b-47ee-4889-b709-9f101c59874d",
@@ -678,7 +678,7 @@
       titleAccent: "grooming space?",
       heroLead: "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist.",
       introText: "Whether you're setting up your first grooming space or reworking an existing one, the equipment you choose and the way you lay out your studio shape everything downstream — how efficiently you can work, how safe it is for you and the animals, and how much you spend fixing avoidable mistakes later. This consulting service gives you direct, practical guidance grounded in real operating experience, not a template.",
-      heroImage: "assets/img/pawpad/studio-setup-overview-new.webp",
+      heroImage: "assets/img/pawpad/studio-setup-overview.webp",
       whoThisIsFor: [
         "Anyone planning to open a grooming studio, whether your first or a new location",
         "Groomers reworking an existing space that isn't working well",
@@ -739,15 +739,15 @@
       ],
       gallery: [
         {
-          img: "assets/img/pawpad/studio-setup-overview-new.webp",
+          img: "assets/img/pawpad/studio-setup-overview.webp",
           caption: "Spacious studio layout with dedicated washing & drying zones"
         },
         {
-          img: "assets/img/pawpad/studio-setup-grooming-area-new.webp",
+          img: "assets/img/pawpad/studio-setup-grooming-area.webp",
           caption: "Ergonomic grooming table & stainless steel bathing station"
         },
         {
-          img: "assets/img/pawpad/studio-setup-hydraulic-table-new.webp",
+          img: "assets/img/pawpad/studio-setup-hydraulic-table.webp",
           caption: "Hydraulic lift table and high-velocity dryer positioning"
         }
       ],
@@ -816,6 +816,18 @@
             }
           }
 
+          if (parsed && parsed.grooming) {
+            if (!parsed.grooming.heroImage || parsed.grooming.heroImage.includes("grooming-snapshot-new")) {
+              parsed.grooming.heroImage = "assets/img/pawpad/grooming-snapshot.webp";
+            }
+          }
+
+          if (parsed && parsed.courses) {
+            if (!parsed.courses.heroImage || parsed.courses.heroImage.includes("courses-cover-new") || parsed.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
+              parsed.courses.heroImage = "assets/img/pawpad/courses-snapshot.webp";
+            }
+          }
+
           if (parsed && parsed.boarding) {
             if (parsed.boarding.title === "Boarding, Reimagined" || parsed.boarding.title === "Boarding, Reimagined ") {
               parsed.boarding.title = "Boarding, ";
@@ -828,6 +840,9 @@
                 if (!pkg.sub || pkg.sub.includes("3 months") || pkg.sub.includes("below 3 months")) {
                   pkg.sub = "Gentle introductions for puppies below 6 months";
                 }
+              }
+              if (pkg && pkg.img && pkg.img.includes("grooming-nail-clipping-new")) {
+                pkg.img = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
               }
             });
           }
@@ -876,7 +891,7 @@
             if (!parsed.studioSetup.heroLead || parsed.studioSetup.heroLead.includes("Thinking about opening a grooming studio") || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist" || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start.") {
               parsed.studioSetup.heroLead = DEFAULT_CONTENT.studioSetup.heroLead;
             }
-            if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage === "assets/img/pawpad/studio-setup-overview.webp") {
+            if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage.includes("studio-setup-overview-new")) {
               parsed.studioSetup.heroImage = DEFAULT_CONTENT.studioSetup.heroImage;
             }
             if (Array.isArray(parsed.studioSetup.gallery)) {
@@ -896,6 +911,24 @@
               parsed.courses.web3FormsAccessKey = "a9a21b4b-47ee-4889-b709-9f101c59874d";
             }
           }
+
+          // Clean any remaining "-new.webp" references in parsed data
+          const cleanLegacyPaths = (obj) => {
+            if (!obj || typeof obj !== "object") return;
+            for (const k in obj) {
+              if (typeof obj[k] === "string") {
+                if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
+                else if (obj[k].includes("courses-cover-new.webp")) obj[k] = "assets/img/pawpad/courses-snapshot.webp";
+                else if (obj[k].includes("studio-setup-overview-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-overview.webp";
+                else if (obj[k].includes("studio-setup-grooming-area-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-grooming-area.webp";
+                else if (obj[k].includes("studio-setup-hydraulic-table-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-hydraulic-table.webp";
+                else if (obj[k].includes("grooming-nail-clipping-new.webp")) obj[k] = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
+              } else if (typeof obj[k] === "object") {
+                cleanLegacyPaths(obj[k]);
+              }
+            }
+          };
+          cleanLegacyPaths(parsed);
           const merged = this._deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONTENT)), parsed);
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));

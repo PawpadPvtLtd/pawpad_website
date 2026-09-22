@@ -498,8 +498,12 @@ function useCmsContent(pageKey, defaultData) {
 function handleImgError(e, fallback) {
   if (!e || !e.target) return;
   e.target.onerror = null;
-  if (fallback && e.target.src !== fallback) {
-    e.target.src = fallback;
+  if (fallback) {
+    const currentSrc = e.target.src || "";
+    const cleanFallback = fallback.replace(/^\.\.\//, "").replace(/^\//, "");
+    if (!currentSrc.endsWith(cleanFallback)) {
+      e.target.src = fallback;
+    }
   }
 }
 

@@ -138,7 +138,7 @@ const GROOM_PACKAGES = [
     price: "₹250",
     duration: "Quick visit",
     allowPetTypeSelection: true,
-    img: "assets/img/pawpad/grooming-nail-clipping-new.webp",
+    img: "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp",
     includes: ["Nail trimming", "Paw handling support", "Breaks for anxious pets", "Comfort checks"],
     note: "Gentle nail care for pets who need a quick maintenance visit or extra patience around paw handling."
   },
@@ -238,7 +238,7 @@ function GroomingHero({ onBook }) {
       e.preventDefault();
       (_a = document.getElementById("packages")) == null ? void 0 : _a.scrollIntoView({ behavior: "smooth" });
     }
-  }, "View packages ", /* @__PURE__ */ React.createElement(Arrow, null)))), /* @__PURE__ */ React.createElement("div", { className: "g-hero-img reveal in" }, /* @__PURE__ */ React.createElement("div", { className: "blob-1" }, /* @__PURE__ */ React.createElement("img", { src: cms.heroImage || "assets/img/pawpad/grooming-snapshot-new.webp", alt: "A dog being groomed", fetchpriority: "high", decoding: "async", onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/grooming-snapshot-new.webp"); } })))), /* @__PURE__ */ React.createElement("style", null, `
+  }, "View packages ", /* @__PURE__ */ React.createElement(Arrow, null)))), /* @__PURE__ */ React.createElement("div", { className: "g-hero-img reveal in" }, /* @__PURE__ */ React.createElement("div", { className: "blob-1" }, /* @__PURE__ */ React.createElement("img", { src: cms.heroImage || "assets/img/pawpad/grooming-snapshot.webp", alt: "A dog being groomed", fetchpriority: "high", decoding: "async", onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/grooming-snapshot.webp"); } })))), /* @__PURE__ */ React.createElement("style", null, `
         .g-hero { padding: 180px 0 60px; }
         .g-hero-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: center; }
         .g-hero-img .blob-1 {

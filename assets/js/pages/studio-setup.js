@@ -67,11 +67,11 @@ function StudioSetupHero({ onBook }) {
           "div",
           { className: "ss-hero-img-card" },
           React.createElement("img", {
-            src: cms.heroImage || "assets/img/pawpad/studio-setup-overview-new.webp",
+            src: cms.heroImage || "assets/img/pawpad/studio-setup-overview.webp",
             alt: "Pawpad Grooming Studio Space Layout",
             fetchpriority: "high",
             decoding: "async",
-            onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/studio-setup-overview-new.webp"); }
+            onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/studio-setup-overview.webp"); }
           }),
           React.createElement(
             "span",
@@ -528,15 +528,15 @@ function StudioGallery() {
 
   const gallery = (cms.gallery && Array.isArray(cms.gallery)) ? cms.gallery : [
     {
-      img: "assets/img/pawpad/studio-setup-overview-new.webp",
+      img: "assets/img/pawpad/studio-setup-overview.webp",
       caption: "Spacious studio layout with dedicated washing & drying zones"
     },
     {
-      img: "assets/img/pawpad/studio-setup-grooming-area-new.webp",
+      img: "assets/img/pawpad/studio-setup-grooming-area.webp",
       caption: "Ergonomic grooming table & stainless steel bathing station"
     },
     {
-      img: "assets/img/pawpad/studio-setup-hydraulic-table-new.webp",
+      img: "assets/img/pawpad/studio-setup-hydraulic-table.webp",
       caption: "Hydraulic lift table and high-velocity dryer positioning"
     }
   ];

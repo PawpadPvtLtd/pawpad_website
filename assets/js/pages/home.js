@@ -10,7 +10,7 @@ const SERVICES = [
     target: "grooming",
     price: "Gentle grooming",
     points: ["Dog and cat grooming", "Coat health", "Stress-free handling", "Emotional comfort"],
-    img: "assets/img/pawpad/grooming-snapshot-new.webp",
+    img: "assets/img/pawpad/grooming-snapshot.webp",
     accent: "champagne"
   },
   {
@@ -248,7 +248,7 @@ function ServiceCards({ navigate, onBook }) {
         onClick: () => setOpen(isOpen ? null : s.key),
         style: { transitionDelay: `${idx * 70}ms` }
       },
-      /* @__PURE__ */ React.createElement("div", { className: "svc-img" }, /* @__PURE__ */ React.createElement("img", { src: s.img, alt: s.title, onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/grooming-snapshot-new.webp"); } }), /* @__PURE__ */ React.createElement("span", { className: "svc-no" }, s.no)),
+      /* @__PURE__ */ React.createElement("div", { className: "svc-img" }, /* @__PURE__ */ React.createElement("img", { src: s.img, alt: s.title, onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/grooming-snapshot.webp"); } }), /* @__PURE__ */ React.createElement("span", { className: "svc-no" }, s.no)),
       /* @__PURE__ */ React.createElement("div", { className: "svc-body" }, /* @__PURE__ */ React.createElement("h3", { className: "h-3" }, s.title), /* @__PURE__ */ React.createElement("p", { className: "svc-blurb" }, s.blurb), /* @__PURE__ */ React.createElement("div", { className: "svc-detail" }, /* @__PURE__ */ React.createElement("ul", { className: "svc-points" }, (Array.isArray(s.points) ? s.points : []).map((p) => /* @__PURE__ */ React.createElement("li", { key: p }, /* @__PURE__ */ React.createElement(PawIcon, { size: 11, color: "var(--driftwood)" }), " ", p))), /* @__PURE__ */ React.createElement("div", { className: "svc-foot" }, /* @__PURE__ */ React.createElement("span", { className: "svc-price" }, s.price), /* @__PURE__ */ React.createElement("div", { className: "svc-actions" }, s.key === "myotherapy" ? /* @__PURE__ */ React.createElement("span", { className: "svc-link disabled" }, s.cta) : /* @__PURE__ */ React.createElement("a", { href: hrefFor(s.target), className: "svc-link" }, s.cta, " ", /* @__PURE__ */ React.createElement(Arrow, { size: 12 }))))))
     );
   }))), /* @__PURE__ */ React.createElement("style", null, `

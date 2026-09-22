@@ -66,7 +66,7 @@ const CART_CATALOG = [
     priceDisplay: "₹20,000",
     desc: "1:1 remote video session with equipment review, spatial layout guidance, budget validation, and vendor notes",
     requiresPetInfo: false,
-    img: "assets/img/pawpad/studio-setup-overview-new.webp"
+    img: "assets/img/pawpad/studio-setup-overview.webp"
   },
   {
     id: "studio-consulting-in-person",
@@ -76,7 +76,7 @@ const CART_CATALOG = [
     priceDisplay: "₹60,000",
     desc: "Full physical studio layout consultation, plumbing/electrical review, on-site walkthrough, and comprehensive equipment blueprint",
     requiresPetInfo: false,
-    img: "assets/img/pawpad/studio-setup-overview-new.webp"
+    img: "assets/img/pawpad/studio-setup-overview.webp"
   },
   // Boarding
   {
@@ -114,7 +114,7 @@ const CART_CATALOG = [
     desc: "Slow, gentle nail care for pets who need a quick maintenance visit",
     requiresPetInfo: true,
     allowPetTypeSelection: true,
-    img: "assets/img/pawpad/grooming-nail-clipping-new.webp"
+    img: "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp"
   },
   {
     id: "massage",

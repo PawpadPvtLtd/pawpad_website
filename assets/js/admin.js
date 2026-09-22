@@ -1870,7 +1870,7 @@
                       priceNum: 35000,
                       deposit: "₹8,750",
                       duration: "2 weeks",
-                      img: "assets/img/pawpad/courses-cover-new.webp",
+                      img: "assets/img/pawpad/courses-snapshot.webp",
                       knowMoreUrl: "",
                       enrollUrl: "course_forms/pawpad-application-pacgc.html",
                       desc: "Hands-on professional grooming training with live handling practice.",
@@ -2182,7 +2182,7 @@
                       duration: "60 mins",
                       isDogOnly: true,
                       petType: "Dog",
-                      img: "assets/img/pawpad/grooming-snapshot-new.webp",
+                      img: "assets/img/pawpad/grooming-snapshot.webp",
                       includes: ["Bath & conditioning", "Blow dry", "Nail clipping"],
                       note: "Description for this new grooming service."
                     });
