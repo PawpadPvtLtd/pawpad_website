@@ -122,11 +122,11 @@ function CoursesHero() {
       ),
       React.createElement("div", { className: "c-hero-image reveal in" },
         React.createElement("img", {
-          src: cms.heroImage || "assets/img/pawpad/courses-snapshot.webp",
+          src: cms.heroImage || "assets/img/pawpad/courses-cover-new.webp",
           alt: "Pawpad grooming course",
           fetchpriority: "high",
           decoding: "async",
-          onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/courses-snapshot.webp"); }
+          onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/courses-cover-new.webp"); }
         })
       )
     ),

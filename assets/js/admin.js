@@ -1870,7 +1870,7 @@
                       priceNum: 35000,
                       deposit: "₹8,750",
                       duration: "2 weeks",
-                      img: "assets/img/pawpad/courses-snapshot.webp",
+                      img: "assets/img/pawpad/courses-cover-new.webp",
                       knowMoreUrl: "",
                       enrollUrl: "course_forms/pawpad-application-pacgc.html",
                       desc: "Hands-on professional grooming training with live handling practice.",

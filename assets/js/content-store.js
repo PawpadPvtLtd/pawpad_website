@@ -442,7 +442,7 @@
       title1: "Learn Conscious",
       titleAccent: "Pet Grooming",
       lead: "Understand dogs and cats in ways you have never thought of before as you learn the fine art of pet grooming through this structured and wholesome course. Your learning will take you through a journey of understanding the nervous system, musculoskeletal structure and emotional dynamics of the animal all of which are core essentials for ideal grooming.",
-      heroImage: "assets/img/pawpad/courses-snapshot.webp",
+      heroImage: "assets/img/pawpad/courses-cover-new.webp",
       depositNotice: "A non-refundable deposit is required upon acceptance to secure your slot in the cohort.",
       allowSubmissions: true,
       web3FormsAccessKey: "a9a21b4b-47ee-4889-b709-9f101c59874d",
@@ -814,6 +814,15 @@
             if (!parsed.home.heroImage || parsed.home.heroImage.includes("hero-cover-dog-cat")) {
               parsed.home.heroImage = "assets/img/pawpad/hero-cover-bernese-cat.webp";
             }
+            if (Array.isArray(parsed.home.services)) {
+              parsed.home.services.forEach(s => {
+                if (s && s.key === "courses") {
+                  if (!s.img || s.img.includes("courses-cover-new")) {
+                    s.img = "assets/img/pawpad/courses-snapshot.webp";
+                  }
+                }
+              });
+            }
           }
 
           if (parsed && parsed.grooming) {
@@ -823,8 +832,8 @@
           }
 
           if (parsed && parsed.courses) {
-            if (!parsed.courses.heroImage || parsed.courses.heroImage.includes("courses-cover-new") || parsed.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
-              parsed.courses.heroImage = "assets/img/pawpad/courses-snapshot.webp";
+            if (!parsed.courses.heroImage || parsed.courses.heroImage.includes("courses-snapshot") || parsed.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
+              parsed.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
             }
           }
 
@@ -918,7 +927,6 @@
             for (const k in obj) {
               if (typeof obj[k] === "string") {
                 if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
-                else if (obj[k].includes("courses-cover-new.webp")) obj[k] = "assets/img/pawpad/courses-snapshot.webp";
                 else if (obj[k].includes("studio-setup-overview-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-overview.webp";
                 else if (obj[k].includes("studio-setup-grooming-area-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-grooming-area.webp";
                 else if (obj[k].includes("studio-setup-hydraulic-table-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-hydraulic-table.webp";
