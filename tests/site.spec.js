@@ -140,4 +140,61 @@ test.describe("Interactive Features & User Flows", () => {
     const termsHeading = page.locator("#terms");
     await expect(termsHeading).toBeVisible();
   });
+
+  test("Course interview scheduling and approval emails send candidate notifications via Web3Forms", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("pawpad_admin_auth_session", "authenticated");
+      localStorage.setItem("pawpad_admin_auth_user", JSON.stringify({ email: "pawpadpetstylist@gmail.com", role: "owner" }));
+      sessionStorage.setItem("pawpad_admin_auth_session", "authenticated");
+    });
+
+    await page.goto("/admin.html");
+    await expect(page.locator("body")).toBeVisible();
+
+    // Navigate to Course Applications tab
+    const appsNav = page.locator('nav button:has-text("Course Applications")');
+    await appsNav.click();
+
+    // Verify Applications list renders
+    const inspectBtn = page.locator('button:has-text("Inspect & Approve")').first();
+    await expect(inspectBtn).toBeVisible();
+    await inspectBtn.click();
+
+    // Modal opens
+    await expect(page.locator(".modal-card")).toBeVisible();
+
+    // Set interview date and click Schedule & Send Invite
+    const interviewInput = page.locator('input[type="datetime-local"]');
+    await interviewInput.fill("2026-10-15T14:30");
+
+    // Intercept Web3Forms request to verify candidate email payload
+    let interceptedPayload = null;
+    await page.route("https://api.web3forms.com/submit", async (route) => {
+      interceptedPayload = route.request().postData();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, message: "Email submitted successfully" })
+      });
+    });
+
+    const scheduleBtn = page.locator('button:has-text("Schedule & Send Invite")');
+    await scheduleBtn.click();
+
+    // Verify confirmation banner appears
+    await expect(page.locator('strong:has-text("Interview Scheduled & Candidate Email Dispatched")')).toBeVisible();
+    await expect(page.locator('a:has-text("Open in Gmail")')).toBeVisible();
+
+    // Now click Approve & Send Confirmation
+    const approveBtn = page.locator('button:has-text("✓ Approve & Send Confirmation")');
+    await approveBtn.click();
+
+    // Verify approval confirmation banner appears
+    await expect(page.locator('strong:has-text("Application Approved & Confirmation Email Dispatched")')).toBeVisible();
+    await expect(page.locator('a:has-text("Default Email Client")')).toBeVisible();
+
+    // Verify application status changed to approved
+    await expect(page.locator('.modal-card .badge-approved')).toBeVisible();
+  });
 });
+

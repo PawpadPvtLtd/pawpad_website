@@ -215,6 +215,240 @@
       return true;
     }
 
+    formatInterviewDate(dateStr) {
+      if (!dateStr) return "To be mutually coordinated";
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString("en-IN", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true
+        });
+      } catch {
+        return dateStr;
+      }
+    }
+
+    getCoursesAccessKey() {
+      const storeCoursesKey = window.PawpadContentStore && window.PawpadContentStore.get("courses")?.web3FormsAccessKey;
+      return (storeCoursesKey && storeCoursesKey !== "YOUR_ACCESS_KEY_HERE" && storeCoursesKey !== "ce70cafb-d84c-42f7-b57e-d320ff768866")
+        ? storeCoursesKey
+        : "a9a21b4b-47ee-4889-b709-9f101c59874d";
+    }
+
+    generateInterviewEmail(app, interviewDate, customNote = "") {
+      const candidateName = app.applicant?.name || "Applicant";
+      const courseName = app.courseName || "Pawpad Grooming Certification";
+      const formattedDate = this.formatInterviewDate(interviewDate || app.interviewDate);
+      const subject = `Interview Scheduled: ${courseName} - Pawpad Academy (${app.id})`;
+
+      const body = `Dear ${candidateName},
+
+Thank you for applying for the ${courseName} at Pawpad Academy (Application Reference: ${app.id}).
+
+We are pleased to invite you for an admissions interaction & interview. Here are your scheduled interview details:
+
+• Course: ${courseName}
+• Scheduled Date & Time: ${formattedDate}
+• Format: 15–20 minute video call / admissions interaction
+• Meeting Link / Venue: The video meeting link will be shared with you via email and WhatsApp shortly prior to the session.
+${customNote ? `• Note from Admissions: ${customNote}\n` : ""}
+What to Expect:
+- Discussion on your background, interest in professional grooming/pet care, and career goals.
+- Review of program format, practical hands-on structure, and course expectations.
+- Answering any questions you may have regarding the curriculum, equipment, or schedule.
+
+If you need to reschedule or have any questions in the meantime, please reply to this email or message our admissions desk on WhatsApp at +91 98451 23456.
+
+Warm regards,
+Admissions Team
+Pawpad Academy
+Bengaluru, India
+Website: https://pawpad.in
+Email: courses@pawpad.in`;
+
+      const candidateEmail = app.applicant?.email || "";
+      const mailtoUrl = `mailto:${encodeURIComponent(candidateEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(candidateEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+      return {
+        subject,
+        body,
+        recipient: candidateEmail,
+        recipientName: candidateName,
+        formattedDate,
+        mailtoUrl,
+        gmailUrl
+      };
+    }
+
+    generateApprovalEmail(app, customNote = "") {
+      const candidateName = app.applicant?.name || "Applicant";
+      const courseName = app.courseName || "Pawpad Grooming Certification";
+      const fee = app.courseFee || "₹95,000";
+      const subject = `Congratulations! Your Application for ${courseName} is Approved — Pawpad Academy (${app.id})`;
+
+      const body = `Dear ${candidateName},
+
+Congratulations! We are delighted to inform you that your application for the ${courseName} has been formally approved by the Pawpad Admissions Committee!
+
+Application & Course Details:
+• Program: ${courseName}
+• Application Reference: ${app.id}
+• Total Program Tuition / Fee: ${fee}
+• Location: Pawpad Academy, Bengaluru
+• Status: Approved & Accepted for Enrollment
+${customNote ? `• Note from Admissions: ${customNote}\n` : ""}
+Next Steps to Secure Your Seat:
+1. Seat Reservation Deposit: To confirm your seat in the upcoming cohort, please submit the seat reservation deposit.
+2. Batch & Schedule Alignment: Our admissions desk will reach out via WhatsApp / phone (+91 98451 23456) to align your preferred batch dates and training schedule.
+3. Student Kit & Preparation Guide: Once the deposit is received, your student onboarding packet and preparation guidelines will be issued.
+
+If you have any questions or are ready to proceed with the seat deposit, please reply to this email or message our admissions desk directly on WhatsApp (+91 98451 23456).
+
+We are thrilled to welcome you to Pawpad Academy!
+
+Warmest regards,
+Admissions & Training Committee
+Pawpad Academy
+Bengaluru, India
+Website: https://pawpad.in
+Email: courses@pawpad.in`;
+
+      const candidateEmail = app.applicant?.email || "";
+      const mailtoUrl = `mailto:${encodeURIComponent(candidateEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(candidateEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+      return {
+        subject,
+        body,
+        recipient: candidateEmail,
+        recipientName: candidateName,
+        fee,
+        mailtoUrl,
+        gmailUrl
+      };
+    }
+
+    async sendCandidateEmailViaWeb3(payloadData) {
+      const accessKey = this.getCoursesAccessKey();
+      const formData = new FormData();
+      formData.append("access_key", accessKey);
+      formData.append("subject", payloadData.subject || "Pawpad Academy Notification");
+      formData.append("from_name", "Pawpad Academy Admissions");
+      formData.append("to_candidate", payloadData.recipient || "");
+      formData.append("candidate_name", payloadData.recipientName || "");
+      formData.append("candidate_email", payloadData.recipient || "");
+      formData.append("name", payloadData.recipientName || "");
+      formData.append("email", payloadData.recipient || "");
+      formData.append("replyto", "courses@pawpad.in");
+      formData.append("application_id", payloadData.applicationId || "");
+      formData.append("course", payloadData.courseName || "");
+      formData.append("notification_type", payloadData.type || "course_notification");
+      formData.append("message", payloadData.body || "");
+      formData.append("botcheck", "");
+
+      try {
+        const response = await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          body: formData
+        });
+        const json = await response.json().catch(() => ({}));
+        return { success: response.ok, data: json };
+      } catch (err) {
+        console.warn("PawpadApplicationsStore: Web3Forms candidate email notice:", err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    async scheduleInterviewWithEmail(id, interviewDate, customNote = "") {
+      const app = this.getById(id);
+      if (!app) return { success: false, error: "Application not found" };
+
+      app.status = "interview_scheduled";
+      app.interviewDate = interviewDate;
+
+      const emailData = this.generateInterviewEmail(app, interviewDate, customNote);
+      
+      // Dispatch via Web3Forms courses access key
+      const web3Result = await this.sendCandidateEmailViaWeb3({
+        applicationId: app.id,
+        courseName: app.courseName,
+        recipient: emailData.recipient,
+        recipientName: emailData.recipientName,
+        subject: emailData.subject,
+        body: emailData.body,
+        type: "interview_scheduled_notification"
+      });
+
+      if (!app.staffNotes) app.staffNotes = [];
+      const noteEntry = {
+        author: "Admin / System",
+        date: new Date().toISOString(),
+        text: `Interview scheduled for ${emailData.formattedDate}. Candidate notification email dispatched to ${emailData.recipient || "applicant"} via Courses Web3Forms.` + (customNote ? ` Note: ${customNote}` : "")
+      };
+      app.staffNotes.push(noteEntry);
+
+      if (!app.communications) app.communications = [];
+      app.communications.push({
+        type: "interview_scheduled",
+        date: new Date().toISOString(),
+        recipient: emailData.recipient,
+        subject: emailData.subject,
+        body: emailData.body,
+        web3Status: web3Result.success ? "sent" : "dispatched_client_fallback"
+      });
+
+      this._save();
+      return { success: true, app, emailData, web3Result };
+    }
+
+    async approveApplicationWithEmail(id, customNote = "") {
+      const app = this.getById(id);
+      if (!app) return { success: false, error: "Application not found" };
+
+      app.status = "approved";
+
+      const emailData = this.generateApprovalEmail(app, customNote);
+      
+      // Dispatch via Web3Forms courses access key
+      const web3Result = await this.sendCandidateEmailViaWeb3({
+        applicationId: app.id,
+        courseName: app.courseName,
+        recipient: emailData.recipient,
+        recipientName: emailData.recipientName,
+        subject: emailData.subject,
+        body: emailData.body,
+        type: "application_approved_notification"
+      });
+
+      if (!app.staffNotes) app.staffNotes = [];
+      const noteEntry = {
+        author: "Admin / System",
+        date: new Date().toISOString(),
+        text: `Application formally approved. Confirmation & enrollment details email dispatched to ${emailData.recipient || "applicant"} via Courses Web3Forms.` + (customNote ? ` Note: ${customNote}` : "")
+      };
+      app.staffNotes.push(noteEntry);
+
+      if (!app.communications) app.communications = [];
+      app.communications.push({
+        type: "application_approved",
+        date: new Date().toISOString(),
+        recipient: emailData.recipient,
+        subject: emailData.subject,
+        body: emailData.body,
+        web3Status: web3Result.success ? "sent" : "dispatched_client_fallback"
+      });
+
+      this._save();
+      return { success: true, app, emailData, web3Result };
+    }
+
     getStats() {
       const total = this.applications.length;
       const pending = this.applications.filter((a) => a.status === "pending_review").length;

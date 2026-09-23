@@ -134,7 +134,9 @@
     User: () => React.createElement("svg", { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("path", { d: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" }), React.createElement("circle", { cx: 12, cy: 7, r: "4" })),
     Sun: () => React.createElement("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("circle", { cx: 12, cy: 12, r: 5 }), React.createElement("line", { x1: 12, y1: 1, x2: 12, y2: 3 }), React.createElement("line", { x1: 12, y1: 21, x2: 12, y2: 23 }), React.createElement("line", { x1: 4.22, y1: 4.22, x2: 5.64, y2: 5.64 }), React.createElement("line", { x1: 18.36, y1: 18.36, x2: 19.78, y2: 19.78 }), React.createElement("line", { x1: 1, y1: 12, x2: 3, y2: 12 }), React.createElement("line", { x1: 21, y1: 12, x2: 23, y2: 12 }), React.createElement("line", { x1: 4.22, y1: 19.78, x2: 5.64, y2: 18.36 }), React.createElement("line", { x1: 18.36, y1: 5.64, x2: 19.78, y2: 4.22 })),
     Moon: () => React.createElement("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("path", { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" })),
-    Trash: () => React.createElement("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("polyline", { points: "3 6 5 6 21 6" }), React.createElement("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }), React.createElement("line", { x1: "10", y1: "11", x2: "10", y2: "17" }), React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" }))
+    Trash: () => React.createElement("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("polyline", { points: "3 6 5 6 21 6" }), React.createElement("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }), React.createElement("line", { x1: "10", y1: "11", x2: "10", y2: "17" }), React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" })),
+    Mail: () => React.createElement("svg", { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("path", { d: "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" }), React.createElement("polyline", { points: "22,6 12,13 2,6" })),
+    Copy: () => React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }, React.createElement("rect", { x: "9", y: "9", width: "13", height: "13", rx: "2", ry: "2" }), React.createElement("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }))
   };
 
   // AUTHENTICATION GATE (EMAIL & PASSWORD)
@@ -457,6 +459,10 @@
     const [newNote, setNewNote] = useState("");
     const [interviewInput, setInterviewInput] = useState("");
     const [selectedIds, setSelectedIds] = useState([]);
+    const [isSendingMail, setIsSendingMail] = useState(false);
+    const [emailNotification, setEmailNotification] = useState(null);
+    const [copiedNotification, setCopiedNotification] = useState(false);
+    const [previewModalData, setPreviewModalData] = useState(null);
 
     const filtered = useMemo(() => {
       return applications.filter((app) => {
@@ -553,6 +559,88 @@
           setSelectedApp(window.PawpadApplicationsStore.getById(id));
         }
         onUpdate();
+      }
+    };
+
+    const handleScheduleInterview = async () => {
+      if (!selectedApp) return;
+      if (!interviewInput) {
+        alert("Please select an interview date and time first.");
+        return;
+      }
+
+      setIsSendingMail(true);
+      try {
+        const res = await window.PawpadApplicationsStore.scheduleInterviewWithEmail(
+          selectedApp.id,
+          interviewInput,
+          newNote.trim()
+        );
+        if (res && res.success) {
+          setSelectedApp(window.PawpadApplicationsStore.getById(selectedApp.id));
+          setNewNote("");
+          setEmailNotification({
+            type: "interview",
+            title: "Interview Scheduled & Candidate Email Dispatched",
+            message: `Notification email sent to ${res.emailData.recipient || "candidate"} via Courses Web3Forms key.`,
+            emailData: res.emailData
+          });
+          onUpdate();
+        } else {
+          alert("Could not schedule interview: " + (res?.error || "Unknown error"));
+        }
+      } catch (err) {
+        console.error("Failed to schedule interview:", err);
+        alert("Error scheduling interview: " + err.message);
+      } finally {
+        setIsSendingMail(false);
+      }
+    };
+
+    const handleApproveApplication = async () => {
+      if (!selectedApp) return;
+
+      setIsSendingMail(true);
+      try {
+        const res = await window.PawpadApplicationsStore.approveApplicationWithEmail(
+          selectedApp.id,
+          newNote.trim()
+        );
+        if (res && res.success) {
+          setSelectedApp(window.PawpadApplicationsStore.getById(selectedApp.id));
+          setNewNote("");
+          setEmailNotification({
+            type: "approval",
+            title: "Application Approved & Confirmation Email Dispatched",
+            message: `Course approval details and next steps sent to ${res.emailData.recipient || "candidate"} via Courses Web3Forms key.`,
+            emailData: res.emailData
+          });
+          onUpdate();
+        } else {
+          alert("Could not approve application: " + (res?.error || "Unknown error"));
+        }
+      } catch (err) {
+        console.error("Failed to approve application:", err);
+        alert("Error approving application: " + err.message);
+      } finally {
+        setIsSendingMail(false);
+      }
+    };
+
+    const copyToClipboard = (text) => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        setCopiedNotification(true);
+        setTimeout(() => setCopiedNotification(false), 3000);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setCopiedNotification(true);
+        setTimeout(() => setCopiedNotification(false), 3000);
       }
     };
 
@@ -887,6 +975,91 @@
             "div",
             { style: { padding: "24px 28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "20px" } },
 
+            // Candidate Notification Dispatch Banner
+            emailNotification &&
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    background: "var(--admin-success-bg, #dcfce7)",
+                    border: "1px solid var(--admin-success, #166534)",
+                    borderRadius: "8px",
+                    padding: "16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px"
+                  }
+                },
+                React.createElement(
+                  "div",
+                  { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                  React.createElement(
+                    "div",
+                    { style: { display: "flex", alignItems: "center", gap: "8px" } },
+                    React.createElement(
+                      "span",
+                      { style: { color: "var(--admin-success, #166534)", fontWeight: "bold" } },
+                      "✓"
+                    ),
+                    React.createElement(
+                      "strong",
+                      { style: { color: "var(--admin-success, #166534)", fontSize: "14px" } },
+                      emailNotification.title
+                    )
+                  ),
+                  React.createElement(
+                    "button",
+                    {
+                      className: "btn-admin btn-admin-secondary",
+                      style: { padding: "2px 8px", fontSize: "11px" },
+                      onClick: () => setEmailNotification(null)
+                    },
+                    "Dismiss"
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { style: { fontSize: "13px", color: "#1e3a2b" } },
+                  emailNotification.message
+                ),
+                React.createElement(
+                  "div",
+                  { style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" } },
+                  React.createElement(
+                    "a",
+                    {
+                      href: emailNotification.emailData.gmailUrl,
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                      className: "btn-admin btn-admin-primary",
+                      style: { padding: "6px 12px", fontSize: "12px", textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }
+                    },
+                    React.createElement(Icons.External, null),
+                    "Open in Gmail"
+                  ),
+                  React.createElement(
+                    "a",
+                    {
+                      href: emailNotification.emailData.mailtoUrl,
+                      className: "btn-admin btn-admin-secondary",
+                      style: { padding: "6px 12px", fontSize: "12px", textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }
+                    },
+                    React.createElement(Icons.Mail, null),
+                    "Default Email Client"
+                  ),
+                  React.createElement(
+                    "button",
+                    {
+                      className: "btn-admin btn-admin-secondary",
+                      style: { padding: "6px 12px", fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" },
+                      onClick: () => copyToClipboard(emailNotification.emailData.body)
+                    },
+                    React.createElement(Icons.Copy, null),
+                    copiedNotification ? "Copied to Clipboard!" : "Copy Email Text"
+                  )
+                )
+              ),
+
             // Candidate Profile Strip
             React.createElement(
               "div",
@@ -895,6 +1068,111 @@
               React.createElement("div", null, React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "PHONE"), React.createElement("div", { style: { fontWeight: "600" } }, React.createElement("a", { href: `https://wa.me/${(selectedApp.applicant?.phone || "").replace(/[^0-9]/g, "")}`, target: "_blank", style: { color: "var(--admin-gold-light)", textDecoration: "none" } }, selectedApp.applicant?.phone, " ↗"))),
               React.createElement("div", null, React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "EMAIL"), React.createElement("div", { style: { fontWeight: "600" } }, selectedApp.applicant?.email || "—")),
               React.createElement("div", null, React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "CITY / LOCATION"), React.createElement("div", { style: { fontWeight: "600" } }, selectedApp.applicant?.city || "Bengaluru"))
+            ),
+
+            // Candidate Email Communications & Audit Status
+            React.createElement(
+              "div",
+              {
+                style: {
+                  background: "var(--admin-bg)",
+                  padding: "16px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--admin-border-subtle)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px"
+                }
+              },
+              React.createElement(
+                "div",
+                { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                React.createElement(
+                  "h4",
+                  { style: { fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--admin-gold)", margin: 0 } },
+                  "Candidate Email Notifications"
+                ),
+                React.createElement(
+                  "span",
+                  { style: { fontSize: "11px", color: "var(--admin-text-muted)" } },
+                  "Delivery: Courses Web3Forms Key"
+                )
+              ),
+
+              React.createElement(
+                "div",
+                { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" } },
+                selectedApp.interviewDate &&
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        fontSize: "12px",
+                        padding: "6px 10px",
+                        background: "var(--admin-card)",
+                        borderRadius: "6px",
+                        border: "1px solid var(--admin-border)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                      }
+                    },
+                    React.createElement("span", { style: { fontWeight: "600", color: "var(--admin-gold)" } }, "Interview:"),
+                    React.createElement(
+                      "span",
+                      null,
+                      window.PawpadApplicationsStore
+                        ? window.PawpadApplicationsStore.formatInterviewDate(selectedApp.interviewDate)
+                        : selectedApp.interviewDate
+                    ),
+                    React.createElement(
+                      "button",
+                      {
+                        className: "btn-admin btn-admin-secondary",
+                        style: { padding: "2px 8px", fontSize: "11px" },
+                        onClick: () => {
+                          if (window.PawpadApplicationsStore) {
+                            const preview = window.PawpadApplicationsStore.generateInterviewEmail(selectedApp, selectedApp.interviewDate);
+                            setPreviewModalData({ title: "Interview Notification Preview", emailData: preview });
+                          }
+                        }
+                      },
+                      "Preview / Resend"
+                    )
+                  ),
+                selectedApp.status === "approved" &&
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        fontSize: "12px",
+                        padding: "6px 10px",
+                        background: "var(--admin-card)",
+                        borderRadius: "6px",
+                        border: "1px solid var(--admin-border)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                      }
+                    },
+                    React.createElement("span", { style: { fontWeight: "600", color: "var(--admin-success, #166534)" } }, "Admission:"),
+                    React.createElement("span", null, "Application Approved"),
+                    React.createElement(
+                      "button",
+                      {
+                        className: "btn-admin btn-admin-secondary",
+                        style: { padding: "2px 8px", fontSize: "11px" },
+                        onClick: () => {
+                          if (window.PawpadApplicationsStore) {
+                            const preview = window.PawpadApplicationsStore.generateApprovalEmail(selectedApp);
+                            setPreviewModalData({ title: "Course Approval Confirmation Preview", emailData: preview });
+                          }
+                        }
+                      },
+                      "Preview / Resend"
+                    )
+                  )
+              )
             ),
 
             // Questionnaire Responses
@@ -971,14 +1249,15 @@
             )
           ),
 
-          // Modal Footer Actions (Approve / Schedule / Reject / Delete)
+          // Modal Footer Actions (Approve & Send Email / Schedule & Send Email / Decline / Delete)
           React.createElement(
             "div",
             { style: { padding: "18px 28px", borderTop: "1px solid var(--admin-border)", background: "var(--admin-sidebar)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" } },
 
+            // Left: Interview Scheduling with Auto-Email
             React.createElement(
               "div",
-              { style: { display: "flex", gap: "8px", alignItems: "center" } },
+              { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
               React.createElement("span", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "Interview Date:"),
               React.createElement("input", {
                 type: "datetime-local",
@@ -990,17 +1269,20 @@
               React.createElement(
                 "button",
                 {
-                  className: "btn-admin btn-admin-secondary",
-                  style: { padding: "6px 12px", fontSize: "13px" },
-                  onClick: () => handleStatusChange(selectedApp.id, "interview_scheduled", `Interview set for ${interviewInput}`, interviewInput)
+                  className: "btn-admin btn-admin-primary",
+                  disabled: isSendingMail,
+                  style: { padding: "6px 14px", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" },
+                  onClick: handleScheduleInterview
                 },
-                "Schedule Interview"
+                React.createElement(Icons.Mail, null),
+                isSendingMail ? "Scheduling & Sending..." : "Schedule & Send Invite"
               )
             ),
 
+            // Right: Decline / Approve & Auto-Email / Confirm Enrolled
             React.createElement(
               "div",
-              { style: { display: "flex", gap: "10px", alignItems: "center" } },
+              { style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
               selectedApp.status === "rejected" &&
               React.createElement(
                 "button",
@@ -1025,10 +1307,12 @@
                 "button",
                 {
                   className: "btn-admin btn-admin-success",
-                  style: { padding: "10px 20px" },
-                  onClick: () => handleStatusChange(selectedApp.id, "approved", "Application formally approved. Deposit request initiated.")
+                  disabled: isSendingMail,
+                  style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px" },
+                  onClick: handleApproveApplication
                 },
-                "✓ Approve Application"
+                React.createElement(Icons.Check, null),
+                isSendingMail ? "Approving & Sending..." : "✓ Approve & Send Confirmation"
               ),
               selectedApp.status === "approved" &&
               React.createElement(
@@ -1038,6 +1322,123 @@
                   onClick: () => handleStatusChange(selectedApp.id, "enrolled", "Deposit received. Student successfully enrolled.")
                 },
                 "Confirm Enrolled"
+              )
+            )
+          )
+        )
+      ),
+
+      // Preview Email Modal
+      previewModalData &&
+      React.createElement(
+        "div",
+        {
+          className: "modal-overlay",
+          style: { zIndex: 1100 },
+          onClick: () => setPreviewModalData(null)
+        },
+        React.createElement(
+          "div",
+          {
+            className: "modal-card",
+            style: { width: "650px", maxWidth: "100%", maxHeight: "85vh" },
+            onClick: (e) => e.stopPropagation()
+          },
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "16px 24px",
+                borderBottom: "1px solid var(--admin-border)",
+                background: "var(--admin-sidebar)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }
+            },
+            React.createElement("h3", { style: { margin: 0, fontSize: "16px" } }, previewModalData.title),
+            React.createElement(
+              "button",
+              { className: "btn-admin btn-admin-secondary", style: { padding: "6px" }, onClick: () => setPreviewModalData(null) },
+              React.createElement(Icons.Close, null)
+            )
+          ),
+          React.createElement(
+            "div",
+            { style: { padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "14px" } },
+            React.createElement(
+              "div",
+              { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+              React.createElement("strong", null, "Recipient: "),
+              previewModalData.emailData.recipient,
+              React.createElement("br", null),
+              React.createElement("strong", null, "Subject: "),
+              previewModalData.emailData.subject
+            ),
+            React.createElement(
+              "textarea",
+              {
+                readOnly: true,
+                className: "input-field",
+                style: {
+                  height: "300px",
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  lineHeight: "1.5",
+                  whiteSpace: "pre-wrap",
+                  padding: "12px"
+                },
+                value: previewModalData.emailData.body
+              }
+            )
+          ),
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "14px 24px",
+                borderTop: "1px solid var(--admin-border)",
+                background: "var(--admin-sidebar)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "10px"
+              }
+            },
+            React.createElement(
+              "button",
+              {
+                className: "btn-admin btn-admin-secondary",
+                onClick: () => copyToClipboard(previewModalData.emailData.body)
+              },
+              React.createElement(Icons.Copy, null),
+              copiedNotification ? "Copied!" : "Copy Text"
+            ),
+            React.createElement(
+              "div",
+              { style: { display: "flex", gap: "8px" } },
+              React.createElement(
+                "a",
+                {
+                  href: previewModalData.emailData.gmailUrl,
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                  className: "btn-admin btn-admin-primary",
+                  style: { textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }
+                },
+                React.createElement(Icons.External, null),
+                "Open in Gmail"
+              ),
+              React.createElement(
+                "a",
+                {
+                  href: previewModalData.emailData.mailtoUrl,
+                  className: "btn-admin btn-admin-secondary",
+                  style: { textDecoration: "none", display: "flex", alignItems: "center", gap: "6px" }
+                },
+                React.createElement(Icons.Mail, null),
+                "Default Mail Client"
               )
             )
           )
