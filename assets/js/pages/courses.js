@@ -122,7 +122,7 @@ function CoursesHero() {
       ),
       React.createElement("div", { className: "c-hero-image reveal in" },
         React.createElement("img", {
-          src: cms.heroImage || "assets/img/pawpad/courses-cover-new.webp",
+          src: (cms.heroImage && !cms.heroImage.includes("courses-snapshot") && !cms.heroImage.includes("courses-cover-image")) ? cms.heroImage : "assets/img/pawpad/courses-cover-new.webp",
           alt: "Pawpad grooming course",
           fetchpriority: "high",
           decoding: "async",

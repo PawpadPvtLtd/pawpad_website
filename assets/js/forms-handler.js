@@ -59,7 +59,7 @@
           acknowledgments: acks
         };
 
-        let createdId = "APP-" + Math.floor(100000 + Math.random() * 900000);
+        let createdId = "APP - 001";
         if (window.PawpadApplicationsStore) {
           const created = window.PawpadApplicationsStore.submitApplication(appData);
           createdId = created ? created.id : createdId;
@@ -79,9 +79,10 @@
 
         const nextInput = form.querySelector('input[name="_next"]');
         const nextTarget = (nextInput && nextInput.value) ? nextInput.value : "success.html";
+        const encodedAppId = encodeURIComponent(createdId);
         const dest = nextTarget.includes("?") 
-          ? `${nextTarget}&app_id=${createdId}` 
-          : `${nextTarget}?app_id=${createdId}`;
+          ? `${nextTarget}&app_id=${encodedAppId}` 
+          : `${nextTarget}?app_id=${encodedAppId}`;
 
         const storeCoursesKey = window.PawpadContentStore && window.PawpadContentStore.get("courses")?.web3FormsAccessKey;
         const web3Key = (storeCoursesKey && storeCoursesKey !== "YOUR_ACCESS_KEY_HERE" && storeCoursesKey !== "ce70cafb-d84c-42f7-b57e-d320ff768866") 

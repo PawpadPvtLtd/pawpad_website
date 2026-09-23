@@ -5,83 +5,10 @@
 
 (function(window) {
   const STORAGE_KEY = "pawpad_course_applications_v1";
+  const SEQUENCE_KEY = "pawpad_course_application_sequence_v1";
 
-  const INITIAL_SEED_APPLICATIONS = [
-    {
-      id: "APP-829104",
-      courseKey: "pacgc",
-      courseName: "Pawpad Applied Canine & Feline Grooming Certification (PACGC)",
-      courseFee: "₹95,000",
-      createdAt: "2026-08-28T14:32:00.000Z",
-      status: "pending_review", // pending_review | interview_scheduled | approved | rejected | enrolled
-      interviewDate: "",
-      applicant: {
-        name: "Ananya Deshmukh",
-        phone: "+91 98451 23456",
-        email: "ananya.d@gmail.com",
-        city: "Bengaluru (Indiranagar)"
-      },
-      responses: {
-        why: "I have been rescuing street dogs for 4 years and want to open a dedicated fear-free grooming and rehabilitation sanctuary in East Bangalore. I want formal training in low-stress handling and cat scissoring.",
-        experience: "Completed basic voluntary bathing at a rescue center; familiar with reactive dog cues.",
-        handling: "I would never force or muzzle immediately. I pause, let the dog sniff the equipment, use high-value treats, and break the groom into short sessions.",
-        careerFit: "yes",
-        healthDisclosure: "None. Fit for lifting and extended standing."
-      },
-      acknowledgments: {
-        bothSpecies: true,
-        nailTrimDemo: true,
-        catClipGate: true,
-        foundationLevel: true,
-        examOptional: true,
-        feesDeposit: true
-      },
-      staffNotes: [
-        {
-          author: "System",
-          date: "2026-08-28T14:32:00.000Z",
-          text: "Application received via web portal."
-        }
-      ]
-    },
-    {
-      id: "APP-740192",
-      courseKey: "pcgpc",
-      courseName: "Pawpad Canine Grooming Practitioner Certificate (PCGPC)",
-      courseFee: "₹50,000",
-      createdAt: "2026-08-25T10:15:00.000Z",
-      status: "interview_scheduled",
-      interviewDate: "2026-09-03T11:00",
-      applicant: {
-        name: "Rohan Varma",
-        phone: "+91 97112 88990",
-        email: "rohan.v@outlook.com",
-        city: "Mysuru"
-      },
-      responses: {
-        why: "Transitioning careers from digital marketing into professional grooming. Looking to master scissoring techniques and clipper work.",
-        experience: "Completed Pawpad Canine Essentials introductory workshop last month.",
-        handling: "Observe body language for whale eye or lip licking, ease off pressure, use desensitization techniques.",
-        careerFit: "yes",
-        healthDisclosure: "Slight dust allergy, manages well with mask."
-      },
-      acknowledgments: {
-        bothSpecies: true,
-        nailTrimDemo: true,
-        catClipGate: true,
-        foundationLevel: true,
-        examOptional: true,
-        feesDeposit: true
-      },
-      staffNotes: [
-        {
-          author: "Admin",
-          date: "2026-08-26T09:30:00.000Z",
-          text: "Strong background and completed Essentials course. Video interview scheduled for Sept 3."
-        }
-      ]
-    }
-  ];
+  const INITIAL_SEED_APPLICATIONS = [];
+  const LEGACY_PLACEHOLDER_IDS = new Set(["APP-829104", "APP-740192"]);
 
   class ApplicationsStore {
     constructor() {
@@ -92,12 +19,21 @@
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter(app => !LEGACY_PLACEHOLDER_IDS.has(app.id));
+            if (filtered.length !== parsed.length) {
+              try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+              } catch (e) {}
+            }
+            return filtered;
+          }
         }
       } catch (e) {
         console.warn("PawpadApplicationsStore: Could not load applications", e);
       }
-      return JSON.parse(JSON.stringify(INITIAL_SEED_APPLICATIONS));
+      return [];
     }
 
     _save() {
@@ -109,6 +45,40 @@
       }
     }
 
+    getNextApplicationId() {
+      let maxNum = 0;
+      try {
+        const savedSeq = localStorage.getItem(SEQUENCE_KEY);
+        if (savedSeq) {
+          const parsed = parseInt(savedSeq, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            maxNum = Math.max(maxNum, parsed - 1);
+          }
+        }
+      } catch (e) {}
+
+      if (Array.isArray(this.applications)) {
+        for (const app of this.applications) {
+          if (app && typeof app.id === "string") {
+            const match = app.id.match(/^APP\s*-\s*(\d+)$/i);
+            if (match) {
+              const val = parseInt(match[1], 10);
+              if (!isNaN(val) && val < 100000 && val > maxNum) {
+                maxNum = val;
+              }
+            }
+          }
+        }
+      }
+
+      const nextNum = maxNum + 1;
+      try {
+        localStorage.setItem(SEQUENCE_KEY, String(nextNum + 1));
+      } catch (e) {}
+
+      return `APP - ${String(nextNum).padStart(3, "0")}`;
+    }
+
     getAll() {
       return [...this.applications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -118,7 +88,7 @@
     }
 
     submitApplication(formData) {
-      const id = "APP-" + Math.floor(100000 + Math.random() * 900000);
+      const id = this.getNextApplicationId();
       const newApp = {
         id: id,
         courseKey: formData.courseKey || "general",

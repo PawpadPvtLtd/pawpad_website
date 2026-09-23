@@ -917,7 +917,13 @@
                               setInterviewInput(app.interviewDate || "");
                             }
                           },
-                          "Inspect & Approve"
+                          app.status === "enrolled"
+                            ? "View Details"
+                            : app.status === "approved"
+                            ? "Review & Enroll"
+                            : app.status === "rejected"
+                            ? "View Record"
+                            : "Inspect & Approve"
                         ),
                         isDeclined &&
                         React.createElement(
@@ -1171,6 +1177,38 @@
                       },
                       "Preview / Resend"
                     )
+                  ),
+                selectedApp.status === "enrolled" &&
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        fontSize: "12px",
+                        padding: "6px 10px",
+                        background: "rgba(16, 185, 129, 0.1)",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px"
+                      }
+                    },
+                    React.createElement("span", { style: { fontWeight: "600", color: "var(--admin-success, #10b981)" } }, "Enrollment:"),
+                    React.createElement("span", null, "Deposit Confirmed & Enrolled"),
+                    React.createElement(
+                      "button",
+                      {
+                        className: "btn-admin btn-admin-secondary",
+                        style: { padding: "2px 8px", fontSize: "11px" },
+                        onClick: () => {
+                          if (window.PawpadApplicationsStore) {
+                            const preview = window.PawpadApplicationsStore.generateApprovalEmail(selectedApp);
+                            setPreviewModalData({ title: "Admission Confirmation Preview", emailData: preview });
+                          }
+                        }
+                      },
+                      "Admission Letter"
+                    )
                   )
               )
             ),
@@ -1249,79 +1287,131 @@
             )
           ),
 
-          // Modal Footer Actions (Approve & Send Email / Schedule & Send Email / Decline / Delete)
+          // Modal Footer Actions
           React.createElement(
             "div",
             { style: { padding: "18px 28px", borderTop: "1px solid var(--admin-border)", background: "var(--admin-sidebar)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" } },
 
-            // Left: Interview Scheduling with Auto-Email
-            React.createElement(
-              "div",
-              { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
-              React.createElement("span", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "Interview Date:"),
-              React.createElement("input", {
-                type: "datetime-local",
-                className: "input-field",
-                style: { width: "210px", padding: "6px 10px", fontSize: "12px" },
-                value: interviewInput,
-                onChange: (e) => setInterviewInput(e.target.value)
-              }),
-              React.createElement(
-                "button",
-                {
-                  className: "btn-admin btn-admin-primary",
-                  disabled: isSendingMail,
-                  style: { padding: "6px 14px", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" },
-                  onClick: handleScheduleInterview
-                },
-                React.createElement(Icons.Mail, null),
-                isSendingMail ? "Scheduling & Sending..." : "Schedule & Send Invite"
-              )
-            ),
+            // Left: Status context or Interview Scheduling
+            selectedApp.status === "enrolled"
+              ? React.createElement(
+                  "div",
+                  { style: { display: "flex", alignItems: "center", gap: "8px", color: "var(--admin-success, #10b981)", fontSize: "13px", fontWeight: "600" } },
+                  React.createElement(Icons.Check, null),
+                  "Student Enrolled — Admission & Seat Confirmed"
+                )
+              : selectedApp.status === "rejected"
+              ? React.createElement(
+                  "div",
+                  { style: { color: "var(--admin-danger, #f87171)", fontSize: "13px", fontWeight: "500" } },
+                  "Application status: Declined"
+                )
+              : selectedApp.status === "approved"
+              ? React.createElement(
+                  "div",
+                  { style: { color: "var(--admin-gold, #f59e0b)", fontSize: "13px", fontWeight: "500" } },
+                  "Application Approved · Awaiting fee deposit to confirm enrollment"
+                )
+              : React.createElement(
+                  "div",
+                  { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+                  React.createElement("span", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "Interview Date:"),
+                  React.createElement("input", {
+                    type: "datetime-local",
+                    className: "input-field",
+                    style: { width: "210px", padding: "6px 10px", fontSize: "12px" },
+                    value: interviewInput,
+                    onChange: (e) => setInterviewInput(e.target.value)
+                  }),
+                  React.createElement(
+                    "button",
+                    {
+                      className: "btn-admin btn-admin-primary",
+                      disabled: isSendingMail,
+                      style: { padding: "6px 14px", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" },
+                      onClick: handleScheduleInterview
+                    },
+                    React.createElement(Icons.Mail, null),
+                    isSendingMail ? "Scheduling & Sending..." : (selectedApp.interviewDate ? "Reschedule & Send Invite" : "Schedule & Send Invite")
+                  )
+                ),
 
-            // Right: Decline / Approve & Auto-Email / Confirm Enrolled
+            // Right: Contextual Action Buttons
             React.createElement(
               "div",
               { style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
+
+              // Rejected state actions
               selectedApp.status === "rejected" &&
-              React.createElement(
-                "button",
-                {
-                  className: "btn-admin btn-admin-danger",
-                  style: { padding: "10px 18px", display: "flex", alignItems: "center", gap: "6px" },
-                  onClick: () => handleDelete(selectedApp)
-                },
-                React.createElement(Icons.Trash, null),
-                " Delete Application"
-              ),
-              selectedApp.status !== "rejected" &&
-              React.createElement(
-                "button",
-                {
-                  className: "btn-admin btn-admin-danger",
-                  onClick: () => handleStatusChange(selectedApp.id, "rejected", "Application declined by admissions committee.")
-                },
-                "Decline"
-              ),
-              React.createElement(
-                "button",
-                {
-                  className: "btn-admin btn-admin-success",
-                  disabled: isSendingMail,
-                  style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px" },
-                  onClick: handleApproveApplication
-                },
-                React.createElement(Icons.Check, null),
-                isSendingMail ? "Approving & Sending..." : "✓ Approve & Send Confirmation"
-              ),
+                React.createElement(
+                  "button",
+                  {
+                    className: "btn-admin btn-admin-secondary",
+                    style: { padding: "10px 16px" },
+                    onClick: () => handleStatusChange(selectedApp.id, "pending_review", "Application reopened for review.")
+                  },
+                  "Reopen for Review"
+                ),
+              selectedApp.status === "rejected" &&
+                React.createElement(
+                  "button",
+                  {
+                    className: "btn-admin btn-admin-danger",
+                    style: { padding: "10px 18px", display: "flex", alignItems: "center", gap: "6px" },
+                    onClick: () => handleDelete(selectedApp)
+                  },
+                  React.createElement(Icons.Trash, null),
+                  " Delete Application"
+                ),
+
+              // Decline action (Only available if NOT rejected and NOT enrolled)
+              (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled" || selectedApp.status === "approved") &&
+                React.createElement(
+                  "button",
+                  {
+                    className: "btn-admin btn-admin-danger",
+                    style: { padding: "10px 16px" },
+                    onClick: () => handleStatusChange(selectedApp.id, "rejected", "Application declined by admissions committee.")
+                  },
+                  "Decline"
+                ),
+
+              // Approve action (Only available if pending_review or interview_scheduled)
+              (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled") &&
+                React.createElement(
+                  "button",
+                  {
+                    className: "btn-admin btn-admin-success",
+                    disabled: isSendingMail,
+                    style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px" },
+                    onClick: handleApproveApplication
+                  },
+                  React.createElement(Icons.Check, null),
+                  isSendingMail ? "Approving & Sending..." : "✓ Approve & Send Confirmation"
+                ),
+
+              // Confirm Enrolled (Only available when approved)
               selectedApp.status === "approved" &&
+                React.createElement(
+                  "button",
+                  {
+                    className: "btn-admin btn-admin-primary",
+                    style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px" },
+                    onClick: () => handleStatusChange(selectedApp.id, "enrolled", "Deposit received. Student successfully enrolled.")
+                  },
+                  React.createElement(Icons.Check, null),
+                  "Confirm Enrolled"
+                ),
+
+              // Close / Done button
               React.createElement(
                 "button",
                 {
-                  className: "btn-admin btn-admin-primary",
-                  onClick: () => handleStatusChange(selectedApp.id, "enrolled", "Deposit received. Student successfully enrolled.")
+                  className: "btn-admin btn-admin-secondary",
+                  style: { padding: "10px 18px" },
+                  onClick: () => setSelectedApp(null)
                 },
-                "Confirm Enrolled"
+                selectedApp.status === "enrolled" ? "Done" : "Close"
               )
             )
           )
@@ -2182,7 +2272,7 @@
             React.createElement("div", null, React.createElement("label", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "Lead Text"), React.createElement("textarea", { className: "input-field", value: formData.lead || "", onChange: (e) => updateField("lead", e.target.value) })),
             React.createElement(ImageUploadWidget, {
               label: "Hero Snapshot Image (WebP Auto-Converted)",
-              currentUrl: formData.heroImage || "",
+              currentUrl: (formData.heroImage && !formData.heroImage.includes("courses-snapshot") && !formData.heroImage.includes("courses-cover-image")) ? formData.heroImage : "assets/img/pawpad/courses-cover-new.webp",
               onSelectUrl: (newUrl) => updateField("heroImage", newUrl)
             })
           ),

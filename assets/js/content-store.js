@@ -926,7 +926,8 @@
             if (!obj || typeof obj !== "object") return;
             for (const k in obj) {
               if (typeof obj[k] === "string") {
-                if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
+                if (k === "heroImage" && obj[k].includes("courses-snapshot.webp")) obj[k] = "assets/img/pawpad/courses-cover-new.webp";
+                else if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
                 else if (obj[k].includes("studio-setup-overview-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-overview.webp";
                 else if (obj[k].includes("studio-setup-grooming-area-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-grooming-area.webp";
                 else if (obj[k].includes("studio-setup-hydraulic-table-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-hydraulic-table.webp";
@@ -938,6 +939,11 @@
           };
           cleanLegacyPaths(parsed);
           const merged = this._deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONTENT)), parsed);
+          if (merged && merged.courses) {
+            if (!merged.courses.heroImage || merged.courses.heroImage.includes("courses-snapshot") || merged.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
+              merged.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+            }
+          }
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
           } catch (_) {}
@@ -951,6 +957,9 @@
 
     _save() {
       try {
+        if (this.state && this.state.courses && this.state.courses.heroImage && (this.state.courses.heroImage.includes("courses-snapshot") || this.state.courses.heroImage.includes("courses-cover-image"))) {
+          this.state.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+        }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
         window.dispatchEvent(new CustomEvent("pawpad-content-updated", { detail: this.state }));
       } catch (err) {
@@ -986,7 +995,11 @@
 
     get(pageKey) {
       if (!pageKey) return this.state;
-      return this.state[pageKey] || DEFAULT_CONTENT[pageKey] || {};
+      const page = this.state[pageKey] || DEFAULT_CONTENT[pageKey] || {};
+      if (pageKey === "courses" && page.heroImage && (page.heroImage.includes("courses-snapshot") || page.heroImage.includes("courses-cover-image"))) {
+        page.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+      }
+      return page;
     }
 
     getAll() {
