@@ -45,10 +45,115 @@
       }
     }
 
-    getNextApplicationId() {
+    /**
+     * Extracts a clean uppercase abbreviation/key for a course (e.g. PCGEC, PFGEC, PACGC, CSM)
+     * Directly uses the Course Code / Key configured in the admin panel box.
+     */
+    getCourseAbbreviation(courseKeyOrName, courseData) {
+      const inputStr = String(courseKeyOrName || "").trim();
+
+      // 1. First & Top Priority: Match course in PawpadContentStore (Admin Panel configuration)
+      try {
+        const contentStore = window.PawpadContentStore;
+        if (contentStore && typeof contentStore.get === "function") {
+          const coursesConfig = contentStore.get("courses");
+          if (coursesConfig && Array.isArray(coursesConfig.courseList)) {
+            const targetKey = String(courseData?.courseKey || inputStr || "").trim().toLowerCase();
+            const targetName = String(courseData?.courseName || inputStr || "").trim().toLowerCase();
+            const targetEnroll = String(courseData?.enrollUrl || (typeof window !== "undefined" && window.location ? window.location.pathname : "")).trim().toLowerCase();
+
+            const found = coursesConfig.courseList.find((c) => {
+              if (!c) return false;
+              const cKey = (c.key || "").trim().toLowerCase();
+              const cTitle = (c.title || "").trim().toLowerCase();
+              const cEnroll = (c.enrollUrl || "").trim().toLowerCase();
+              const cKnowMore = (c.knowMoreUrl || "").trim().toLowerCase();
+
+              if (cKey && targetKey && (cKey === targetKey || targetKey.includes(cKey) || cKey.includes(targetKey.replace(/[^a-z0-9]/g, "")))) {
+                return true;
+              }
+              if (cEnroll && targetEnroll && (targetEnroll.includes(cEnroll) || cEnroll.includes(targetEnroll.split("/").pop()))) {
+                return true;
+              }
+              if (cKnowMore && targetEnroll && (targetEnroll.includes(cKnowMore) || cKnowMore.includes(targetEnroll.split("/").pop()))) {
+                return true;
+              }
+              if (cTitle && targetName && (cTitle === targetName || cTitle.includes(targetName) || targetName.includes(cTitle))) {
+                return true;
+              }
+              return false;
+            });
+
+            if (found) {
+              // Directly use the Course Code / Key entered by admin in the box
+              const adminBoxValue = found.key || found.code || found.shortCode;
+              if (adminBoxValue && typeof adminBoxValue === "string" && adminBoxValue.trim()) {
+                const clean = adminBoxValue.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+                if (clean.length >= 1) return clean;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      // 2. Explicit code/key passed in courseData
+      if (courseData && typeof courseData === "object") {
+        if (typeof courseData.courseCode === "string" && courseData.courseCode.trim()) {
+          return courseData.courseCode.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+        }
+        if (typeof courseData.code === "string" && courseData.code.trim()) {
+          return courseData.code.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+        }
+        if (typeof courseData.shortCode === "string" && courseData.shortCode.trim()) {
+          return courseData.shortCode.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+        }
+        if (typeof courseData.key === "string" && courseData.key.trim() && !courseData.key.startsWith("course-")) {
+          const cleanKey = courseData.key.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+          if (cleanKey.length >= 1) {
+            return cleanKey;
+          }
+        }
+      }
+
+      // 3. Check for parentheses in input string e.g. "Canine Grooming (PCGEC)"
+      const parenMatch = inputStr.match(/\(([A-Za-z0-9_\-]{2,10})\)/);
+      if (parenMatch) {
+        return parenMatch[1].toUpperCase();
+      }
+
+      // 4. Dot or separator syntax e.g. "Application · PCGEC" or "Booking · GSSC"
+      const dotMatch = inputStr.match(/[·\-\|]\s*([A-Za-z0-9_\-]{2,10})(?:\s*$|\s*[·\-\|])/);
+      if (dotMatch) {
+        return dotMatch[1].toUpperCase();
+      }
+
+      // 5. If input string itself is a clean short code (2 to 8 characters)
+      const cleanInput = inputStr.replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
+      if (cleanInput.length >= 2 && cleanInput.length <= 8 && !cleanInput.startsWith("COURSE")) {
+        return cleanInput;
+      }
+
+      // 6. Generate initials/acronym from words in course title (filtering out common filler words)
+      const stopWords = new Set(["AND", "&", "OF", "IN", "THE", "FOR", "ON", "A", "AN", "AT", "TO", "APPLICATION", "PROGRAMME", "PROGRAM", "COURSE"]);
+      const words = inputStr.split(/[\s\-_]+/).filter((w) => w.length > 0 && !stopWords.has(w.toUpperCase()));
+      if (words.length >= 2) {
+        const acronym = words.map((w) => w[0]).join("").toUpperCase();
+        if (acronym.length >= 2 && acronym.length <= 8) {
+          return acronym;
+        }
+      }
+
+      return cleanInput.slice(0, 6) || "APP";
+    }
+
+    getNextApplicationId(courseKeyOrName, courseData) {
+      const prefix = this.getCourseAbbreviation(courseKeyOrName, courseData) || "APP";
+      const safePrefix = prefix.replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase() || "APP";
+      const seqKey = `pawpad_course_seq_${safePrefix.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
+
       let maxNum = 0;
       try {
-        const savedSeq = localStorage.getItem(SEQUENCE_KEY);
+        const savedSeq = localStorage.getItem(seqKey);
         if (savedSeq) {
           const parsed = parseInt(savedSeq, 10);
           if (!isNaN(parsed) && parsed > 0) {
@@ -58,9 +163,11 @@
       } catch (e) {}
 
       if (Array.isArray(this.applications)) {
+        const escaped = safePrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(`^${escaped}\\s*-\\s*(\\d+)`, "i");
         for (const app of this.applications) {
           if (app && typeof app.id === "string") {
-            const match = app.id.match(/^APP\s*-\s*(\d+)$/i);
+            const match = app.id.match(pattern);
             if (match) {
               const val = parseInt(match[1], 10);
               if (!isNaN(val) && val < 100000 && val > maxNum) {
@@ -73,10 +180,10 @@
 
       const nextNum = maxNum + 1;
       try {
-        localStorage.setItem(SEQUENCE_KEY, String(nextNum + 1));
+        localStorage.setItem(seqKey, String(nextNum + 1));
       } catch (e) {}
 
-      return `APP - ${String(nextNum).padStart(3, "0")}`;
+      return `${safePrefix} - ${String(nextNum).padStart(3, "0")}`;
     }
 
     getAll() {
@@ -88,10 +195,13 @@
     }
 
     submitApplication(formData) {
-      const id = this.getNextApplicationId();
+      const courseKeyOrName = formData.courseCode || formData.courseKey || formData.courseName || "";
+      const prefix = this.getCourseAbbreviation(courseKeyOrName, formData);
+      const id = this.getNextApplicationId(courseKeyOrName, formData);
       const newApp = {
         id: id,
-        courseKey: formData.courseKey || "general",
+        courseKey: formData.courseKey || prefix.toLowerCase(),
+        courseCode: prefix,
         courseName: formData.courseName || "Pawpad Grooming Certification",
         courseFee: formData.courseFee || "₹95,000",
         createdAt: new Date().toISOString(),

@@ -2354,7 +2354,7 @@
                   onClick: () => {
                     const list = formData.courseList && Array.isArray(formData.courseList) ? [...formData.courseList] : [];
                     list.unshift({
-                      key: "course-" + Date.now(),
+                      key: "NAC",
                       cat: "Certification",
                       title: "New Academy Course",
                       price: "₹35,000",
@@ -2443,10 +2443,10 @@
                   React.createElement(
                     "div",
                     null,
-                    React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Course Code / Key"),
+                    React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Course Code / Abbreviation"),
                     React.createElement("input", {
                       className: "input-field",
-                      placeholder: "e.g. pacgc",
+                      placeholder: "e.g. PCGEC, PFGEC, CSM",
                       value: course.key || "",
                       onChange: (e) => {
                         const list = [...formData.courseList];

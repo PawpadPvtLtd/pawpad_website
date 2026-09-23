@@ -21,8 +21,34 @@
         const h1 = document.querySelector("h1");
         const eyebrow = document.querySelector(".eyebrow");
         const courseName = h1 ? h1.innerText.trim() : document.title.replace(" Application", "");
-        const courseKey = (eyebrow ? eyebrow.innerText : document.title).toLowerCase().replace(/[^a-z0-9]/g, "-");
         
+        let courseCode = "";
+        let courseKey = "";
+
+        // 1. Check eyebrow e.g. "Application · PCGEC"
+        if (eyebrow && eyebrow.innerText) {
+          const eyeMatch = eyebrow.innerText.match(/[·\-\|]\s*([A-Za-z0-9]+)/);
+          if (eyeMatch) courseCode = eyeMatch[1].trim().toUpperCase();
+        }
+
+        // 2. Check _subject hidden input e.g. "New PCGEC Application"
+        const subjInput = form.querySelector('input[name="_subject"]');
+        if (subjInput && subjInput.value) {
+          const subjMatch = subjInput.value.match(/New\s+([A-Za-z0-9]+)(?:\s+\(.*?\))?\s+Application/i);
+          if (subjMatch && !courseCode) courseCode = subjMatch[1].trim().toUpperCase();
+        }
+
+        // 3. Check document pathname e.g. "pawpad-application-pcgec.html"
+        const pathMatch = window.location.pathname.match(/pawpad-application-([a-z0-9\-]+)\.html/i);
+        if (pathMatch) {
+          courseKey = pathMatch[1].replace(/^consulting-/, "");
+          if (!courseCode) courseCode = courseKey.toUpperCase();
+        }
+
+        if (!courseKey) {
+          courseKey = (courseCode || (eyebrow ? eyebrow.innerText : document.title)).toLowerCase().replace(/[^a-z0-9]/g, "-");
+        }
+
         // Extract course fee if present in sub heading
         const sub = document.querySelector(".sub");
         let courseFee = "₹95,000";
@@ -45,6 +71,7 @@
 
         const appData = {
           courseKey: courseKey,
+          courseCode: courseCode,
           courseName: courseName,
           courseFee: courseFee,
           name: formData.get("name") || "",
@@ -59,11 +86,17 @@
           acknowledgments: acks
         };
 
-        let createdId = "APP - 001";
+        let createdId = "";
         if (window.PawpadApplicationsStore) {
           const created = window.PawpadApplicationsStore.submitApplication(appData);
-          createdId = created ? created.id : createdId;
+          createdId = created ? created.id : "";
           console.log("Pawpad: Application captured in local store with ID:", createdId);
+        }
+        if (!createdId) {
+          const prefix = window.PawpadApplicationsStore 
+            ? window.PawpadApplicationsStore.getCourseAbbreviation(courseCode || courseKey || courseName, appData)
+            : (courseCode || "APP").toUpperCase();
+          createdId = `${prefix} - 001`;
         }
 
         // Visual feedback on submit button

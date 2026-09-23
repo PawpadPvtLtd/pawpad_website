@@ -146,6 +146,28 @@ test.describe("Interactive Features & User Flows", () => {
       localStorage.setItem("pawpad_admin_auth_session", "authenticated");
       localStorage.setItem("pawpad_admin_auth_user", JSON.stringify({ email: "pawpadpetstylist@gmail.com", role: "owner" }));
       sessionStorage.setItem("pawpad_admin_auth_session", "authenticated");
+      localStorage.setItem("pawpad_course_applications_v1", JSON.stringify([
+        {
+          id: "PCGEC - 001",
+          courseKey: "pcgec",
+          courseName: "Pawpad Canine Grooming Essentials Certificate (PCGEC)",
+          courseFee: "₹30,000",
+          createdAt: new Date().toISOString(),
+          status: "pending_review",
+          interviewDate: "",
+          applicant: {
+            name: "Priya Sharma",
+            email: "priya.test@example.com",
+            phone: "+91 98765 43210",
+            city: "Bengaluru"
+          },
+          responses: {
+            why: "Passionate about dog grooming",
+            experience: "Beginner",
+            handling: "Calm and force-free"
+          }
+        }
+      ]));
     });
 
     await page.goto("/admin.html");
