@@ -126,18 +126,17 @@
       }
     ).catch(function () { });
 
-    var web3Key;
-    if (type === 'myotherapy') {
-      var myoKey = window.PawpadContentStore && window.PawpadContentStore.get('myotherapy') && window.PawpadContentStore.get('myotherapy').web3FormsAccessKey;
-      web3Key = (myoKey && myoKey !== 'YOUR_ACCESS_KEY_HERE' && myoKey !== 'a9a21b4b-47ee-4889-b709-9f101c59874d')
-        ? myoKey
-        : 'ce70cafb-d84c-42f7-b57e-d320ff768866';
-    } else {
-      var crsKey = window.PawpadContentStore && window.PawpadContentStore.get('courses') && window.PawpadContentStore.get('courses').web3FormsAccessKey;
-      web3Key = (crsKey && crsKey !== 'YOUR_ACCESS_KEY_HERE' && crsKey !== 'ce70cafb-d84c-42f7-b57e-d320ff768866')
-        ? crsKey
-        : 'a9a21b4b-47ee-4889-b709-9f101c59874d';
+    // Only send Web3Forms notification for form types that do not manage their own Web3Forms flow.
+    // Courses and Myotherapy pages have dedicated UI forms that handle Web3Forms submission with state and error handling.
+    if (type === 'courses' || type === 'myotherapy') {
+      return;
     }
+
+    var crsKey = window.PawpadContentStore && window.PawpadContentStore.get('courses') && window.PawpadContentStore.get('courses').web3FormsAccessKey;
+    var web3Key = (crsKey && crsKey !== 'YOUR_ACCESS_KEY_HERE' && crsKey !== 'ce70cafb-d84c-42f7-b57e-d320ff768866')
+      ? crsKey
+      : 'a9a21b4b-47ee-4889-b709-9f101c59874d';
+
     var web3Subject = (type === 'checkout')
       ? 'New Booking / Order Request: ' + (data.orderId || 'Direct Checkout') + ' (' + (rawName || 'Customer') + ')'
       : 'Pawpad Enquiry: ' + type.toUpperCase() + ' - ' + (rawName || 'Customer');
