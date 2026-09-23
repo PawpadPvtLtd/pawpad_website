@@ -12,18 +12,6 @@
     d: "M12 0L14.7 9.3L24 12L14.7 14.7L12 24L9.3 14.7L0 12L9.3 9.3L12 0Z"
   }));
 
-  const PinterestIcon = ({ size = 16, color = "currentColor", style }) => /* @__PURE__ */ React.createElement("svg", {
-    viewBox: "0 0 24 24",
-    width: size,
-    height: size,
-    fill: color,
-    stroke: "none",
-    style,
-    "aria-hidden": "true"
-  }, /* @__PURE__ */ React.createElement("path", {
-    d: "M12 0C5.37 0 0 5.37 0 12c0 5.08 3.15 9.42 7.62 11.17-.11-.95-.2-2.4.04-3.44.22-.94 1.4-5.95 1.4-5.95s-.36-.72-.36-1.78c0-1.66.96-2.9 2.16-2.9 1.02 0 1.51.77 1.51 1.68 0 1.03-.65 2.56-.99 3.98-.28 1.19.6 2.16 1.77 2.16 2.12 0 3.76-2.24 3.76-5.47 0-2.86-2.06-4.86-5-4.86-3.41 0-5.41 2.56-5.41 5.2 0 1.03.4 2.13.89 2.73.1.12.11.23.08.35-.09.37-.29 1.19-.33 1.35-.05.23-.18.28-.41.17-1.53-.71-2.49-2.94-2.49-4.73 0-3.86 2.81-7.4 8.09-7.4 4.25 0 7.55 3.03 7.55 7.08 0 4.22-2.66 7.62-6.36 7.62-1.24 0-2.41-.65-2.81-1.41l-.76 2.9c-.28 1.06-1.02 2.39-1.52 3.21 1.14.35 2.35.54 3.61.54 6.63 0 12-5.37 12-12S18.63 0 12 0z"
-  }));
-
   function ContactPage({ onBook }) {
     if (typeof useReveal === "function") {
       useReveal();
@@ -37,8 +25,7 @@
     const socials = cms.socials || {
       instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
       facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
-      twitter: "https://x.com/Pawpad_Blore",
-      pinterest: "https://pinterest.com"
+      twitter: "https://x.com/Pawpad_Blore"
     };
 
     return /* @__PURE__ */ React.createElement("div", { className: "contact-page-wrapper" },
@@ -199,14 +186,7 @@
                 rel: "noopener noreferrer",
                 className: "social-circle-btn",
                 "aria-label": "Twitter"
-              }, /* @__PURE__ */ React.createElement(TwitterIcon, { size: 20 })),
-              socials.pinterest && /* @__PURE__ */ React.createElement("a", {
-                href: socials.pinterest,
-                target: "_blank",
-                rel: "noopener noreferrer",
-                className: "social-circle-btn",
-                "aria-label": "Pinterest"
-              }, /* @__PURE__ */ React.createElement(PinterestIcon, { size: 20 }))
+              }, /* @__PURE__ */ React.createElement(TwitterIcon, { size: 20 }))
             )
           )
         )

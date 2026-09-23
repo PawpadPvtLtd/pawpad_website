@@ -86,7 +86,7 @@ function Hero({ onBook }) {
           /* @__PURE__ */ React.createElement("span", { className: "hero-title-accent" }, cms.heroTitleAccent || "& Holistic Petcare"), /* @__PURE__ */ React.createElement("br", null),
           cms.heroTitleEnd || "in Bangalore"
         ),
-        /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28 } }, cms.heroLead || "Calm, stress-free grooming, pet wellness therapy, boarding, and professional grooming courses — all designed with your pet's emotional wellbeing in mind."),
+        /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28 } }, cms.heroLead || "Calm, stress-free grooming, pet-wellness therapy, boarding, along with professional grooming courses, all designed keeping your pet's well-being in mind."),
         /* @__PURE__ */ React.createElement("p", { className: "hero-sub reveal in", style: { marginTop: 18, maxWidth: "48ch" } }, cms.heroSub || "Pawpad offers conscious pet grooming and wellness care designed around your pet's physical and emotional wellbeing. Instead of rushed grooming focused only on looks, we prioritise stress-free handling, coat health, skin care, and calm environments that support long-term comfort for dogs and cats alike.")
       ),
       /* @__PURE__ */ React.createElement("div", { className: "hero-image-wrap" },

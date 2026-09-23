@@ -27,7 +27,7 @@
       heroTitle2: "Grooming",
       heroTitleAccent: "& Holistic Petcare",
       heroTitleEnd: "in Bangalore",
-      heroLead: "Calm, stress-free grooming, pet wellness therapy, boarding, and professional grooming courses — all designed with your pet's emotional wellbeing in mind.",
+      heroLead: "Calm, stress-free grooming, pet-wellness therapy, boarding, along with professional grooming courses, all designed keeping your pet's well-being in mind.",
       heroSub: "Pawpad offers conscious pet grooming and wellness care designed around your pet's physical and emotional wellbeing. Instead of rushed grooming focused only on looks, we prioritise stress-free handling, coat health, skin care, and calm environments that support long-term comfort for dogs and cats alike.",
       heroImage: "assets/img/pawpad/hero-cover-bernese-cat.webp",
       stats: [
@@ -110,7 +110,7 @@
           { title: "Never rushed", body: "We space appointments so every pet gets the time they need. Volume isn't the metric — comfort is." },
           { title: "Listen first", body: "We read body language before we read calendars. A flick of an ear, a sigh, a shift in weight — it all matters." },
           { title: "No sedation", body: "Ever. Some pets need three visits before we touch a clipper. That's care, not a setback." },
-          { title: "Skilled with fearful & rescue dogs", body: "Years of rescue work mean we know how to meet fearful, overwhelmed, or unsocialised animals where they are." }
+          { title: "Skilled with fearful & rescue dogs", body: "Years of rescue work means we know how to meet scared, overwhelmed or unsocialised animals at their level of comfort without imposing" }
         ]
       },
       marqueeItems: ["conscious grooming", "calm handling", "no sedation", "streetie-friendly", "kalyan nagar", "since 2017", "made with care"]
@@ -135,8 +135,8 @@
           "For a long time, I was looking for something and didn't quite know what. I taught dance. I ran a clothing store. I got married and moved to London, where I worked at a bridal shop. Each thing was fine. None of it felt like mine.",
           "I grew up loving animals but had talked myself out of that path early — I was terrible at science, the formal routes felt out of reach, and so the dream stayed quietly in the background while I tried other things.",
           "Every morning on the way to work in London, I walked past a pet grooming studio. I'd slow down without meaning to, just watching the animals inside, the way someone was caring for them. Something about it stayed with me. I didn't do anything about it then. I just kept walking.",
-          "I came back to Bangalore pregnant with my son, and somewhere between the anticipation of a new baby and the uncertainty of what came next, that old feeling returned — the one from the London window. When my son was a little older and started going to Green Pocket, I noticed a boarding space right next door called Petstepin. I walked in one afternoon. And that was that.",
-          "I reached out to Ashita Mathew at Wags and Wiggles to do my certification. Balak, my husband, paid for the course without hesitation. He believed this was worth doing before I had fully convinced myself of it. When I was ready to start Pawpad in 2017, he funded that too. There would be no Pawpad without him, and I want to say that plainly.",
+          "I came back to Bangalore pregnant with my son, and somewhere between the anticipation of a new baby and the uncertainty of what came next, that old feeling returned — the one from the London window.",
+          "When my son was a little older and started going to Green Pocket, I noticed a boarding space right next door called Petstepin. I walked in one afternoon. And that was that. I reached out to Ashita Mathew at Wags and Wiggles to do my certification. Balak, my husband, paid for the course without hesitation. He believed this was worth doing before I had fully convinced myself of it. When I was ready to start Pawpad in 2017, he funded that too. There would be no Pawpad without him, and I want to say that plainly.",
           "It was at Wags and Wiggles that I first met Sindhoor Pangal. She ran her dog behaviour practice from the studio above — and what began as proximity became something much more important. Sindhoor became a mentor. Not just in the technical sense, but in the deeper one — the kind of mentor who makes space for your fears, who lets you speak the things you're not sure of yet, and who doesn't rush you past the uncertainty. Her thinking on animal behaviour and what dogs are actually communicating has shaped how I see every single animal that comes through Pawpad's door.",
           "That relationship has continued. I went on to study Canine 101 with BHARCS — Sindhoor's organisation — and the community there has become genuinely important to me. These are people who take animal psychology seriously, who are always learning, and who hold each other to a standard of care that I find both challenging and grounding.",
           "I spent two years working at Cessna before going out on my own — learning not just technique, but how to read an animal. How to tell the difference between a dog that's coping and one that's shutting down. How to make the whole experience feel less like something being done to them."
@@ -668,8 +668,7 @@
       socials: {
         instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
         facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
-        twitter: "https://twitter.com",
-        pinterest: "https://pinterest.com"
+        twitter: "https://twitter.com"
       }
     },
     studioSetup: {

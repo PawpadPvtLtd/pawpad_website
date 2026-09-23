@@ -338,14 +338,12 @@ const TESTIMONIALS = [
   {
     quote: "Thank you so much to you Leena and your incredible team for taking such good care of Maggie during her grooming session. Maggie is generally anxious during grooming and after trying several large chain groomers, Pawpad has been a saviour.",
     name: "Rithika Narayan",
-    pet: "Maggie",
-    img: "assets/img/8.webp"
+    pet: "Maggie"
   },
   {
     quote: "Leena is a very patient and considerate groomer who really cares for your pets. Talks to them soothingly and is very gentle with them. Small touches like covering pets ears with a small towel while blow drying make a world of difference. Highly recommend!",
     name: "Nisha Viswanathan",
-    pet: "Cat grooming client",
-    img: "assets/img/6.webp"
+    pet: "Cat grooming client"
   },
   {
     quote: "We take care of an abandoned 13-year-old Indie\u2013Poodle mix named Pepsi who lives near our apartment. When we first started looking after her, her coat was in a terrible condition with severe matting, cuts, and rashes. We began taking her to Pawpad, run by Leena Munikempanna, and the experience has been incredible. Leena and her team handled Pepsi with so much patience and care, and over a few grooming sessions they completely brought her coat back to life. What touched us even more was Leena's kindness \u2014 she generously offered us a discount on grooming sessions so we could continue bringing Pepsi in regularly. It's rare to find businesses that care this deeply not just for pets, but also for community animals. Highly recommend Pawpad to anyone looking for thoughtful, skilled, and compassionate grooming for their pets. \u{1F43E}",
@@ -361,6 +359,11 @@ const TESTIMONIALS = [
     quote: "Took my four cats for a spa today and I'm really happy with the service! All of them came back looking clean, relaxed, and super happy. The staff was gentle and caring throughout. Special thanks to Leena for doing such a wonderful job she handled them with so much love and patience. Highly recommend this place for pet grooming!",
     name: "Lubna H.K",
     pet: "Cat grooming client"
+  },
+  {
+    quote: "Pawpad in Kamanahalli is one of the best grooming places I\u2019ve been to\u2014mainly because they truly understand the assignment. I have a cocker spaniel who needs extra care due to her long coat, and Lena and her team understand her needs perfectly. I usually share reference pictures, and they follow the instructions exactly as requested. My dog always comes back happy, looking fresh, smelling great, and groomed beautifully. I would highly recommend Pawpad to any pet parent looking for a stress-free, hassle-free grooming experience where their dog is genuinely well cared for.",
+    name: "Thanky Mathew",
+    pet: "Cocker Spaniels"
   }
 ];
 function Testimonials() {
