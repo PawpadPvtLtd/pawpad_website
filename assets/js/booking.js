@@ -9,21 +9,6 @@ const PET_TYPES = ["Dog", "Cat"];
 const COAT_TYPES = ["Short", "Medium", "Long"];
 const SIZES = ["Small (<10kg)", "Medium (10\u201325kg)", "Large (25kg+)"];
 const TEMPERAMENTS = ["Chill", "Excitable", "Anxious", "First time"];
-function toLocalISODate(d) {
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function generateDates() {
-  const days = [];
-  const today = /* @__PURE__ */ new Date();
-  for (let i = 1; i <= 14; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push(d);
-  }
-  return days;
-}
-const TIMES = ["11:00", "12:00", "13:00", "16:00", "17:00", "18:00"];
 function BookingModal({ open, onClose, initialService }) {
   const [step, setStep] = useStateB(0);
   const [data, setData] = useStateB({
@@ -44,8 +29,13 @@ function BookingModal({ open, onClose, initialService }) {
     email: "",
     phone: ""
   });
+  const [placing, setPlacing] = useStateB(false);
+  const [bookingError, setBookingError] = useStateB("");
+  const [availability, reloadAvailability] = typeof useSlotAvailability === "function" ? useSlotAvailability(open && step === 2) : [null, () => {}];
   useEffectB(() => {
     if (open) {
+      setBookingError("");
+      setPlacing(false);
       setStep(initialService === "courses" ? 10 : initialService === "boarding" ? 11 : 0);
       setData((d) => ({ ...d, service: initialService || d.service }));
       document.body.style.overflow = "hidden";
@@ -88,14 +78,44 @@ function BookingModal({ open, onClose, initialService }) {
       upd("service", v);
       setTimeout(() => setStep(v === "courses" ? 10 : v === "boarding" ? 11 : 1), 200);
     }
-  }), step === 1 && /* @__PURE__ */ React.createElement(StepPet, { data, upd }), step === 2 && /* @__PURE__ */ React.createElement(StepWhen, { data, upd }), step === 3 && /* @__PURE__ */ React.createElement(StepYou, { data, upd }), step === 10 && /* @__PURE__ */ React.createElement(StepCourseEnquiry, { data, upd }), step === 11 && /* @__PURE__ */ React.createElement(StepBoardingEnquiry, { data, upd }), step === 4 && /* @__PURE__ */ React.createElement(StepDone, { data, onClose })), step !== 4 && /* @__PURE__ */ React.createElement("div", { className: "booking-footer" }, /* @__PURE__ */ React.createElement("button", { className: "btn btn-ghost", onClick: prev, disabled: step === 0, style: { opacity: step === 0 ? 0.3 : 1 } }, "\u2190 Back"), /* @__PURE__ */ React.createElement("div", { className: "booking-foot-spacer" }), step === 3 || step === 10 || step === 11 ? /* @__PURE__ */ React.createElement("button", {
-    className: "btn btn-primary", onClick: () => {
-      if (!canNext()) return;
+  }), step === 1 && /* @__PURE__ */ React.createElement(StepPet, { data, upd }), step === 2 && /* @__PURE__ */ React.createElement(StepSlot, { data, upd, availability, onRetry: () => reloadAvailability(true), error: bookingError }), step === 3 && /* @__PURE__ */ React.createElement(StepYou, { data, upd }), step === 10 && /* @__PURE__ */ React.createElement(StepCourseEnquiry, { data, upd }), step === 11 && /* @__PURE__ */ React.createElement(StepBoardingEnquiry, { data, upd }), step === 4 && /* @__PURE__ */ React.createElement(StepDone, { data, onClose })), step !== 4 && /* @__PURE__ */ React.createElement("div", { className: "booking-footer" }, /* @__PURE__ */ React.createElement("button", { className: "btn btn-ghost", onClick: prev, disabled: step === 0, style: { opacity: step === 0 ? 0.3 : 1 } }, "\u2190 Back"), /* @__PURE__ */ React.createElement("div", { className: "booking-foot-spacer" }), step === 3 || step === 10 || step === 11 ? /* @__PURE__ */ React.createElement("button", {
+    className: "btn btn-primary", onClick: async () => {
+      if (!canNext() || placing) return;
       const type = step === 10 ? "courses" : step === 11 ? "boarding" : data.service || "grooming";
-      window.hsSubmit && window.hsSubmit(type, data);
+      let sent = data;
+      if (type !== "courses" && type !== "boarding") {
+        // Reserve the real slot on the Pawpad server before telling the studio.
+        setPlacing(true);
+        setBookingError("");
+        const result = await PawpadSlots.book({
+          customer: { name: data.name, email: data.email, phone: data.phone },
+          notes: data.notes,
+          pets: [{
+            serviceId: bookingServiceId(data.service),
+            serviceTitle: bookingServiceTitle(data.service),
+            date: data.date,
+            time: data.time,
+            pet: { name: data.petName, type: data.petType, breed: data.breed, age: data.age, coat: data.coat, size: data.size, temperament: data.temperament, healthNotes: data.notes }
+          }],
+          botcheck: ""
+        });
+        setPlacing(false);
+        if (!result.ok) {
+          setBookingError(result.error);
+          if (result.taken && result.taken.length) {
+            upd("time", null);
+            reloadAvailability(true);
+          }
+          setStep(2);
+          return;
+        }
+        sent = { ...data, bookingRef: result.ref, bookingLabel: result.bookings[0] && result.bookings[0].label, emailSent: result.emailSent };
+        setData(sent);
+      }
+      window.hsSubmit && window.hsSubmit(type, sent);
       setStep(4);
-    }, disabled: !canNext(), style: { opacity: canNext() ? 1 : 0.4 }
-  }, step === 3 ? "Confirm booking" : "Send enquiry", " ", /* @__PURE__ */ React.createElement(Arrow, null)) : /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary", onClick: next, disabled: !canNext(), style: { opacity: canNext() ? 1 : 0.4 } }, "Continue ", /* @__PURE__ */ React.createElement(Arrow, null)))), /* @__PURE__ */ React.createElement("style", null, `
+    }, disabled: !canNext() || placing, style: { opacity: canNext() && !placing ? 1 : 0.4 }
+  }, placing ? "Reserving your time…" : step === 3 ? "Confirm booking" : "Send enquiry", " ", /* @__PURE__ */ React.createElement(Arrow, null)) : /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary", onClick: next, disabled: !canNext(), style: { opacity: canNext() ? 1 : 0.4 } }, "Continue ", /* @__PURE__ */ React.createElement(Arrow, null)))), /* @__PURE__ */ React.createElement("style", null, `
         .booking-modal {
           position: fixed; inset: 0; z-index: 100;
           display: flex; align-items: center; justify-content: center;
@@ -225,65 +245,32 @@ function StepService({ data, upd, onPick }) {
 function StepPet({ data, upd }) {
   return /* @__PURE__ */ React.createElement("div", { className: "step" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Step 02 \xB7 Your pet"), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title" }, "Tell us about them"), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub" }, "The more we know, the better we can plan their session."), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("label", null, "Pet type"), /* @__PURE__ */ React.createElement("div", { className: "b-pill-row" }, PET_TYPES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t, className: "b-pill " + (data.petType === t ? "on" : ""), onClick: () => upd("petType", t) }, t)))), /* @__PURE__ */ React.createElement("div", { className: "b-grid-2", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Name"), /* @__PURE__ */ React.createElement("input", { value: data.petName, onChange: (e) => upd("petName", e.target.value), placeholder: "e.g. Biscuit" })), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Breed (or 'indie')"), /* @__PURE__ */ React.createElement("input", { value: data.breed, onChange: (e) => upd("breed", e.target.value), placeholder: "e.g. Indie / Golden Retriever" }))), /* @__PURE__ */ React.createElement("div", { className: "b-grid-2", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Age"), /* @__PURE__ */ React.createElement("input", { value: data.age, onChange: (e) => upd("age", e.target.value), placeholder: "e.g. 3 years" })), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Coat"), /* @__PURE__ */ React.createElement("div", { className: "b-pill-row" }, COAT_TYPES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t, className: "b-pill " + (data.coat === t ? "on" : ""), onClick: () => upd("coat", t) }, t))))), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("label", null, "Size"), /* @__PURE__ */ React.createElement("div", { className: "b-pill-row" }, SIZES.map((t) => /* @__PURE__ */ React.createElement("button", { key: t, className: "b-pill " + (data.size === t ? "on" : ""), onClick: () => upd("size", t) }, t)))), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("label", null, "Temperament during grooming"), /* @__PURE__ */ React.createElement("div", { className: "b-pill-row" }, TEMPERAMENTS.map((t) => /* @__PURE__ */ React.createElement("button", { key: t, className: "b-pill " + (data.temperament === t ? "on" : ""), onClick: () => upd("temperament", t) }, t)))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Anything we should know?"), /* @__PURE__ */ React.createElement("textarea", { rows: "3", value: data.notes, onChange: (e) => upd("notes", e.target.value), placeholder: "Past grooming trauma, ticklish spots, recent vet visits, allergies..." })));
 }
-function StepWhen({ data, upd }) {
-  const dates = generateDates();
-  const fmt = (d, opts) => d.toLocaleDateString("en-IN", opts);
-  return /* @__PURE__ */ React.createElement("div", { className: "step" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Step 03 \xB7 Date & time"), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title" }, "When works for you?"), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub" }, "We space appointments out. If your slot is full, the next available one is just a day away."), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 24 } }, /* @__PURE__ */ React.createElement("label", null, "Pick a date"), /* @__PURE__ */ React.createElement("div", { className: "b-date-strip" }, dates.map((d, i) => {
-    const iso = toLocalISODate(d);
-    const isOn = data.date === iso;
-    const isFull = d.getDay() === 4;
-    return /* @__PURE__ */ React.createElement("button", { key: iso, className: "b-date " + (isOn ? "on" : "") + (isFull ? " full" : ""), onClick: () => !isFull && upd("date", iso), disabled: isFull }, /* @__PURE__ */ React.createElement("span", { className: "b-date-dow" }, fmt(d, { weekday: "short" })), /* @__PURE__ */ React.createElement("span", { className: "b-date-day" }, d.getDate()), /* @__PURE__ */ React.createElement("span", { className: "b-date-mo" }, fmt(d, { month: "short" })), isFull && /* @__PURE__ */ React.createElement("span", { className: "b-date-full" }, "Closed"));
-  }))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Pick a time"), /* @__PURE__ */ React.createElement("div", { className: "b-time-grid" }, TIMES.map((t) => {
-    const isOn = data.time === t;
-    return /* @__PURE__ */ React.createElement("button", { key: t, className: "b-time " + (isOn ? "on" : ""), onClick: () => upd("time", t) }, t);
-  }))), /* @__PURE__ */ React.createElement("style", null, `
-        .b-date-strip {
-          display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 14px;
-          scroll-snap-type: x mandatory;
-        }
-        .b-date {
-          flex: 0 0 80px; padding: 14px 0;
-          background: var(--white);
-          border: 1px solid color-mix(in oklab, var(--ink), transparent 88%);
-          border-radius: 14px;
-          display: flex; flex-direction: column; align-items: center; gap: 2px;
-          font-family: var(--f-body); color: var(--ink);
-          transition: all var(--t-fast) var(--ease);
-          scroll-snap-align: start; position: relative; cursor: pointer;
-        }
-        body[data-palette="dark"] .b-date { background: color-mix(in oklab, var(--champagne), black 5%); }
-        .b-date:hover:not(:disabled) { border-color: var(--driftwood); transform: translateY(-2px); }
-        .b-date.on { background: var(--ink); color: var(--cream-bg); border-color: var(--ink); }
-        .b-date.full { opacity: .4; cursor: not-allowed; }
-        .b-date-dow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-mute); }
-        .b-date.on .b-date-dow { color: var(--champagne); }
-        .b-date-day { font-family: var(--f-display); font-size: 26px; line-height: 1; }
-        .b-date-mo { font-size: 11px; color: var(--ink-mute); }
-        .b-date.on .b-date-mo { color: var(--champagne); }
-        .b-date-full { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); margin-top: 2px; }
-        .b-time-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-        .b-time {
-          padding: 14px 0; background: var(--white);
-          border: 1px solid color-mix(in oklab, var(--ink), transparent 88%);
-          border-radius: 12px;
-          font-family: var(--f-display); font-size: 18px;
-          transition: all var(--t-fast) var(--ease); color: var(--ink); cursor: pointer;
-          display: flex; flex-direction: column; align-items: center; gap: 2px;
-        }
-        body[data-palette="dark"] .b-time { background: color-mix(in oklab, var(--champagne), black 5%); }
-        .b-time:hover:not(:disabled) { border-color: var(--driftwood); transform: translateY(-2px); }
-        .b-time.on { background: var(--driftwood); color: var(--white); border-color: var(--driftwood); }
-        .b-time.full { opacity: .35; cursor: not-allowed; }
-        .b-time span { font-family: var(--f-body); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-mute); }
-        @media (max-width: 700px) {
-          .b-time-grid { grid-template-columns: repeat(3, 1fr); }
-          .b-date { flex: 0 0 72px; }
-        }
-      `));
+// The exact grooming service when one was chosen (e.g. from the grooming page), else "choose at the studio".
+function bookingServiceId(service) {
+  return service && service !== "grooming" ? service : UNSPECIFIED_GROOMING_SERVICE;
+}
+function bookingServiceTitle(service) {
+  const item = typeof CART_CATALOG !== "undefined" ? CART_CATALOG.find((c) => c.id === service) : null;
+  return item ? item.title : "Grooming (service chosen at the studio)";
+}
+
+// Step 3 for grooming: only free studio slots (see booking-slots.js).
+function StepSlot({ data, upd, availability, onRetry, error }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "step" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Step 03 \xB7 Date & time"), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title" }, "When works ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "for you?")), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub" }, "Only free times are shown. Your time is reserved as soon as you confirm. Closed on Thursdays."), error && /* @__PURE__ */ React.createElement("div", { className: "slot-status slot-error", role: "alert", style: { marginBottom: 16 } }, error), /* @__PURE__ */ React.createElement(SlotPicker, {
+    availability,
+    serviceId: bookingServiceId(data.service),
+    value: { date: data.date, time: data.time },
+    onChange: (choice) => {
+      upd("date", choice.date);
+      upd("time", choice.time);
+    },
+    excluded: [],
+    onRetry
+  }));
 }
 function StepYou({ data, upd }) {
   var _a;
-  return /* @__PURE__ */ React.createElement("div", { className: "step" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Step 04 \xB7 Your details"), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title" }, "Last bit Promise"), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub" }, "We'll send confirmation by WhatsApp and email."), /* @__PURE__ */ React.createElement("div", { className: "b-grid-2", style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Your name"), /* @__PURE__ */ React.createElement("input", { value: data.name, onChange: (e) => upd("name", e.target.value), placeholder: "e.g. Anjali Rao" })), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Phone (WhatsApp)"), /* @__PURE__ */ React.createElement("input", { type: "tel", value: data.phone, onChange: (e) => upd("phone", e.target.value), placeholder: "+91 98765 43210" }))), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("label", null, "Email"), /* @__PURE__ */ React.createElement("input", { type: "email", value: data.email, onChange: (e) => upd("email", e.target.value), placeholder: "you@example.com" })), /* @__PURE__ */ React.createElement("div", { className: "booking-summary" }, /* @__PURE__ */ React.createElement("h4", null, "Booking summary"), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "Service"), /* @__PURE__ */ React.createElement("dd", null, ((_a = BOOKING_SERVICES.find((s) => s.key === data.service)) == null ? void 0 : _a.title) || "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "Pet"), /* @__PURE__ */ React.createElement("dd", null, data.petName || "\u2014", " ", data.breed ? `\xB7 ${data.breed}` : "")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "When"), /* @__PURE__ */ React.createElement("dd", null, data.date ? new Date(data.date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" }) : "\u2014", " ", data.time ? `\xB7 ${data.time}` : "")))), /* @__PURE__ */ React.createElement("style", null, `
+  return /* @__PURE__ */ React.createElement("div", { className: "step" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Step 04 \xB7 Your details"), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title" }, "Last bit Promise"), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub" }, "We'll send confirmation by WhatsApp and email."), /* @__PURE__ */ React.createElement("div", { className: "b-grid-2", style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Your name"), /* @__PURE__ */ React.createElement("input", { value: data.name, onChange: (e) => upd("name", e.target.value), placeholder: "e.g. Anjali Rao" })), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, "Phone (WhatsApp)"), /* @__PURE__ */ React.createElement("input", { type: "tel", value: data.phone, onChange: (e) => upd("phone", e.target.value), placeholder: "+91 98765 43210" }))), /* @__PURE__ */ React.createElement("div", { className: "field", style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("label", null, "Email"), /* @__PURE__ */ React.createElement("input", { type: "email", value: data.email, onChange: (e) => upd("email", e.target.value), placeholder: "you@example.com" })), /* @__PURE__ */ React.createElement("div", { className: "booking-summary" }, /* @__PURE__ */ React.createElement("h4", null, "Booking summary"), /* @__PURE__ */ React.createElement("dl", null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "Service"), /* @__PURE__ */ React.createElement("dd", null, ((_a = BOOKING_SERVICES.find((s) => s.key === data.service)) == null ? void 0 : _a.title) || "\u2014")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "Pet"), /* @__PURE__ */ React.createElement("dd", null, data.petName || "\u2014", " ", data.breed ? `\xB7 ${data.breed}` : "")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("dt", null, "When"), /* @__PURE__ */ React.createElement("dd", null, data.date ? new Date(data.date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" }) : "\u2014", " ", data.time ? `\xB7 ${typeof PawpadSlots !== "undefined" ? PawpadSlots.formatTime(data.time) : data.time}` : "")))), /* @__PURE__ */ React.createElement("style", null, `
         .booking-summary {
           margin-top: 16px; padding: 22px 24px;
           background: var(--champagne-soft); border-radius: 16px;
@@ -296,7 +283,7 @@ function StepYou({ data, upd }) {
       `));
 }
 function StepDone({ data, onClose }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "step done-step" }, /* @__PURE__ */ React.createElement("div", { className: "done-paw-burst" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 48, color: "var(--driftwood)" }), /* @__PURE__ */ React.createElement("span", { className: "ring r1" }), /* @__PURE__ */ React.createElement("span", { className: "ring r2" }), /* @__PURE__ */ React.createElement("span", { className: "ring r3" })), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title", style: { textAlign: "center" } }, "Sent ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "We'll be in touch")), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub", style: { textAlign: "center", maxWidth: "48ch", margin: "0 auto 32px" } }, "Your request is in. We'll confirm by WhatsApp within a few hours, usually faster. Anything urgent, give us a call."), /* @__PURE__ */ React.createElement("div", { className: "done-card" }, /* @__PURE__ */ React.createElement("div", { className: "done-paw" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 20, color: "var(--driftwood)" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Reference"), /* @__PURE__ */ React.createElement("h3", { style: { fontFamily: "var(--f-display)", fontSize: 28, margin: "4px 0 0" } }, "PP-", Date.now().toString().slice(-6))), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right", borderLeft: "1px solid color-mix(in oklab, var(--ink), transparent 88%)", paddingLeft: 24 } }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow", style: { justifyContent: "flex-end" } }, "Booked for"), /* @__PURE__ */ React.createElement("p", { style: { margin: "4px 0 0", fontFamily: "var(--f-display)", fontSize: 18 } }, data.date ? new Date(data.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "\u2014", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--driftwood)" } }, data.time)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 12, marginTop: 36 } }, /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close ", /* @__PURE__ */ React.createElement(Arrow, null)), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost", href: "https://wa.me/919845001809", target: "_blank", rel: "noopener" }, "Open WhatsApp ", /* @__PURE__ */ React.createElement(Arrow, null))), /* @__PURE__ */ React.createElement("style", null, `
+  return /* @__PURE__ */ React.createElement("div", { className: "step done-step" }, /* @__PURE__ */ React.createElement("div", { className: "done-paw-burst" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 48, color: "var(--driftwood)" }), /* @__PURE__ */ React.createElement("span", { className: "ring r1" }), /* @__PURE__ */ React.createElement("span", { className: "ring r2" }), /* @__PURE__ */ React.createElement("span", { className: "ring r3" })), /* @__PURE__ */ React.createElement("h2", { className: "b-step-title", style: { textAlign: "center" } }, "Sent ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "We'll be in touch")), /* @__PURE__ */ React.createElement("p", { className: "b-step-sub", style: { textAlign: "center", maxWidth: "48ch", margin: "0 auto 32px" } }, data.bookingRef ? "Your grooming time is reserved and a confirmation email is on its way. Payment is at the studio. Need to change it? WhatsApp us." : "Your request is in. We'll confirm by WhatsApp within a few hours, usually faster. Anything urgent, give us a call."), /* @__PURE__ */ React.createElement("div", { className: "done-card" }, /* @__PURE__ */ React.createElement("div", { className: "done-paw" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 20, color: "var(--driftwood)" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Reference"), /* @__PURE__ */ React.createElement("h3", { style: { fontFamily: "var(--f-display)", fontSize: 28, margin: "4px 0 0" } }, data.bookingRef || "PP-" + Date.now().toString().slice(-6))), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right", borderLeft: "1px solid color-mix(in oklab, var(--ink), transparent 88%)", paddingLeft: 24 } }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow", style: { justifyContent: "flex-end" } }, "Booked for"), /* @__PURE__ */ React.createElement("p", { style: { margin: "4px 0 0", fontFamily: "var(--f-display)", fontSize: 18 } }, data.date ? new Date(data.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "\u2014", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--driftwood)" } }, data.bookingRef && typeof PawpadSlots !== "undefined" ? PawpadSlots.formatTime(data.time) : data.time)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "center", gap: 12, marginTop: 36 } }, /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary", onClick: onClose }, "Close ", /* @__PURE__ */ React.createElement(Arrow, null)), /* @__PURE__ */ React.createElement("a", { className: "btn btn-ghost", href: "https://wa.me/919845001809", target: "_blank", rel: "noopener" }, "Open WhatsApp ", /* @__PURE__ */ React.createElement(Arrow, null))), /* @__PURE__ */ React.createElement("style", null, `
         .done-step { padding: 32px 0; }
         .done-paw-burst {
           position: relative; width: 120px; height: 120px;

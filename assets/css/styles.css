@@ -2076,3 +2076,18 @@ body[data-palette="dark"] .checkout-stepper {
     grid-template-columns: 1fr;
   }
 }
+/* Grooming slot booking (booking-slots.js) */
+.slot-status {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--champagne, #f3e9dc), white 30%);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.slot-status.slot-error {
+  background: #fbe9e7;
+  color: #8a2a1b;
+}
+.date-chip-grid .date-chip.closed .d-closed {
+  font-size: 10px;
+}

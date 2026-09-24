@@ -2,8 +2,10 @@
 /**
  * Pawpad API — https://api.pawpad.in/index.php?action=<name>
  *
- * Public:  health (GET), get_content (GET or POST), submit_application
+ * Public:  health (GET), get_content (GET or POST), submit_application,
+ *          booking_availability (GET or POST), create_booking
  * Admin:   login, logout, me, change_password,
+ *          list_bookings, cancel_booking, block_slot, unblock_slot,
  *          list_applications, update_application, delete_applications,
  *          save_content, upload_file, list_uploads, delete_upload,
  *          list_admins, add_admin, remove_admin (owner only: add/remove)
@@ -22,6 +24,8 @@ require __DIR__ . '/lib/applications.php';
 require __DIR__ . '/lib/content.php';
 require __DIR__ . '/lib/uploads.php';
 require __DIR__ . '/lib/mailer.php';
+require __DIR__ . '/lib/caldav.php';
+require __DIR__ . '/lib/bookings.php';
 
 apply_security_headers();
 apply_cors();
@@ -37,18 +41,22 @@ try {
 }
 
 if ($action === 'health') {
-    send_json(['ok' => true, 'database' => true, 'email' => mail_configured()]);
+    send_json([
+        'ok' => true,
+        'database' => true,
+        'email' => mail_configured(),
+        'bookingEmail' => mail_configured('info'),
+        'calendar' => caldav_configured(),
+    ]);
 }
-if ($action === 'get_content' && $method === 'GET') {
-    send_json(['ok' => true] + get_content());
-}
-
-if ($method !== 'POST') {
+// Public reads may use a plain GET (no CORS preflight for visitors).
+$publicGet = ['get_content', 'booking_availability'];
+if ($method !== 'POST' && !($method === 'GET' && in_array($action, $publicGet, true))) {
     json_error('Use POST.', 405);
 }
 
 // Uploads carry a whole file, so they may be bigger than other requests.
-$input = request_json($action === 'upload_file' ? 8000000 : 200000);
+$input = $method === 'POST' ? request_json($action === 'upload_file' ? 8000000 : 200000) : [];
 
 try {
     switch ($action) {
@@ -80,6 +88,26 @@ try {
         case 'delete_applications':
             require_admin();
             send_json(['ok' => true] + delete_applications($input));
+            break;
+        case 'booking_availability':
+            send_json(['ok' => true] + booking_availability());
+            break;
+        case 'create_booking':
+            send_json(['ok' => true] + create_booking($input), 201);
+            break;
+        case 'list_bookings':
+            require_admin();
+            send_json(['ok' => true] + list_bookings($input));
+            break;
+        case 'cancel_booking':
+            send_json(['ok' => true] + cancel_booking(require_admin(), $input));
+            break;
+        case 'block_slot':
+            send_json(['ok' => true] + block_slot(require_admin(), $input));
+            break;
+        case 'unblock_slot':
+            require_admin();
+            send_json(['ok' => true] + unblock_slot($input));
             break;
         case 'save_content':
             send_json(['ok' => true] + save_content(require_admin(), $input));

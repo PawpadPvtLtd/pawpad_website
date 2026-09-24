@@ -41,6 +41,17 @@ return [
     // How long an admin stays signed in, in hours.
     'session_hours' => 12,
 
+    // Grooming bookings: the info@pawpad.in mailbox sends confirmations, and its
+    // calendar (cPanel "Calendars and Contacts") holds every booking.
+    // Type the info@ mailbox password here on the server only.
+    'info_email'    => 'info@pawpad.in',
+    'info_password' => '',
+    // Copy the exact "Calendar URL" from cPanel -> Calendars and Contacts
+    // Configuration if it differs from this one.
+    'caldav_calendar_url' => 'https://cpcalendars.pawpad.in:2080/calendars/info@pawpad.in/calendar',
+    'booking_days_ahead'  => 30,   // customers can book tomorrow up to this many days ahead
+    'booking_rate_limit_per_hour' => 20, // bookings from one network per hour (stops spam)
+
     // Admin uploads (images and PDFs) are saved in the uploads/ folder.
     // The hosting has 1 GB in total, so uploads are capped well below that.
     'public_base_url'     => 'https://api.pawpad.in',

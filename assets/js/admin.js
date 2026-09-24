@@ -4182,6 +4182,184 @@
   }
 
   // -------------------------------------------------------------
+  // GROOMING BOOKINGS TAB (slots from the Pawpad server + info@ calendar)
+  // -------------------------------------------------------------
+  function localDateString(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function shiftDate(dateStr, days) {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return localDateString(new Date(y, m - 1, d + days));
+  }
+
+  function formatSlotTime(time) {
+    const [h, m] = String(time).split(":").map(Number);
+    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  }
+
+  function BookingsTab() {
+    const [date, setDate] = useState(() => localDateString(new Date()));
+    const [day, setDay] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [notice, setNotice] = useState("");
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+
+    const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
+
+    const load = async (target) => {
+      setLoading(true);
+      const result = await window.PawpadApi.call("list_bookings", { date: target || date });
+      setLoading(false);
+      if (result.ok) {
+        setDay(result.data);
+      } else {
+        setNotice("⚠️ " + serverError(result));
+      }
+    };
+
+    useEffect(() => {
+      load(date);
+    }, [date]);
+
+    const flash = (text) => {
+      setNotice(text);
+      setTimeout(() => setNotice(""), text.startsWith("⚠️") ? 9000 : 4000);
+    };
+
+    const handleCancel = (booking) => {
+      setConfirmModal({
+        isOpen: true,
+        title: "Cancel this booking?",
+        message: `${booking.pet.name || "Pet"} (${booking.serviceTitle}) for ${booking.customer.name} at ${formatSlotTime(booking.time)}. The slot becomes free again and the event is removed from the info@ calendar. Please let the customer know (${booking.customer.phone}).`,
+        confirmText: "Yes, cancel booking",
+        cancelText: "No, keep it",
+        confirmStyle: "btn-admin-danger",
+        onConfirm: async () => {
+          setConfirmModal({ isOpen: false });
+          const result = await window.PawpadApi.call("cancel_booking", { id: booking.id });
+          if (!result.ok) return flash("⚠️ " + serverError(result));
+          flash(result.data.calendarRemoved
+            ? "✓ Booking cancelled and removed from the calendar."
+            : "⚠️ Booking cancelled, but the calendar event could not be removed. Please delete it on the phone calendar.");
+          load();
+        }
+      });
+    };
+
+    const handleBlock = async (time) => {
+      const reason = window.prompt(time ? `Block ${formatSlotTime(time)}? Reason (optional):` : "Block the whole day? Reason (optional):", "");
+      if (reason === null) return;
+      const result = await window.PawpadApi.call("block_slot", { date, time: time || "", reason });
+      if (!result.ok) return flash("⚠️ " + serverError(result));
+      setDay(result.data);
+      flash(time ? `✓ ${formatSlotTime(time)} is blocked.` : "✓ The whole day is blocked.");
+    };
+
+    const handleUnblock = async (blockId) => {
+      const result = await window.PawpadApi.call("unblock_slot", { id: blockId });
+      if (!result.ok) return flash("⚠️ " + serverError(result));
+      setDay(result.data);
+      flash("✓ Unblocked.");
+    };
+
+    const stateBadge = {
+      free: { text: "Free", style: { background: "var(--admin-card-hover)" } },
+      booked: { text: "Booked", className: "badge-approved" },
+      blocked: { text: "Blocked", className: "badge-rejected" },
+      calendar: { text: "Calendar event", style: { background: "var(--admin-card-hover)", color: "var(--admin-gold)" } },
+      unknown: { text: "Calendar unreachable", className: "badge-rejected" }
+    };
+
+    const cancelled = day ? day.bookings.filter((b) => b.status === "cancelled") : [];
+
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "20px" } },
+      React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
+
+      // Day picker
+      React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" } },
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, -1)) }, "← Previous day"),
+        React.createElement("input", { type: "date", className: "input-field", value: date, onChange: (e) => e.target.value && setDate(e.target.value), style: { width: "auto" }, "aria-label": "Choose a day" }),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, 1)) }, "Next day →"),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(localDateString(new Date())) }, "Today"),
+        React.createElement("div", { style: { flex: 1 } }),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => load() }, loading ? "Refreshing…" : "↻ Refresh")
+      ),
+
+      notice && React.createElement("div", { className: "card", role: "status", style: { color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)", fontWeight: 600, fontSize: "14px" } }, notice),
+
+      // Coming days overview
+      day && day.upcoming.length > 0 && React.createElement(
+        "div",
+        { className: "card" },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "16px", color: "var(--admin-gold)", marginBottom: "10px" } }, "Coming days with bookings"),
+        React.createElement(
+          "div",
+          { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+          day.upcoming.map((u) => React.createElement(
+            "button",
+            { key: u.date, className: "btn-admin " + (u.date === date ? "btn-admin-primary" : "btn-admin-secondary"), style: { fontSize: "12px", padding: "6px 10px" }, onClick: () => setDate(u.date) },
+            `${new Date(u.date + "T00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} · ${u.booked}`
+          ))
+        )
+      ),
+
+      // The chosen day
+      day && React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "12px" } },
+        React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" } },
+          React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-text)" } }, day.label),
+          !day.closed && (day.dayBlock
+            ? React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => handleUnblock(day.dayBlock.id) }, "Unblock whole day")
+            : React.createElement("button", { className: "btn-admin btn-admin-danger", onClick: () => handleBlock("") }, "Block whole day"))
+        ),
+        day.closed && React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "The studio is closed on Thursdays."),
+        day.dayBlock && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `Whole day blocked${day.dayBlock.reason ? `: ${day.dayBlock.reason}` : ""}.`),
+        day.calendarError && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `⚠️ ${day.calendarError} Customers can't book online until this is fixed.`),
+        day.slots.map((slot) => {
+          const badge = stateBadge[slot.state] || stateBadge.free;
+          const b = slot.booking;
+          return React.createElement(
+            "div",
+            { key: slot.time, "data-slot": slot.time, style: { display: "flex", alignItems: "flex-start", gap: "14px", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", flexWrap: "wrap" } },
+            React.createElement("strong", { style: { minWidth: "78px", fontSize: "15px" } }, formatSlotTime(slot.time)),
+            React.createElement("span", { className: "badge " + (badge.className || ""), style: { fontSize: "11px", ...(badge.style || {}) } }, badge.text),
+            React.createElement(
+              "div",
+              { style: { flex: 1, minWidth: "200px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
+              b && React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
+              b && React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
+              b && b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
+              b && React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px" } }, `Ref ${b.ref}`,
+                b.calendarStatus === "failed" ? " · ⚠️ not added to the calendar" : "",
+                b.emailStatus === "failed" ? " · ⚠️ confirmation email not sent" : ""),
+              slot.state === "calendar" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "An event in the info@ calendar blocks this time."),
+              slot.state === "blocked" && !day.dayBlock && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "Blocked by an admin.")
+            ),
+            b && React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking"),
+            slot.state === "free" && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleBlock(slot.time) }, "Block"),
+            slot.state === "blocked" && !day.dayBlock && slot.blockId && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleUnblock(slot.blockId) }, "Unblock")
+          );
+        }),
+        cancelled.length > 0 && React.createElement(
+          "details",
+          { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+          React.createElement("summary", null, `${cancelled.length} cancelled booking${cancelled.length > 1 ? "s" : ""} on this day`),
+          cancelled.map((c) => React.createElement("p", { key: c.id, style: { marginTop: "6px" } },
+            `${formatSlotTime(c.time)} · ${c.pet.name || "Pet"} · ${c.customer.name} · ${c.customer.phone} (cancelled by ${c.cancelledBy || "admin"})`))
+        )
+      )
+    );
+  }
+
+  // -------------------------------------------------------------
   // SYSTEM SETTINGS & BACKUPS TAB
   // -------------------------------------------------------------
   function SettingsTab({ currentUser }) {
@@ -4676,6 +4854,7 @@
 
     const navigationItems = [
       { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
+      { id: "bookings", label: "Grooming Bookings", icon: Icons.Dashboard },
       { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: stats.pending > 0 ? stats.pending : null },
       { id: "content", label: "Website Content CMS", icon: Icons.Content },
       { id: "media", label: "WebP Media Manager", icon: Icons.Media },
@@ -4825,6 +5004,7 @@
             null,
             React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontSize: "22px", color: "var(--admin-text)" } },
               activeTab === "dashboard" && "Overview & Admissions Dashboard",
+              activeTab === "bookings" && "Grooming Bookings",
               activeTab === "applications" && "Course Applications & Admissions",
               activeTab === "content" && "Omnichannel Content Management",
               activeTab === "media" && "Media Manager & WebP Optimization",
@@ -4832,6 +5012,7 @@
             ),
             React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
               activeTab === "dashboard" && "Key metrics and real-time site activity",
+              activeTab === "bookings" && "Bookings by day, cancellations and blocked times (synced with the info@ calendar)",
               activeTab === "applications" && "Review candidate responses and manage course approval lifecycle",
               activeTab === "content" && "Live updates to text, headlines, pricing, and packages",
               activeTab === "media" && "Automated compression to WebP and live asset slot replacement",
@@ -4870,6 +5051,7 @@
           "div",
           { className: "admin-content" },
           activeTab === "dashboard" && React.createElement(DashboardTab, { stats, setActiveTab, applications }),
+          activeTab === "bookings" && React.createElement(BookingsTab, null),
           activeTab === "applications" && React.createElement(ApplicationsTab, { applications, onUpdate: refreshData }),
           activeTab === "content" && React.createElement(ContentEditorTab, null),
           activeTab === "media" && React.createElement(MediaManagerTab, null),
