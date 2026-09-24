@@ -169,6 +169,33 @@
 
       setLoading(true);
 
+      // Pawpad server login (api.pawpad.in). Once the server is set up it decides who can sign in.
+      if (window.PawpadApi && window.PawpadApi.isEnabled()) {
+        const result = await window.PawpadApi.login(cleanEmail, enteredPass);
+        if (result.ok) {
+          const serverUser = result.data.user || {};
+          const userData = {
+            email: serverUser.email || cleanEmail,
+            name: (serverUser.email || cleanEmail).split("@")[0],
+            role: serverUser.role || "admin",
+            picture: null,
+            authenticatedAt: new Date().toISOString(),
+            authMethod: "pawpad_server"
+          };
+          localStorage.setItem(AUTH_STORAGE_KEY, "authenticated");
+          localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(userData));
+          if (window.PawpadApplicationsStore) await window.PawpadApplicationsStore.refresh();
+          onAuthenticated(userData);
+          return;
+        }
+        if (result.status === 401 || result.status === 429) {
+          setLoading(false);
+          setError((result.data && result.data.error) || "Invalid email or password.");
+          return;
+        }
+        // Server not reachable or not set up yet: fall back to the old browser-only login below.
+      }
+
       // Refresh server config to ensure latest cross-device password / whitelist is applied
       const serverConfig = await syncServerAdminConfig();
       const directUsers = (serverConfig && serverConfig.users) ? { ...DEFAULT_USERS, ...serverConfig.users } : null;
@@ -582,7 +609,9 @@
           setEmailNotification({
             type: "interview",
             title: "Interview Scheduled & Candidate Email Dispatched",
-            message: `Notification email sent to ${res.emailData.recipient || "candidate"} via Courses Web3Forms key.`,
+            message: res.emailSent === false
+              ? `Interview saved, but the email to ${res.emailData.recipient || "the candidate"} could NOT be sent: ${res.emailError}`
+              : `Notification email sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "via Courses Web3Forms key"}.`,
             emailData: res.emailData
           });
           onUpdate();
@@ -612,7 +641,9 @@
           setEmailNotification({
             type: "approval",
             title: "Application Approved & Confirmation Email Dispatched",
-            message: `Course approval details and next steps sent to ${res.emailData.recipient || "candidate"} via Courses Web3Forms key.`,
+            message: res.emailSent === false
+              ? `Approval saved, but the email to ${res.emailData.recipient || "the candidate"} could NOT be sent: ${res.emailError}`
+              : `Course approval details and next steps sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "via Courses Web3Forms key"}.`,
             emailData: res.emailData
           });
           onUpdate();
@@ -1246,7 +1277,21 @@
                 { style: { background: "var(--admin-bg)", padding: "14px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)" } },
                 React.createElement("div", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginBottom: "4px" } }, "Health & Physical Readiness Disclosure:"),
                 React.createElement("p", { style: { fontSize: "14px", lineHeight: "1.6" } }, selectedApp.responses.healthDisclosure)
-              )
+              ),
+
+              // Every other answer the form collected (consulting details, physical capability, ...)
+              ...Object.keys(selectedApp.responses || {})
+                .filter((key) => !["why", "experience", "handling", "careerFit", "healthDisclosure"].includes(key) && selectedApp.responses[key])
+                .map((key) =>
+                  React.createElement(
+                    "div",
+                    { key: "resp-" + key, style: { background: "var(--admin-bg)", padding: "14px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)" } },
+                    React.createElement("div", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginBottom: "4px" } },
+                      key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) + ":"
+                    ),
+                    React.createElement("p", { style: { fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-wrap" } }, String(selectedApp.responses[key]))
+                  )
+                )
             ),
 
             // Staff Notes and Audit Trail
@@ -4316,6 +4361,8 @@
     const [backupNotice, setBackupNotice] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const [currentPassword, setCurrentPassword] = useState("");
+    const usesServerLogin = Boolean(window.PawpadApi && window.PawpadApi.hasSession());
     const [passwordNotice, setPasswordNotice] = useState("");
     const [confirmModal, setConfirmModal] = useState({ isOpen: false });
     const importInputRef = useRef(null);
@@ -4419,6 +4466,21 @@
       }
       if (p1 !== p2) {
         setPasswordNotice("⚠️ Passwords do not match.");
+        return;
+      }
+
+      if (usesServerLogin) {
+        setPasswordNotice("Saving new password on the Pawpad server...");
+        const result = await window.PawpadApi.call("change_password", { currentPassword, newPassword: p1 });
+        if (result.ok) {
+          setNewPassword("");
+          setConfirmPassword("");
+          setCurrentPassword("");
+          setPasswordNotice(`✓ Password for ${userEmail} updated. Other devices have been signed out.`);
+          setTimeout(() => setPasswordNotice(""), 5000);
+        } else {
+          setPasswordNotice("⚠️ " + ((result.data && result.data.error) || "The server could not be reached."));
+        }
         return;
       }
 
@@ -4611,6 +4673,17 @@
         React.createElement(
           "form",
           { onSubmit: handleUpdatePassword, style: { display: "flex", flexDirection: "column", gap: "12px" } },
+          usesServerLogin && React.createElement("div", null,
+            React.createElement("label", { style: { display: "block", fontSize: "12px", fontWeight: "600", color: "var(--admin-text-muted)", marginBottom: "4px" } }, "Current Password"),
+            React.createElement("input", {
+              type: "password",
+              className: "input-field",
+              placeholder: "Enter your current password",
+              autoComplete: "current-password",
+              value: currentPassword,
+              onChange: (e) => setCurrentPassword(e.target.value)
+            })
+          ),
           React.createElement(
             "div",
             { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
@@ -4724,7 +4797,23 @@
       return () => window.removeEventListener("pawpad-applications-updated", refreshData);
     }, []);
 
+    // Server session expired, or the server is now live but this browser used the old login: sign in again.
+    useEffect(() => {
+      const onUnauthorized = () => {
+        if (localStorage.getItem(AUTH_STORAGE_KEY)) {
+          handleLogout();
+          window.alert("Please sign in again.");
+        }
+      };
+      window.addEventListener("pawpad-api-unauthorized", onUnauthorized);
+      if (isAuthenticated && window.PawpadApi && window.PawpadApi.isEnabled() && !window.PawpadApi.hasSession()) {
+        window.PawpadApi.call("me", {});
+      }
+      return () => window.removeEventListener("pawpad-api-unauthorized", onUnauthorized);
+    }, [isAuthenticated]);
+
     const handleLogout = () => {
+      if (window.PawpadApi) window.PawpadApi.logout();
       localStorage.removeItem(AUTH_STORAGE_KEY);
       localStorage.removeItem(AUTH_USER_STORAGE_KEY);
       sessionStorage.removeItem(AUTH_STORAGE_KEY);

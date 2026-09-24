@@ -345,7 +345,7 @@ function StudioPackages({ onBook, onAddToCart }) {
       id: pkg.key,
       title: pkg.title,
       category: "Studio Setup Consulting",
-      price: pkg.priceNum || (parseFloat(String(pkg.price || "").replace(/[^0-9.]/g, "")) || 20000),
+      price: parseFloat(String(pkg.price || "").replace(/[^0-9.]/g, "")) || pkg.priceNum || 20000,
       priceDisplay: pkg.price + (pkg.priceUnit ? ` / ${pkg.priceUnit}` : ""),
       desc: pkg.desc,
       img: "assets/img/pawpad/studio-setup-overview.webp",

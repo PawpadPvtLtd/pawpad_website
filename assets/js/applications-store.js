@@ -12,7 +12,64 @@
 
   class ApplicationsStore {
     constructor() {
-      this.applications = this._load();
+      this.applications = [];
+      if (this.isServerMode()) {
+        this.refresh();
+      } else {
+        this.applications = this._load();
+      }
+    }
+
+    /**
+     * True when an admin is signed in to the Pawpad server: applications are
+     * then read from and saved to the server instead of this browser.
+     */
+    isServerMode() {
+      return Boolean(window.PawpadApi && window.PawpadApi.isEnabled() && window.PawpadApi.hasSession());
+    }
+
+    _notify() {
+      window.dispatchEvent(new CustomEvent("pawpad-applications-updated", { detail: this.applications }));
+    }
+
+    _replaceFromServer(serverApp) {
+      if (!serverApp) return null;
+      const index = this.applications.findIndex((a) => a.id === serverApp.id);
+      if (index === -1) this.applications.unshift(serverApp);
+      else this.applications[index] = serverApp;
+      this._notify();
+      return serverApp;
+    }
+
+    _reportServerError(result, what) {
+      const reason = (result && result.data && result.data.error) || "The server could not be reached.";
+      console.warn(`PawpadApplicationsStore: ${what} failed`, result);
+      if (result && result.status !== 401) {
+        window.alert(`Could not ${what} on the server: ${reason}`);
+      }
+      this.refresh();
+    }
+
+    /** Loads all applications from the server (server mode only). */
+    async refresh() {
+      if (!this.isServerMode()) return false;
+      const result = await window.PawpadApi.call("list_applications", {});
+      if (result.ok && Array.isArray(result.data.applications)) {
+        this.applications = result.data.applications;
+        this._notify();
+        return true;
+      }
+      return false;
+    }
+
+    async _serverUpdate(payload, what) {
+      const result = await window.PawpadApi.call("update_application", payload);
+      if (result.ok) {
+        this._replaceFromServer(result.data.application);
+      } else {
+        this._reportServerError(result, what);
+      }
+      return result;
     }
 
     _load() {
@@ -37,6 +94,11 @@
     }
 
     _save() {
+      if (this.isServerMode()) {
+        // Applicant data stays on the server, not in this browser.
+        this._notify();
+        return;
+      }
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.applications));
         window.dispatchEvent(new CustomEvent("pawpad-applications-updated", { detail: this.applications }));
@@ -265,6 +327,9 @@
       });
 
       this._save();
+      if (this.isServerMode()) {
+        this._serverUpdate({ id, status: newStatus, interviewDate: app.interviewDate || "", note: noteText }, "update the status");
+      }
       return app;
     }
 
@@ -278,13 +343,14 @@
         text: noteText
       });
       this._save();
+      if (this.isServerMode()) {
+        this._serverUpdate({ id, note: noteText }, "save the note");
+      }
       return app;
     }
 
     deleteApplication(id) {
-      this.applications = this.applications.filter((a) => a.id !== id);
-      this._save();
-      return true;
+      return this.deleteMultiple([id]);
     }
 
     deleteMultiple(ids) {
@@ -292,7 +358,38 @@
       const idSet = new Set(ids);
       this.applications = this.applications.filter((a) => !idSet.has(a.id));
       this._save();
+      if (this.isServerMode()) {
+        window.PawpadApi.call("delete_applications", { ids }).then((result) => {
+          if (!result.ok) this._reportServerError(result, "delete the application(s)");
+        });
+      }
       return true;
+    }
+
+    /**
+     * Server mode: saves the change and emails the candidate from courses@pawpad.in.
+     */
+    async _serverChangeWithEmail(id, changes, emailData, type) {
+      const result = await window.PawpadApi.call("update_application", {
+        id,
+        ...changes,
+        email: { type, subject: emailData.subject, body: emailData.body }
+      });
+      if (!result.ok) {
+        const reason = (result.data && result.data.error) || "The server could not be reached.";
+        return { success: false, error: reason };
+      }
+      const app = this._replaceFromServer(result.data.application);
+      const email = result.data.email || { sent: false, error: "No email result." };
+      return {
+        success: true,
+        app,
+        emailData,
+        emailSent: Boolean(email.sent),
+        emailError: email.error || "",
+        deliveryLabel: "from courses@pawpad.in",
+        web3Result: { success: Boolean(email.sent) }
+      };
     }
 
     formatInterviewDate(dateStr) {
@@ -450,6 +547,11 @@ Email: courses@pawpad.in`;
       const app = this.getById(id);
       if (!app) return { success: false, error: "Application not found" };
 
+      if (this.isServerMode()) {
+        const emailData = this.generateInterviewEmail(app, interviewDate, customNote);
+        return this._serverChangeWithEmail(id, { status: "interview_scheduled", interviewDate, note: customNote }, emailData, "interview_scheduled");
+      }
+
       app.status = "interview_scheduled";
       app.interviewDate = interviewDate;
 
@@ -491,6 +593,11 @@ Email: courses@pawpad.in`;
     async approveApplicationWithEmail(id, customNote = "") {
       const app = this.getById(id);
       if (!app) return { success: false, error: "Application not found" };
+
+      if (this.isServerMode()) {
+        const emailData = this.generateApprovalEmail(app, customNote);
+        return this._serverChangeWithEmail(id, { status: "approved", note: customNote }, emailData, "application_approved");
+      }
 
       app.status = "approved";
 

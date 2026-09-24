@@ -141,6 +141,8 @@ test.describe("Interactive Features & User Flows", () => {
 
   test("Course interview scheduling and approval emails send candidate notifications via Web3Forms", async ({ page }) => {
     await page.addInitScript(() => {
+      // This test covers the browser-only fallback, used when the Pawpad server is switched off
+      window.PAWPAD_API_BASE = "";
       localStorage.setItem("pawpad_admin_auth_session", "authenticated");
       localStorage.setItem("pawpad_admin_auth_user", JSON.stringify({ email: "pawpadpetstylist@gmail.com", role: "owner" }));
       sessionStorage.setItem("pawpad_admin_auth_session", "authenticated");
