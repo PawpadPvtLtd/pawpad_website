@@ -1,2 +1,6 @@
 # Real server settings (passwords) live only on the server.
 config.php
+
+# Files uploaded from the admin panel live only on the server.
+uploads/*
+!uploads/.htaccess

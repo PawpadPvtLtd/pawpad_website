@@ -1,0 +1,18 @@
+---
+# cPanel "Git Version Control" deployment for the Pawpad API (api.pawpad.in).
+# In cPanel: Git Version Control -> Manage -> Pull or Deploy ->
+#   "Update from Remote", then "Deploy HEAD Commit".
+#
+# Copies the api/ folder into the api.pawpad.in website folder.
+# - config.php (the real passwords) is never copied: it isn't in this
+#   repository and isn't in the list of files below, so the copy on the
+#   server is never touched.
+# - Uploaded images/PDFs in uploads/ are kept: files are only added or
+#   replaced, never deleted.
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/pawpad35/public_html/api.pawpad.in
+    - /bin/test ! -e api/config.php
+    - /bin/mkdir -p $DEPLOYPATH/uploads
+    - /bin/cp -R api/index.php api/setup.php api/config.sample.php api/.htaccess api/lib $DEPLOYPATH/
+    - /bin/cp api/uploads/.htaccess $DEPLOYPATH/uploads/.htaccess

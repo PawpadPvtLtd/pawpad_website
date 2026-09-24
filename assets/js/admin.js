@@ -11,111 +11,8 @@
 (function () {
   const { useState, useEffect, useRef, useMemo } = React;
 
-  const PRIMARY_OWNER_EMAIL = "pawpadpetstylist@gmail.com";
-  const DEFAULT_INITIAL_PASSWORD = "2017";
-  const DEFAULT_USERS = {
-    "pawpadpetstylist@gmail.com": { role: "owner", createdAt: "2026-09-11T00:00:00.000Z" }
-  };
-  const USERS_STORAGE_KEY = "pawpad_admin_users_db";
   const AUTH_USER_STORAGE_KEY = "pawpad_admin_user";
   const AUTH_STORAGE_KEY = "pawpad_admin_auth_session";
-
-  // Helper: Retrieve users map
-  function getAdminUsers() {
-    try {
-      const stored = localStorage.getItem(USERS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          return { ...DEFAULT_USERS, ...parsed };
-        }
-      }
-    } catch (e) { }
-    return { ...DEFAULT_USERS };
-  }
-
-  // Helper: Save users map
-  function saveAdminUsers(usersMap) {
-    try {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersMap));
-    } catch (e) { }
-  }
-
-  // Helper: Retrieve whitelist (array of emails)
-  function getWhitelistedEmails() {
-    return Object.keys(getAdminUsers());
-  }
-
-  // Helper: Check authorization
-  function isEmailAuthorized(email, directUsersMap = null) {
-    if (!email) return false;
-    const clean = email.trim().toLowerCase();
-    const users = directUsersMap || getAdminUsers();
-    return Boolean(users[clean]);
-  }
-
-  // Helper: Check password for a specific user
-  function isPasswordValidForUser(email, enteredPassword, directUsersMap = null) {
-    if (!email || !enteredPassword) return false;
-    const cleanEmail = email.trim().toLowerCase();
-    const entered = enteredPassword.trim();
-    const users = directUsersMap || getAdminUsers();
-    const user = users[cleanEmail];
-    if (!user) return false;
-
-    // If the specific user has set their own personal custom password
-    if (user.password && typeof user.password === "string" && user.password.trim().length > 0) {
-      return user.password.trim() === entered;
-    }
-
-    // If user has not changed password yet, strictly accept default setup password ('2017')
-    return entered === DEFAULT_INITIAL_PASSWORD;
-  }
-
-  // Helper: Fetch server config (for cross-device password/user sync)
-  async function syncServerAdminConfig() {
-    try {
-      const res = await fetch("/api/admin-config?_t=" + Date.now(), {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success && data.config) {
-          if (data.config.users && typeof data.config.users === "object") {
-            const merged = { ...DEFAULT_USERS, ...data.config.users };
-            saveAdminUsers(merged);
-            return data.config;
-          }
-        }
-      }
-    } catch (e) {
-      // Local fallback if running offline or without dev server
-    }
-    return null;
-  }
-
-  // Helper: Save config to server (persists across devices to admin-config.json)
-  async function saveServerAdminConfig(updates) {
-    try {
-      const res = await fetch("/api/admin-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success && data.config && data.config.users) {
-          const merged = { ...DEFAULT_USERS, ...data.config.users };
-          saveAdminUsers(merged);
-          return true;
-        }
-      }
-    } catch (e) {
-      // Local storage fallback
-    }
-    return false;
-  }
 
   // Icons Helper
   const Icons = {
@@ -147,86 +44,53 @@
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-      syncServerAdminConfig();
-    }, []);
-
     const handleSubmit = async (e) => {
       e.preventDefault();
       setError("");
       const cleanEmail = (email || "").trim().toLowerCase();
-      const enteredPass = (password || "").trim();
 
       if (!cleanEmail) {
         setError("Please enter your administrator email.");
         return;
       }
 
-      if (!enteredPass) {
+      if (!password) {
         setError("Please enter your password.");
+        return;
+      }
+
+      if (!window.PawpadApi || !window.PawpadApi.isEnabled()) {
+        setError("The Pawpad server is switched off in assets/js/api-client.js, so nobody can sign in.");
         return;
       }
 
       setLoading(true);
 
-      // Pawpad server login (api.pawpad.in). Once the server is set up it decides who can sign in.
-      if (window.PawpadApi && window.PawpadApi.isEnabled()) {
-        const result = await window.PawpadApi.login(cleanEmail, enteredPass);
-        if (result.ok) {
-          const serverUser = result.data.user || {};
-          const userData = {
-            email: serverUser.email || cleanEmail,
-            name: (serverUser.email || cleanEmail).split("@")[0],
-            role: serverUser.role || "admin",
-            picture: null,
-            authenticatedAt: new Date().toISOString(),
-            authMethod: "pawpad_server"
-          };
-          localStorage.setItem(AUTH_STORAGE_KEY, "authenticated");
-          localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(userData));
-          if (window.PawpadApplicationsStore) await window.PawpadApplicationsStore.refresh();
-          onAuthenticated(userData);
-          return;
-        }
-        if (result.status === 401 || result.status === 429) {
-          setLoading(false);
+      // Sign-in is checked by the Pawpad server (api.pawpad.in); no passwords live in this page.
+      const result = await window.PawpadApi.login(cleanEmail, password);
+      if (!result.ok) {
+        setLoading(false);
+        if (result.networkError) {
+          setError("Can't reach the Pawpad server (api.pawpad.in). Check your internet connection and try again.");
+        } else {
           setError((result.data && result.data.error) || "Invalid email or password.");
-          return;
         }
-        // Server not reachable or not set up yet: fall back to the old browser-only login below.
-      }
-
-      // Refresh server config to ensure latest cross-device password / whitelist is applied
-      const serverConfig = await syncServerAdminConfig();
-      const directUsers = (serverConfig && serverConfig.users) ? { ...DEFAULT_USERS, ...serverConfig.users } : null;
-
-      if (!isEmailAuthorized(cleanEmail, directUsers)) {
-        setLoading(false);
-        setError(`Access Denied: '${cleanEmail}' is not in the authorized administrator list.`);
         return;
       }
 
-      if (!isPasswordValidForUser(cleanEmail, enteredPass, directUsers)) {
-        setLoading(false);
-        setError("Invalid password. Please check your credentials and try again.");
-        return;
-      }
-
-      const users = directUsers || getAdminUsers();
-      const userObj = users[cleanEmail] || {};
-      const isOwner = cleanEmail === PRIMARY_OWNER_EMAIL.toLowerCase();
-
+      const serverUser = result.data.user || {};
       const userData = {
-        email: cleanEmail,
-        name: cleanEmail.split("@")[0],
-        role: isOwner ? "owner" : (userObj.role || "admin"),
+        email: serverUser.email || cleanEmail,
+        name: (serverUser.email || cleanEmail).split("@")[0],
+        role: serverUser.role || "admin",
         picture: null,
         authenticatedAt: new Date().toISOString(),
-        authMethod: "email_password"
+        authMethod: "pawpad_server"
       };
-
       localStorage.setItem(AUTH_STORAGE_KEY, "authenticated");
       localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(userData));
+      if (window.PawpadApplicationsStore) await window.PawpadApplicationsStore.refresh();
+      if (window.PawpadContentStore && window.PawpadContentStore.ready) await window.PawpadContentStore.ready;
       onAuthenticated(userData);
     };
 
@@ -1585,99 +1449,60 @@
   // -------------------------------------------------------------
   // COURSE DOCUMENT UPLOAD & LINK WIDGET
   // -------------------------------------------------------------
-  function CourseDocUploadWidget({ label, currentUrl, onSelectUrl, acceptTypes = ".html,.htm,.pdf" }) {
-    const [existingFiles, setExistingFiles] = useState([]);
+  // Course pages that are part of the website itself (course_forms/ folder).
+  const COURSE_FORM_PAGES = [
+    "pawpad-essentials-cat-page.html",
+    "pawpad-essentials-dog-page.html",
+    "pawpad-foundations-page.html",
+    "pawpad-practitioner-cat-page.html",
+    "pawpad-practitioner-dog-page.html",
+    "pawpad-studio-consulting-page.html",
+    "pawpad-application-pacgc.html",
+    "pawpad-application-pcgec.html",
+    "pawpad-application-pcgpc.html",
+    "pawpad-application-pfgec.html",
+    "pawpad-application-pfgpc.html",
+    "pawpad-application-consulting-gssc.html"
+  ];
+
+  function CourseDocUploadWidget({ label, currentUrl, onSelectUrl, acceptTypes = ".pdf", allowUpload = true }) {
+    const existingFiles = COURSE_FORM_PAGES;
     const [uploading, setUploading] = useState(false);
     const [uploadSuccess, setUploadSuccess] = useState("");
     const fileInputRef = React.useRef(null);
 
-    const refreshFiles = () => {
-      fetch("/api/list-forms")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && Array.isArray(data.files)) {
-            setExistingFiles(data.files);
-          }
-        })
-        .catch(() => { });
-    };
-
-    useEffect(() => {
-      refreshFiles();
-    }, []);
-
+    // New pages are added to the website code; from here you can upload a PDF (e.g. a syllabus) to the server.
     const handleFileUpload = (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        setUploadSuccess("⚠️ Only PDF files can be uploaded here.");
+        return;
+      }
       setUploading(true);
       setUploadSuccess("");
-      const isHtml = file.name.endsWith(".html") || file.name.endsWith(".htm");
       const reader = new FileReader();
-
-      if (isHtml) {
-        reader.onload = (evt) => {
-          const textContent = evt.target.result;
-          fetch("/api/upload-form", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              filename: file.name,
-              content: textContent,
-              isBase64: false
-            })
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              setUploading(false);
-              if (data.success) {
-                onSelectUrl(data.path);
-                setUploadSuccess(`Uploaded & linked '${data.filename}'`);
-                refreshFiles();
-              } else {
-                onSelectUrl(`course_forms/${file.name}`);
-              }
-              setTimeout(() => setUploadSuccess(""), 4000);
-            })
-            .catch(() => {
-              setUploading(false);
-              onSelectUrl(`course_forms/${file.name}`);
-            });
-        };
-        reader.readAsText(file);
-      } else {
-        reader.onload = (evt) => {
-          const base64Data = (evt.target.result || "").split(",")[1];
-          fetch("/api/upload-form", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              filename: file.name,
-              content: base64Data,
-              isBase64: true
-            })
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              setUploading(false);
-              if (data.success) {
-                onSelectUrl(data.path);
-                setUploadSuccess(`Uploaded & linked '${data.filename}'`);
-                refreshFiles();
-              } else {
-                onSelectUrl(`course_forms/${file.name}`);
-              }
-              setTimeout(() => setUploadSuccess(""), 4000);
-            })
-            .catch(() => {
-              setUploading(false);
-              onSelectUrl(`course_forms/${file.name}`);
-            });
-        };
-        reader.readAsDataURL(file);
-      }
+      reader.onload = async (evt) => {
+        const upload = await window.PawpadApi.uploadFile("pdf", file.name, evt.target.result);
+        setUploading(false);
+        if (upload.ok) {
+          onSelectUrl(upload.url);
+          setUploadSuccess(`✓ Uploaded '${file.name}'. Click Save to publish.`);
+        } else {
+          setUploadSuccess(`⚠️ Upload failed: ${upload.error}`);
+        }
+        setTimeout(() => setUploadSuccess(""), 6000);
+      };
+      reader.onerror = () => {
+        setUploading(false);
+        setUploadSuccess("⚠️ The file could not be read.");
+      };
+      reader.readAsDataURL(file);
     };
 
-    const cleanFilename = currentUrl ? currentUrl.replace(/^\/?course_forms\//, "") : "";
+    const cleanFilename = currentUrl
+      ? (/^https?:\/\//.test(currentUrl) ? currentUrl.split("/").pop() : currentUrl.replace(/^\/?course_forms\//, ""))
+      : "";
     const previewHref = currentUrl
       ? (currentUrl.startsWith("http://") || currentUrl.startsWith("https://") || currentUrl.startsWith("/")
         ? currentUrl
@@ -1739,7 +1564,7 @@
             onChange: handleFileUpload
           }
         ),
-        React.createElement(
+        allowUpload && React.createElement(
           "button",
           {
             type: "button",
@@ -1748,7 +1573,7 @@
             disabled: uploading,
             onClick: () => fileInputRef.current && fileInputRef.current.click()
           },
-          uploading ? "Uploading..." : "📁 Upload File"
+          uploading ? "Uploading..." : "📁 Upload PDF"
         ),
         currentUrl &&
         React.createElement(
@@ -1764,7 +1589,7 @@
       ),
 
       uploadSuccess &&
-      React.createElement("span", { style: { color: "var(--admin-success)", fontSize: "11px", fontWeight: "600" } }, uploadSuccess),
+      React.createElement("span", { style: { color: uploadSuccess.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)", fontSize: "11px", fontWeight: "600" } }, uploadSuccess),
 
       // Quick Select from course_forms/ directory
       existingFiles.length > 0 &&
@@ -1810,7 +1635,6 @@
       let webpDataUrl = "";
       let originalBytes = file.size || 0;
       let webpBytes = 0;
-      let isAlreadyWebp = file.type === "image/webp" || file.name.toLowerCase().endsWith(".webp");
 
       try {
         // Convert / optimize via PawpadImageOptimizer or direct Canvas
@@ -1837,51 +1661,19 @@
           webpBytes = Math.round((webpDataUrl.length * 3) / 4);
         }
 
-        // Try posting converted WebP to server endpoint if backend is available
-        const cleanBaseName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_.-]/g, "-").toLowerCase();
-        const webpFileName = `${cleanBaseName}-${Date.now().toString().slice(-4)}.webp`;
-
-        let uploadedServerPath = null;
-        try {
-          const resp = await fetch("/api/upload-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              filename: webpFileName,
-              content: webpDataUrl
-            })
-          });
-          if (resp.ok) {
-            const resData = await resp.json();
-            if (resData && resData.success && resData.path) {
-              uploadedServerPath = resData.path;
-            }
-          }
-        } catch (netErr) {
-          console.warn("Backend upload endpoint unreachable, falling back to local WebP data URL:", netErr);
-        }
-
+        // Save the compressed image on the Pawpad server so every visitor can load it.
+        const upload = await window.PawpadApi.uploadFile("image", file.name, webpDataUrl);
         const savedPct = originalBytes && webpBytes ? Math.round(((originalBytes - webpBytes) / originalBytes) * 100) : 0;
 
-        if (uploadedServerPath) {
-          onSelectUrl(uploadedServerPath);
-          if (isAlreadyWebp) {
-            setStatusMsg(`✓ Verified .webp format${savedPct > 0 ? ` (Optimized -${savedPct}%)` : ""}`);
-          } else {
-            setStatusMsg(`✓ Saved to server as .webp${savedPct > 0 ? ` (Saved ${savedPct}%)` : ""}`);
-          }
-        } else if (webpDataUrl) {
-          onSelectUrl(webpDataUrl);
-          setStatusMsg(isAlreadyWebp ? `✓ Verified .webp format` : `✓ Converted to .webp (Optimized)`);
+        if (upload.ok) {
+          onSelectUrl(upload.url);
+          setStatusMsg(`✓ Uploaded to the server${savedPct > 0 ? ` (${savedPct}% smaller)` : ""}. Click Save to publish.`);
+        } else {
+          setStatusMsg(`⚠️ Upload failed: ${upload.error}`);
         }
       } catch (err) {
         console.error("Image upload/convert error:", err);
-        if (webpDataUrl) {
-          onSelectUrl(webpDataUrl);
-          setStatusMsg("✓ Converted to .webp (Local preview)");
-        } else {
-          setStatusMsg("Failed to convert image. Please check format.");
-        }
+        setStatusMsg("Failed to convert image. Please check format.");
       } finally {
         setUploading(false);
         setTimeout(() => setStatusMsg(""), 6000);
@@ -2003,12 +1795,20 @@
         confirmText: "Yes, Save Changes",
         cancelText: "No, Keep Editing",
         confirmStyle: "btn-admin-primary",
-        onConfirm: () => {
+        onConfirm: async () => {
           setConfirmModal({ isOpen: false });
           if (window.PawpadContentStore) {
+            setToastMessage(`Publishing ${pageLabel}…`);
             window.PawpadContentStore.update(selectedPage, formData);
-            setToastMessage(`✓ Saved updates to ${selectedPage} page successfully!`);
-            setTimeout(() => setToastMessage(""), 3500);
+            const result = await window.PawpadContentStore.lastPublish;
+            if (result.ok) {
+              // Images uploaded while publishing now have their server address.
+              setFormData(JSON.parse(JSON.stringify(window.PawpadContentStore.get(selectedPage))));
+              setToastMessage(`✓ ${pageLabel} is published. Every visitor now sees these changes.`);
+            } else {
+              setToastMessage(`⚠️ Not published: ${result.error}`);
+            }
+            setTimeout(() => setToastMessage(""), result.ok ? 4000 : 9000);
           }
         }
       });
@@ -2023,13 +1823,14 @@
         confirmText: "Yes, Reset to Default",
         cancelText: "No, Cancel",
         confirmStyle: "btn-admin-danger",
-        onConfirm: () => {
+        onConfirm: async () => {
           setConfirmModal({ isOpen: false });
           if (window.PawpadContentStore) {
             window.PawpadContentStore.resetPage(selectedPage);
             setFormData(JSON.parse(JSON.stringify(window.PawpadContentStore.get(selectedPage))));
-            setToastMessage(`Reset ${selectedPage} page to factory defaults.`);
-            setTimeout(() => setToastMessage(""), 3500);
+            const result = await window.PawpadContentStore.lastPublish;
+            setToastMessage(result.ok ? `Reset ${pageLabel} to the standard content and published it.` : `⚠️ Not published: ${result.error}`);
+            setTimeout(() => setToastMessage(""), result.ok ? 4000 : 9000);
           }
         }
       });
@@ -2590,7 +2391,7 @@
                   React.createElement(CourseDocUploadWidget, {
                     label: "Syllabus Details Document (Know More)",
                     currentUrl: course.knowMoreUrl || "",
-                    acceptTypes: ".html,.htm,.pdf",
+                    acceptTypes: ".pdf",
                     onSelectUrl: (newUrl) => {
                       const list = [...formData.courseList];
                       list[idx].knowMoreUrl = newUrl;
@@ -2600,7 +2401,7 @@
                   React.createElement(CourseDocUploadWidget, {
                     label: "Course Application Form Document (Apply Now)",
                     currentUrl: course.enrollUrl || "",
-                    acceptTypes: ".html,.htm",
+                    allowUpload: false,
                     onSelectUrl: (newUrl) => {
                       const list = [...formData.courseList];
                       list[idx].enrollUrl = newUrl;
@@ -4127,7 +3928,25 @@
     const [isConverting, setIsConverting] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState("home.heroImage");
     const [assignNotice, setAssignNotice] = useState("");
+    const [uploads, setUploads] = useState({ files: [], usage: null });
     const fileInputRef = useRef(null);
+
+    const loadUploads = async () => {
+      if (!window.PawpadApi) return;
+      const result = await window.PawpadApi.call("list_uploads", {});
+      if (result.ok) setUploads({ files: result.data.files || [], usage: result.data.usage || null });
+    };
+
+    useEffect(() => {
+      loadUploads();
+    }, []);
+
+    const handleDeleteUpload = async (file) => {
+      if (!window.confirm(`Delete "${file.name || file.url}" from the server? Any page still using it will show a broken image.`)) return;
+      const result = await window.PawpadApi.call("delete_upload", { id: file.id });
+      if (!result.ok) window.alert("Could not delete: " + ((result.data && result.data.error) || "The server could not be reached."));
+      loadUploads();
+    };
 
     const imageSlots = [
       { id: "home.heroImage", page: "home", field: "heroImage", label: "Home Page — Hero Cover Photo" },
@@ -4167,33 +3986,17 @@
       const slot = imageSlots.find((s) => s.id === selectedSlot);
       if (!slot || !window.PawpadContentStore) return;
 
-      let imageTargetUrl = optimizedImage.dataUrl;
-
-      // Try uploading to server endpoint so it saves as a permanent .webp file
-      try {
-        const cleanBaseName = (optimizedImage.fileName || "pawpad-img").replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_.-]/g, "-").toLowerCase();
-        const webpFileName = `${cleanBaseName}-${Date.now().toString().slice(-4)}.webp`;
-        const resp = await fetch("/api/upload-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: webpFileName,
-            content: optimizedImage.dataUrl
-          })
-        });
-        if (resp.ok) {
-          const resData = await resp.json();
-          if (resData && resData.success && resData.path) {
-            imageTargetUrl = resData.path;
-          }
-        }
-      } catch (e) {
-        console.warn("Could not save to server endpoint, saving to local content store:", e);
+      setAssignNotice("Uploading and publishing…");
+      const upload = await window.PawpadApi.uploadFile("image", optimizedImage.fileName || "pawpad-image", optimizedImage.dataUrl);
+      if (!upload.ok) {
+        setAssignNotice(`⚠️ Upload failed: ${upload.error}`);
+        return;
       }
-
-      window.PawpadContentStore.updateField(slot.page, slot.field, imageTargetUrl);
-      setAssignNotice(`✓ Successfully applied WebP image to '${slot.label}'!`);
-      setTimeout(() => setAssignNotice(""), 4000);
+      window.PawpadContentStore.updateField(slot.page, slot.field, upload.url);
+      const result = await window.PawpadContentStore.lastPublish;
+      setAssignNotice(result.ok ? `✓ Image is live on '${slot.label}'.` : `⚠️ Uploaded, but not published: ${result.error}`);
+      setTimeout(() => setAssignNotice(""), 6000);
+      loadUploads();
     };
 
     const handleDownloadWebp = () => {
@@ -4343,10 +4146,37 @@
                 { className: "btn-admin btn-admin-secondary", onClick: handleDownloadWebp },
                 "Download .webp File"
               ),
-              assignNotice && React.createElement("span", { style: { color: "var(--admin-success)", fontSize: "13px", fontWeight: "600" } }, assignNotice)
+              assignNotice && React.createElement("span", { style: { color: assignNotice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)", fontSize: "13px", fontWeight: "600" } }, assignNotice)
             )
           )
         )
+      ),
+
+      // Files stored on the server
+      React.createElement(
+        "div",
+        { className: "card" },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", color: "var(--admin-gold)", marginBottom: "6px" } }, "Uploaded Files on the Server"),
+        uploads.usage && React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginBottom: "12px" } },
+          `Storage used: ${formatBytes(uploads.usage.usedBytes)} of ${formatBytes(uploads.usage.quotaBytes)}. Delete photos you no longer use to free space.`
+        ),
+        uploads.files.length === 0
+          ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No files uploaded yet.")
+          : React.createElement(
+              "div",
+              { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" } },
+              uploads.files.map((file) =>
+                React.createElement(
+                  "div",
+                  { key: file.id, style: { border: "1px solid var(--admin-border)", borderRadius: "8px", padding: "8px", display: "flex", flexDirection: "column", gap: "6px" } },
+                  file.kind === "image"
+                    ? React.createElement("img", { src: file.url, alt: file.name, loading: "lazy", style: { width: "100%", height: "100px", objectFit: "cover", borderRadius: "6px" } })
+                    : React.createElement("a", { href: file.url, target: "_blank", rel: "noopener", style: { fontSize: "13px" } }, "📄 PDF"),
+                  React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-muted)", wordBreak: "break-all" } }, `${file.name || "file"} · ${formatBytes(file.bytes)}`),
+                  React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "11px", padding: "4px 8px" }, onClick: () => handleDeleteUpload(file) }, "Delete")
+                )
+              )
+            )
       )
     );
   }
@@ -4355,97 +4185,68 @@
   // SYSTEM SETTINGS & BACKUPS TAB
   // -------------------------------------------------------------
   function SettingsTab({ currentUser }) {
-    const [usersMap, setUsersMap] = useState(() => getAdminUsers());
+    const [admins, setAdmins] = useState([]);
     const [newEmail, setNewEmail] = useState("");
+    const [newAdminPassword, setNewAdminPassword] = useState("");
     const [userNotice, setUserNotice] = useState("");
     const [backupNotice, setBackupNotice] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [currentPassword, setCurrentPassword] = useState("");
-    const usesServerLogin = Boolean(window.PawpadApi && window.PawpadApi.hasSession());
     const [passwordNotice, setPasswordNotice] = useState("");
     const [confirmModal, setConfirmModal] = useState({ isOpen: false });
     const importInputRef = useRef(null);
 
-    const userEmail = (currentUser?.email || PRIMARY_OWNER_EMAIL).trim().toLowerCase();
-    const isPrimaryOwner = userEmail === PRIMARY_OWNER_EMAIL.toLowerCase();
+    const userEmail = (currentUser?.email || "").trim().toLowerCase();
+    const isPrimaryOwner = currentUser?.role === "owner";
+    const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
+
+    // The admin team lives on the Pawpad server.
+    const loadAdmins = async () => {
+      const result = await window.PawpadApi.call("list_admins", {});
+      if (result.ok) setAdmins(result.data.admins || []);
+    };
 
     useEffect(() => {
-      syncServerAdminConfig().then((cfg) => {
-        if (cfg && cfg.users) {
-          setUsersMap({ ...DEFAULT_USERS, ...cfg.users });
-        }
-      });
+      loadAdmins();
     }, []);
 
-    const userList = useMemo(() => {
-      const all = Object.keys(usersMap).map((email) => {
-        const item = usersMap[email] || {};
-        const isOwner = email.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase();
-        return {
-          email,
-          role: isOwner ? "owner" : (item.role || "admin"),
-          hasCustomPass: Boolean(item.password),
-          createdAt: item.createdAt
-        };
-      });
-
-      // Primary Owner sees all admins; other admins only see the Primary Owner
-      if (isPrimaryOwner) {
-        return all;
-      }
-      return all.filter((u) => u.role === "owner" || u.email.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase());
-    }, [usersMap, isPrimaryOwner]);
+    const userList = admins;
 
     const handleAddEmail = async (e) => {
       e.preventDefault();
-      if (!isPrimaryOwner) {
-        alert("Only the Primary Owner can add new administrators.");
-        return;
-      }
       const clean = newEmail.trim().toLowerCase();
       if (!clean || !clean.includes("@")) return;
-      if (usersMap[clean]) {
-        setUserNotice("⚠️ Email is already in the administrator list.");
+      setUserNotice(`Adding '${clean}'...`);
+      const result = await window.PawpadApi.call("add_admin", { email: clean, password: newAdminPassword });
+      if (!result.ok) {
+        setUserNotice("⚠️ " + serverError(result));
         return;
       }
-      const updated = {
-        ...usersMap,
-        [clean]: { role: "admin", createdAt: new Date().toISOString() }
-      };
-      saveAdminUsers(updated);
-      setUsersMap(updated);
+      setAdmins(result.data.admins || []);
       setNewEmail("");
-      setUserNotice(`Saving '${clean}' to server...`);
-      await saveServerAdminConfig({ addUser: { email: clean, role: "admin" } });
-      setUserNotice(`✓ Administrator '${clean}' added! Initial password is '${DEFAULT_INITIAL_PASSWORD}'.`);
-      setTimeout(() => setUserNotice(""), 5000);
+      setNewAdminPassword("");
+      setUserNotice(`✓ '${clean}' can now sign in. Give them the starting password in person, and ask them to change it under "My Account Password".`);
+      setTimeout(() => setUserNotice(""), 8000);
     };
 
     const handleRemoveEmail = (emailToRemove) => {
-      if (!isPrimaryOwner) {
-        alert("Only the Primary Owner can remove administrators.");
-        return;
-      }
-      if (emailToRemove.toLowerCase() === PRIMARY_OWNER_EMAIL.toLowerCase()) {
-        alert("The Primary Owner account cannot be removed.");
-        return;
-      }
       setConfirmModal({
         isOpen: true,
         title: "Remove Administrator",
-        message: `Are you sure you want to remove ${emailToRemove} from administrator access?`,
+        message: `Are you sure you want to remove ${emailToRemove} from administrator access? They will be signed out straight away.`,
         confirmText: "Yes, Remove",
         cancelText: "No, Cancel",
         confirmStyle: "btn-admin-danger",
         onConfirm: async () => {
           setConfirmModal({ isOpen: false });
-          const updated = { ...usersMap };
-          delete updated[emailToRemove.toLowerCase()];
-          saveAdminUsers(updated);
-          setUsersMap(updated);
-          await saveServerAdminConfig({ removeUser: emailToRemove.toLowerCase() });
-          setUserNotice(`✓ ${emailToRemove} removed successfully.`);
+          const result = await window.PawpadApi.call("remove_admin", { email: emailToRemove });
+          if (!result.ok) {
+            setUserNotice("⚠️ " + serverError(result));
+            return;
+          }
+          setAdmins(result.data.admins || []);
+          setUserNotice(`✓ ${emailToRemove} removed.`);
           setTimeout(() => setUserNotice(""), 3500);
         }
       });
@@ -4454,57 +4255,25 @@
     const handleUpdatePassword = async (e) => {
       e.preventDefault();
       setPasswordNotice("");
-      const p1 = (newPassword || "").trim();
-      const p2 = (confirmPassword || "").trim();
-      if (!p1) {
-        setPasswordNotice("⚠️ Password cannot be empty.");
+      if (newPassword.length < 10) {
+        setPasswordNotice("⚠️ The new password must be at least 10 characters.");
         return;
       }
-      if (p1.length < 4) {
-        setPasswordNotice("⚠️ Password must be at least 4 characters.");
-        return;
-      }
-      if (p1 !== p2) {
+      if (newPassword !== confirmPassword) {
         setPasswordNotice("⚠️ Passwords do not match.");
         return;
       }
-
-      if (usesServerLogin) {
-        setPasswordNotice("Saving new password on the Pawpad server...");
-        const result = await window.PawpadApi.call("change_password", { currentPassword, newPassword: p1 });
-        if (result.ok) {
-          setNewPassword("");
-          setConfirmPassword("");
-          setCurrentPassword("");
-          setPasswordNotice(`✓ Password for ${userEmail} updated. Other devices have been signed out.`);
-          setTimeout(() => setPasswordNotice(""), 5000);
-        } else {
-          setPasswordNotice("⚠️ " + ((result.data && result.data.error) || "The server could not be reached."));
-        }
-        return;
-      }
-
-      setPasswordNotice("Saving and syncing password across devices...");
-      const updated = {
-        ...usersMap,
-        [userEmail]: {
-          ...(usersMap[userEmail] || { role: isPrimaryOwner ? "owner" : "admin" }),
-          password: p1,
-          updatedAt: new Date().toISOString()
-        }
-      };
-      saveAdminUsers(updated);
-      setUsersMap(updated);
-
-      const ok = await saveServerAdminConfig({ userPassword: { email: userEmail, password: p1 } });
-      setNewPassword("");
-      setConfirmPassword("");
-      if (ok) {
-        setPasswordNotice(`✓ Password for ${userEmail} updated and synced across all devices!`);
+      setPasswordNotice("Saving new password on the Pawpad server...");
+      const result = await window.PawpadApi.call("change_password", { currentPassword, newPassword });
+      if (result.ok) {
+        setNewPassword("");
+        setConfirmPassword("");
+        setCurrentPassword("");
+        setPasswordNotice(`✓ Password for ${userEmail} updated. Other devices have been signed out.`);
+        setTimeout(() => setPasswordNotice(""), 5000);
       } else {
-        setPasswordNotice(`✓ Password for ${userEmail} updated locally.`);
+        setPasswordNotice("⚠️ " + serverError(result));
       }
-      setTimeout(() => setPasswordNotice(""), 5000);
     };
 
     const handleExportBackup = () => {
@@ -4522,10 +4291,12 @@
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         if (window.PawpadContentStore && window.PawpadContentStore.importJSON(evt.target.result)) {
-          setBackupNotice("✓ Backup restored successfully!");
-          setTimeout(() => setBackupNotice(""), 4000);
+          setBackupNotice("Publishing the restored backup…");
+          const result = await window.PawpadContentStore.lastPublish;
+          setBackupNotice(result.ok ? "✓ Backup restored and published." : "⚠️ Not published: " + result.error);
+          setTimeout(() => setBackupNotice(""), result.ok ? 4000 : 9000);
         } else {
           alert("Invalid backup file. Please provide a valid JSON export.");
         }
@@ -4541,11 +4312,16 @@
         confirmText: "Yes, Reset Everything",
         cancelText: "No, Cancel",
         confirmStyle: "btn-admin-danger",
-        onConfirm: () => {
+        onConfirm: async () => {
           setConfirmModal({ isOpen: false });
           if (window.PawpadContentStore) {
             window.PawpadContentStore.resetAll();
-            alert("Website content successfully reset to factory defaults.");
+            const result = await window.PawpadContentStore.lastPublish;
+            if (!result.ok) {
+              alert("Not published: " + result.error);
+              return;
+            }
+            alert("Website content reset to factory defaults and published.");
             window.location.reload();
           }
         }
@@ -4578,7 +4354,7 @@
           )
         ),
         isPrimaryOwner ? React.createElement("p", { style: { color: "var(--admin-text-muted)", fontSize: "13px", marginBottom: "16px" } },
-          "Manage authorized staff logins. Newly added users start with the default setup password ('" + DEFAULT_INITIAL_PASSWORD + "') until they change it on their own."
+          "Manage who can sign in. Add a person with a starting password (at least 10 characters) and give it to them in person; they can change it after signing in."
         ) : React.createElement("p", { style: { color: "var(--admin-text-muted)", fontSize: "13px", marginBottom: "16px" } },
           "View authorized administrator team members."
         ),
@@ -4615,11 +4391,6 @@
                   React.createElement("span", { className: "badge", style: { fontSize: "11px", background: "var(--admin-card-hover)" } }, "Administrator")
                 ),
                 isCurrent && React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-gold)", fontWeight: "600" } }, "(You)"),
-                isPrimaryOwner && item.hasCustomPass && React.createElement(
-                  "span",
-                  { style: { fontSize: "11px", color: "var(--admin-success)" } },
-                  "• Personal Password Active"
-                )
               ),
               isPrimaryOwner && !isOwner && React.createElement(
                 "button",
@@ -4647,13 +4418,24 @@
               onChange: (e) => setNewEmail(e.target.value),
               style: { flex: 1 }
             }),
+            React.createElement("input", {
+              type: "password",
+              className: "input-field",
+              placeholder: "Starting password",
+              autoComplete: "new-password",
+              minLength: 10,
+              required: true,
+              value: newAdminPassword,
+              onChange: (e) => setNewAdminPassword(e.target.value),
+              style: { flex: 1 }
+            }),
             React.createElement("button", { type: "submit", className: "btn-admin btn-admin-primary" }, "Add Administrator")
           )
         ) : (
           React.createElement(
             "div",
             { style: { padding: "10px 14px", background: "var(--admin-bg)", borderRadius: "6px", border: "1px solid var(--admin-border)", fontSize: "12px", color: "var(--admin-text-muted)" } },
-            "🔒 Only the Primary Owner (", PRIMARY_OWNER_EMAIL, ") can add or remove administrator accounts."
+            "🔒 Only the owner can add or remove administrator accounts."
           )
         ),
         userNotice && React.createElement("div", { style: { color: userNotice.startsWith("✓") ? "var(--admin-success)" : "var(--admin-danger)", fontSize: "13px", fontWeight: "600", marginTop: "8px" } }, userNotice)
@@ -4673,7 +4455,7 @@
         React.createElement(
           "form",
           { onSubmit: handleUpdatePassword, style: { display: "flex", flexDirection: "column", gap: "12px" } },
-          usesServerLogin && React.createElement("div", null,
+          React.createElement("div", null,
             React.createElement("label", { style: { display: "block", fontSize: "12px", fontWeight: "600", color: "var(--admin-text-muted)", marginBottom: "4px" } }, "Current Password"),
             React.createElement("input", {
               type: "password",
@@ -4757,8 +4539,11 @@
   function AdminApp() {
     const [theme, setTheme] = useState(() => localStorage.getItem("pawpad_admin_theme") || "light");
     const [isAuthenticated, setIsAuthenticated] = useState(
-      localStorage.getItem(AUTH_STORAGE_KEY) === "authenticated"
+      localStorage.getItem(AUTH_STORAGE_KEY) === "authenticated" && Boolean(window.PawpadApi && window.PawpadApi.hasSession())
     );
+    // "loading" until the published website content has arrived from the server, then "ready" or "failed".
+    const [contentStatus, setContentStatus] = useState("loading");
+    const [legacyPrompt, setLegacyPrompt] = useState({ isOpen: false });
     const [currentUser, setCurrentUser] = useState(() => {
       try {
         const stored = localStorage.getItem(AUTH_USER_STORAGE_KEY);
@@ -4767,7 +4552,7 @@
           if (parsed && parsed.email) return parsed;
         }
       } catch (e) { }
-      return { email: PRIMARY_OWNER_EMAIL, name: "Admin", picture: null, role: "owner" };
+      return { email: "", name: "Admin", picture: null, role: "admin" };
     });
 
     const [activeTab, setActiveTab] = useState("dashboard");
@@ -4797,7 +4582,7 @@
       return () => window.removeEventListener("pawpad-applications-updated", refreshData);
     }, []);
 
-    // Server session expired, or the server is now live but this browser used the old login: sign in again.
+    // Server session expired: sign in again.
     useEffect(() => {
       const onUnauthorized = () => {
         if (localStorage.getItem(AUTH_STORAGE_KEY)) {
@@ -4806,10 +4591,49 @@
         }
       };
       window.addEventListener("pawpad-api-unauthorized", onUnauthorized);
-      if (isAuthenticated && window.PawpadApi && window.PawpadApi.isEnabled() && !window.PawpadApi.hasSession()) {
+      if (isAuthenticated && window.PawpadApi) {
         window.PawpadApi.call("me", {});
       }
       return () => window.removeEventListener("pawpad-api-unauthorized", onUnauthorized);
+    }, [isAuthenticated]);
+
+    // Editing must start from what is really published, or a save could overwrite newer content.
+    const loadContent = () => {
+      const store = window.PawpadContentStore;
+      if (!store) {
+        setContentStatus("ready");
+        return;
+      }
+      setContentStatus("loading");
+      // Use the copy loaded with the page; if that failed, ask the server again.
+      Promise.resolve(store.ready).then((ok) => (ok ? true : store.refreshFromServer())).then((ok) => {
+        setContentStatus(ok ? "ready" : "failed");
+        const legacy = ok && store.serverVersion === "" ? store.getLegacyLocalContent() : null;
+        if (legacy) {
+          setLegacyPrompt({
+            isOpen: true,
+            title: "Publish your earlier changes?",
+            message: "This browser still has website changes that were saved here before the Pawpad server existed. Visitors have never seen them. Publish them to the live website now? (Choose \"No\" to start from the standard content instead.)",
+            confirmText: "Yes, publish them",
+            cancelText: "No, discard them",
+            confirmStyle: "btn-admin-primary",
+            onConfirm: async () => {
+              setLegacyPrompt({ isOpen: false });
+              const result = await store.publishAllFrom(legacy);
+              if (result.ok) {
+                store.discardLegacyLocalContent();
+                window.alert("Your earlier changes are now live.");
+              } else {
+                window.alert("Could not publish: " + result.error);
+              }
+            }
+          });
+        }
+      });
+    };
+
+    useEffect(() => {
+      if (isAuthenticated) loadContent();
     }, [isAuthenticated]);
 
     const handleLogout = () => {
@@ -4830,6 +4654,26 @@
       });
     }
 
+    if (contentStatus !== "ready") {
+      return React.createElement(
+        "div",
+        { style: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", background: "var(--admin-bg)" } },
+        React.createElement(
+          "div",
+          { className: "card", style: { maxWidth: "440px", textAlign: "center", display: "flex", flexDirection: "column", gap: "14px" } },
+          contentStatus === "loading"
+            ? React.createElement("p", null, "Loading the published website content…")
+            : React.createElement(React.Fragment, null,
+                React.createElement("h3", { style: { color: "var(--admin-danger)" } }, "Couldn't load the website content"),
+                React.createElement("p", { style: { fontSize: "14px", color: "var(--admin-text-muted)" } },
+                  "The Pawpad server (api.pawpad.in) didn't answer. Editing is paused so nothing older overwrites the live website."),
+                React.createElement("button", { className: "btn-admin btn-admin-primary", onClick: loadContent }, "Try again"),
+                React.createElement("button", { className: "btn-admin", onClick: handleLogout }, "Sign out")
+              )
+        )
+      );
+    }
+
     const navigationItems = [
       { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
       { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: stats.pending > 0 ? stats.pending : null },
@@ -4841,6 +4685,14 @@
     return React.createElement(
       "div",
       { className: "admin-app" },
+
+      React.createElement(ConfirmModal, {
+        ...legacyPrompt,
+        onCancel: () => {
+          setLegacyPrompt({ isOpen: false });
+          if (window.PawpadContentStore) window.PawpadContentStore.discardLegacyLocalContent();
+        }
+      }),
 
       // Sidebar
       React.createElement(
@@ -4893,7 +4745,7 @@
               "div",
               { style: { overflow: "hidden" } },
               React.createElement("div", { style: { fontSize: "13px", fontWeight: "600", color: "var(--admin-text)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.name || "Admin User"),
-              React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-gold)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.email || PRIMARY_OWNER_EMAIL)
+              React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-gold)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.email || "")
             )
           )
         ),
