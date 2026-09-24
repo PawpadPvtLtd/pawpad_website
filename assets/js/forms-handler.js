@@ -14,8 +14,11 @@
       if (form.dataset.pawpadBound) return;
       form.dataset.pawpadBound = "true";
 
-      form.addEventListener("submit", function(e) {
+      form.addEventListener("submit", async function(e) {
         e.preventDefault();
+        // Ignore a second Enter / click while the first submission is still being saved
+        if (form.dataset.pawpadSubmitting) return;
+        form.dataset.pawpadSubmitting = "true";
 
         // Extract course name from document title or h1
         const h1 = document.querySelector("h1");
@@ -92,19 +95,6 @@
           acknowledgments: acks
         };
 
-        let createdId = "";
-        if (window.PawpadApplicationsStore) {
-          const created = window.PawpadApplicationsStore.submitApplication(appData);
-          createdId = created ? created.id : "";
-          console.log("Pawpad: Application captured in local store with ID:", createdId);
-        }
-        if (!createdId) {
-          const prefix = window.PawpadApplicationsStore 
-            ? window.PawpadApplicationsStore.getCourseAbbreviation(courseCode || courseKey || courseName, appData)
-            : (courseCode || "APP").toUpperCase();
-          createdId = `${prefix} - 001`;
-        }
-
         // Visual feedback on submit button
         const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
         if (submitBtn) {
@@ -115,6 +105,56 @@
             submitBtn.value = "Submitting Application...";
           }
         }
+
+        const coursePrefix = window.PawpadApplicationsStore
+          ? window.PawpadApplicationsStore.getCourseAbbreviation(courseCode || courseKey || courseName, appData)
+          : (courseCode || "APP").toUpperCase();
+
+        // Old behaviour, used only when the server can't be reached: keep a copy in this browser.
+        const saveLocally = () => {
+          let localId = "";
+          if (window.PawpadApplicationsStore) {
+            const created = window.PawpadApplicationsStore.submitApplication(appData);
+            localId = created ? created.id : "";
+            console.log("Pawpad: Application captured in local store with ID:", localId);
+          }
+          return localId || `${coursePrefix} - 001`;
+        };
+
+        // Save on the Pawpad server, which gives the real sequential application ID.
+        const saveOnServer = async () => {
+          if (!window.PawpadApi || !window.PawpadApi.isEnabled()) return "";
+          const serverResponses = {
+            why: appData.why,
+            experience: appData.experience,
+            handling: appData.handling,
+            careerFit: appData.careerFit,
+            healthDisclosure: appData.healthDisclosure
+          };
+          const skip = ["name", "email", "phone", "city", "why", "experience", "handling", "career_fit", "careerFit", "health_disclosure", "health", "botcheck"];
+          Object.keys(responses).forEach((key) => {
+            if (!key.startsWith("_") && !skip.includes(key) && typeof responses[key] === "string") {
+              serverResponses[key] = responses[key];
+            }
+          });
+          const result = await window.PawpadApi.call("submit_application", {
+            courseKey: courseKey,
+            courseCode: coursePrefix,
+            courseName: courseName,
+            courseFee: courseFee,
+            applicant: { name: appData.name, phone: appData.phone, email: appData.email, city: appData.city },
+            responses: serverResponses,
+            acknowledgments: acks,
+            botcheck: ""
+          });
+          if (result.ok && result.data.id) {
+            console.log("Pawpad: Application saved on the server with ID:", result.data.id);
+            return result.data.id;
+          }
+          return "";
+        };
+
+        const createdId = (await saveOnServer()) || saveLocally();
 
         const nextInput = form.querySelector('input[name="_next"]');
         const nextTarget = (nextInput && nextInput.value) ? nextInput.value : "success.html";

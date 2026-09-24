@@ -1,0 +1,22 @@
+# Pawpad API — keep settings and code files private.
+Options -Indexes
+
+# Always use HTTPS.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # Nothing inside lib/ can be opened from a browser.
+  RewriteRule ^lib(/|$) - [F,L]
+</IfModule>
+
+# config.php, the sample, notes and other non-entry files cannot be opened directly.
+<FilesMatch "^(config\.php|config\.sample\.php|.*\.md|.*\.sql|VERSION|LICENSE)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
