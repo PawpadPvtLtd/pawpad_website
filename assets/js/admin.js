@@ -2990,7 +2990,7 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Standard Trial Day Fee"), React.createElement("input", { className: "input-field", value: formData.trialDayFee || "", onChange: (e) => updateField("trialDayFee", e.target.value) })),
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Standard Overnight Fee"), React.createElement("input", { className: "input-field", value: formData.overnightFee || "", onChange: (e) => updateField("overnightFee", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "WhatsApp Booking Number"), React.createElement("input", { className: "input-field", placeholder: "e.g. 919663077496", value: formData.whatsappNumber || "", onChange: (e) => updateField("whatsappNumber", e.target.value) }))
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "WhatsApp Booking Number"), React.createElement("input", { className: "input-field", placeholder: "e.g. 919845001809", value: formData.whatsappNumber || "", onChange: (e) => updateField("whatsappNumber", e.target.value) }))
             )
           ),
 

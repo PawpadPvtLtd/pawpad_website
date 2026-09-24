@@ -343,7 +343,7 @@ What to Expect:
 - Review of program format, practical hands-on structure, and course expectations.
 - Answering any questions you may have regarding the curriculum, equipment, or schedule.
 
-If you need to reschedule or have any questions in the meantime, please reply to this email or message our admissions desk on WhatsApp at +91 98451 23456.
+If you need to reschedule or have any questions in the meantime, please reply to this email or message our admissions desk on WhatsApp at +91 98450 01809.
 
 Warm regards,
 Admissions Team
@@ -386,10 +386,10 @@ Application & Course Details:
 ${customNote ? `• Note from Admissions: ${customNote}\n` : ""}
 Next Steps to Secure Your Seat:
 1. Seat Reservation Deposit: To confirm your seat in the upcoming cohort, please submit the seat reservation deposit.
-2. Batch & Schedule Alignment: Our admissions desk will reach out via WhatsApp / phone (+91 98451 23456) to align your preferred batch dates and training schedule.
+2. Batch & Schedule Alignment: Our admissions desk will reach out via WhatsApp / phone (+91 98450 01809) to align your preferred batch dates and training schedule.
 3. Student Kit & Preparation Guide: Once the deposit is received, your student onboarding packet and preparation guidelines will be issued.
 
-If you have any questions or are ready to proceed with the seat deposit, please reply to this email or message our admissions desk directly on WhatsApp (+91 98451 23456).
+If you have any questions or are ready to proceed with the seat deposit, please reply to this email or message our admissions desk directly on WhatsApp (+91 98450 01809).
 
 We are thrilled to welcome you to Pawpad Academy!
 

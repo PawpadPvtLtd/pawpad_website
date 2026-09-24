@@ -163,7 +163,7 @@ const GROOM_PACKAGES = [
     duration: "BATH & BRUSH",
     isDogOnly: true,
     petType: "Dog",
-    img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
+    img: "assets/img/pawpad/bath-brush-dogs.webp",
     includes: [
       "Bath",
       "Full blow dry",

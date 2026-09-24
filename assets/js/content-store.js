@@ -13,7 +13,7 @@
       siteName: "Pawpad",
       tagline: "Conscious Pet Grooming & Wellness in Bengaluru",
       phone: "+91 88853 49267",
-      whatsapp: "918885349267",
+      whatsapp: "919845001809",
       email: "hello@pawpad.in",
       coursesEmail: "courses@pawpad.in",
       location: "Kalyan Nagar, Bengaluru, Karnataka 560043",
@@ -392,7 +392,7 @@
           duration: "BATH & BRUSH",
           isDogOnly: true,
           petType: "Dog",
-          img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
+          img: "assets/img/pawpad/bath-brush-dogs.webp",
           includes: ["Bath", "Full blow dry", "Coat brushing"],
           notIncludes: ["Nail trim, ear cleaning, or anal gland expression", "Hygiene clip, scissoring, or clipping", "Matted coats or dogs needing extra care"],
           note: "A fast, no-fuss clean for dogs who don't need a full groom — just a wash, dry, and brush-out between full sessions."
@@ -529,7 +529,7 @@
       trialDayFee: "₹850",
       overnightFee: "₹1,000 / night",
       policyNotice: "Currently open strictly to small dogs only. A mandatory Trial Day assessment must be successfully completed before any overnight booking is accepted.",
-      whatsappNumber: "919663077496",
+      whatsappNumber: "919845001809",
       packages: [
         {
           key: "trial-day",
@@ -668,7 +668,7 @@
       socials: {
         instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
         facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
-        twitter: "https://twitter.com"
+        twitter: "https://x.com/Pawpad_Blore"
       }
     },
     studioSetup: {
@@ -842,12 +842,25 @@
             }
           }
 
+          if (parsed && parsed.branding && parsed.branding.whatsapp === "918885349267") {
+            parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
+          }
+          if (parsed && parsed.boarding && parsed.boarding.whatsappNumber === "919663077496") {
+            parsed.boarding.whatsappNumber = DEFAULT_CONTENT.boarding.whatsappNumber;
+          }
+          if (parsed && parsed.contact && parsed.contact.socials && parsed.contact.socials.twitter === "https://twitter.com") {
+            parsed.contact.socials.twitter = DEFAULT_CONTENT.contact.socials.twitter;
+          }
+
           if (parsed && parsed.grooming && Array.isArray(parsed.grooming.packages)) {
             parsed.grooming.packages.forEach(pkg => {
               if (pkg && pkg.key === "puppy-short") {
                 if (!pkg.sub || pkg.sub.includes("3 months") || pkg.sub.includes("below 3 months")) {
                   pkg.sub = "Gentle introductions for puppies below 6 months";
                 }
+              }
+              if (pkg && pkg.key === "bath-brush-dogs" && pkg.img === "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp") {
+                pkg.img = "assets/img/pawpad/bath-brush-dogs.webp";
               }
               if (pkg && pkg.img && pkg.img.includes("grooming-nail-clipping-new")) {
                 pkg.img = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
