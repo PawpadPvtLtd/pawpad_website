@@ -83,6 +83,40 @@
     },
     clearSession() {
       setToken("");
+    },
+    /**
+     * Published website content. A plain GET (no custom headers) so visitors'
+     * browsers don't need an extra CORS round trip.
+     */
+    async getContent() {
+      const base = window.PAWPAD_API_BASE !== undefined ? window.PAWPAD_API_BASE : API_BASE;
+      if (!base) return { ok: false, status: 0, data: {}, networkError: true };
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
+      try {
+        const res = await fetch(`${base.replace(/\/$/, "")}/index.php?action=get_content`, {
+          cache: "no-cache",
+          signal: controller ? controller.signal : undefined
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok && data.ok === true, status: res.status, data, networkError: false };
+      } catch (err) {
+        console.warn("PawpadApi: could not load published content", err);
+        return { ok: false, status: 0, data: {}, networkError: true };
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    },
+    /**
+     * Uploads a WebP image or a PDF (as a data: URL) and returns its public address.
+     */
+    async uploadFile(kind, filename, dataUrl) {
+      const result = await call("upload_file", { kind, filename, content: dataUrl });
+      if (result.ok) return { ok: true, url: result.data.url, usage: result.data.usage };
+      return {
+        ok: false,
+        error: (result.data && result.data.error) || "The Pawpad server could not be reached. Please check your internet connection."
+      };
     }
   };
 })(window);

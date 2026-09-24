@@ -73,8 +73,8 @@ test.describe("Interactive Features & User Flows", () => {
   test("TopNav contains all 9 main navigation links and opens Studio Setup", async ({ page }) => {
     await page.goto("/index.html");
     const navLinks = page.locator(".nav-links.desktop-only .nav-link");
-    const count = await navLinks.count();
-    expect(count).toBe(9); // Home, About, Experience, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Contact
+    // Pages wait briefly for published content before drawing, so wait for the links.
+    await expect(navLinks).toHaveCount(9); // Home, About, Experience, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Contact
 
     const studioSetupLink = page.locator('.nav-links.desktop-only a[href="studio-setup.html"]');
     await expect(studioSetupLink).toBeVisible();
@@ -139,84 +139,82 @@ test.describe("Interactive Features & User Flows", () => {
     await expect(termsHeading).toBeVisible();
   });
 
-  test("Course interview scheduling and approval emails send candidate notifications via Web3Forms", async ({ page }) => {
-    await page.addInitScript(() => {
-      // This test covers the browser-only fallback, used when the Pawpad server is switched off
-      window.PAWPAD_API_BASE = "";
-      localStorage.setItem("pawpad_admin_auth_session", "authenticated");
-      localStorage.setItem("pawpad_admin_auth_user", JSON.stringify({ email: "pawpadpetstylist@gmail.com", role: "owner" }));
-      sessionStorage.setItem("pawpad_admin_auth_session", "authenticated");
-      localStorage.setItem("pawpad_course_applications_v1", JSON.stringify([
-        {
-          id: "PCGEC - 001",
-          courseKey: "pcgec",
-          courseName: "Pawpad Canine Grooming Essentials Certificate (PCGEC)",
-          courseFee: "₹30,000",
-          createdAt: new Date().toISOString(),
-          status: "pending_review",
-          interviewDate: "",
-          applicant: {
-            name: "Priya Sharma",
-            email: "priya.test@example.com",
-            phone: "+91 98765 43210",
-            city: "Bengaluru"
-          },
-          responses: {
-            why: "Passionate about dog grooming",
-            experience: "Beginner",
-            handling: "Calm and force-free"
-          }
-        }
-      ]));
+  test("Admin signs in through the Pawpad server and emails candidates from courses@", async ({ page }) => {
+    // A stand-in for api.pawpad.in, so this test runs without the real server.
+    const app = {
+      id: "PCGEC - 001",
+      courseKey: "pcgec",
+      courseName: "Pawpad Canine Grooming Essentials Certificate (PCGEC)",
+      courseFee: "₹30,000",
+      createdAt: new Date().toISOString(),
+      status: "pending_review",
+      interviewDate: "",
+      applicant: { name: "Priya Sharma", email: "priya.test@example.com", phone: "+91 98765 43210", city: "Bengaluru" },
+      responses: { why: "Passionate about dog grooming", experience: "Beginner", handling: "Calm and force-free" },
+      acknowledgments: {},
+      staffNotes: [],
+      communications: []
+    };
+    const emails = [];
+    await page.route("https://api.pawpad.in/**", async (route) => {
+      const action = new URL(route.request().url()).searchParams.get("action");
+      const raw = route.request().postData();
+      const body = raw ? JSON.parse(raw) : {};
+      let data = { ok: true };
+      if (action === "get_content") data = { ok: true, content: {}, version: "" };
+      if (action === "login") {
+        data = body.password === "correct-password"
+          ? { ok: true, token: "a".repeat(64), user: { email: body.email, role: "owner" } }
+          : { ok: false, error: "Invalid email or password." };
+      }
+      if (action === "me") data = { ok: true, user: { email: "owner@pawpad.in", role: "owner" } };
+      if (action === "list_applications") data = { ok: true, applications: [app] };
+      if (action === "list_admins") data = { ok: true, admins: [{ email: "owner@pawpad.in", role: "owner" }] };
+      if (action === "list_uploads") data = { ok: true, files: [], usage: { usedBytes: 0, quotaBytes: 157286400 } };
+      if (action === "update_application") {
+        if (body.status) app.status = body.status;
+        if (body.interviewDate !== undefined) app.interviewDate = body.interviewDate;
+        if (body.email) emails.push(body.email);
+        data = { ok: true, application: { ...app }, email: body.email ? { sent: true, error: "" } : null };
+      }
+      await route.fulfill({
+        status: data.ok ? 200 : 401,
+        contentType: "application/json",
+        headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type, X-Pawpad-Token" },
+        body: JSON.stringify(data)
+      });
     });
 
     await page.goto("/admin.html");
-    await expect(page.locator("body")).toBeVisible();
+
+    // The old browser-only password no longer works
+    await page.locator('input[type="email"]').first().fill("owner@pawpad.in");
+    await page.locator('input[type="password"]').first().fill("2017");
+    await page.locator('button[type="submit"]').first().click();
+    await expect(page.getByText("Invalid email or password.")).toBeVisible();
+
+    await page.locator('input[type="password"]').first().fill("correct-password");
+    await page.locator('button[type="submit"]').first().click();
 
     // Navigate to Course Applications tab
     const appsNav = page.locator('nav button:has-text("Course Applications")');
     await appsNav.click();
 
-    // Verify Applications list renders
     const inspectBtn = page.locator('button:has-text("Inspect & Approve")').first();
     await expect(inspectBtn).toBeVisible();
     await inspectBtn.click();
-
-    // Modal opens
     await expect(page.locator(".modal-card")).toBeVisible();
 
-    // Set interview date and click Schedule & Send Invite
-    const interviewInput = page.locator('input[type="datetime-local"]');
-    await interviewInput.fill("2026-10-15T14:30");
-
-    // Intercept Web3Forms request to verify candidate email payload
-    let interceptedPayload = null;
-    await page.route("https://api.web3forms.com/submit", async (route) => {
-      interceptedPayload = route.request().postData();
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ success: true, message: "Email submitted successfully" })
-      });
-    });
-
-    const scheduleBtn = page.locator('button:has-text("Schedule & Send Invite")');
-    await scheduleBtn.click();
-
-    // Verify confirmation banner appears
+    await page.locator('input[type="datetime-local"]').fill("2026-10-15T14:30");
+    await page.locator('button:has-text("Schedule & Send Invite")').click();
     await expect(page.locator('strong:has-text("Interview Scheduled & Candidate Email Dispatched")')).toBeVisible();
-    await expect(page.locator('a:has-text("Open in Gmail")')).toBeVisible();
+    await expect(page.getByText(/sent to priya.test@example.com from courses@pawpad.in/).first()).toBeVisible();
 
-    // Now click Approve & Send Confirmation
-    const approveBtn = page.locator('button:has-text("✓ Approve & Send Confirmation")');
-    await approveBtn.click();
-
-    // Verify approval confirmation banner appears
+    await page.locator('button:has-text("✓ Approve & Send Confirmation")').click();
     await expect(page.locator('strong:has-text("Application Approved & Confirmation Email Dispatched")')).toBeVisible();
-    await expect(page.locator('a:has-text("Default Email Client")')).toBeVisible();
+    await expect(page.locator(".modal-card .badge-approved")).toBeVisible();
 
-    // Verify application status changed to approved
-    await expect(page.locator('.modal-card .badge-approved')).toBeVisible();
+    expect(emails.map((e) => e.type)).toEqual(["interview_scheduled", "application_approved"]);
   });
 });
 

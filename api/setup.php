@@ -26,7 +26,7 @@ $isError = false;
 
 if ($enabled && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $pdo = db();
-    create_tables($pdo);
+    ensure_schema($pdo);
     rate_limit('setup', 10, 900);
 
     $key = (string) ($_POST['setup_key'] ?? '');

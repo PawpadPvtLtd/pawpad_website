@@ -10,9 +10,35 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
+// Raise this whenever create_tables() gains a table, so servers add it on the next request.
+const SCHEMA_VERSION = 2;
+
+/**
+ * Creates any missing tables after an update, without needing setup.php again.
+ */
+function ensure_schema(PDO $pdo): void
+{
+    try {
+        $current = (int) $pdo->query('SELECT version FROM schema_info WHERE id = 1')->fetchColumn();
+    } catch (PDOException $e) {
+        $current = 0;
+    }
+    if ($current >= SCHEMA_VERSION) {
+        return;
+    }
+    create_tables($pdo);
+    $pdo->prepare('INSERT INTO schema_info (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)')
+        ->execute([SCHEMA_VERSION]);
+}
+
 function create_tables(PDO $pdo): void
 {
     $opts = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS schema_info (
+        id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+        version INT UNSIGNED NOT NULL
+    ) $opts");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin_users (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -57,6 +83,25 @@ function create_tables(PDO $pdo): void
         updated_at DATETIME NOT NULL,
         INDEX idx_applications_created (created_at),
         INDEX idx_applications_status (status)
+    ) $opts");
+
+    // Website content published from the admin panel: one row per page (home, grooming, ...).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS site_content (
+        page_key VARCHAR(40) NOT NULL PRIMARY KEY,
+        data MEDIUMTEXT NOT NULL,
+        updated_at DATETIME NOT NULL,
+        updated_by VARCHAR(190) NOT NULL DEFAULT ''
+    ) $opts");
+
+    // Images and PDFs uploaded from the admin panel (files live in uploads/).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS uploads (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        kind VARCHAR(10) NOT NULL,
+        path VARCHAR(255) NOT NULL UNIQUE,
+        original_name VARCHAR(255) NOT NULL DEFAULT '',
+        bytes INT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL,
+        created_by VARCHAR(190) NOT NULL DEFAULT ''
     ) $opts");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS rate_events (

@@ -5,7 +5,10 @@
  */
 
 (function(window) {
+  // Old browser-only copy (before the server existed); read once to offer publishing it.
   const STORAGE_KEY = "pawpad_cms_content_v1";
+  // This browser's cached copy of the content published on the server.
+  const PUBLISHED_CACHE_KEY = "pawpad_cms_published_v1";
 
   // Default content snapshot across all pages
   const DEFAULT_CONTENT = {
@@ -801,161 +804,147 @@
 
   class ContentStore {
     constructor() {
-      this.state = this._load();
+      this.serverVersion = "";
+      this.lastPublish = Promise.resolve({ ok: true });
+      if (this._usesServer()) {
+        // Show the last published copy (or the built-in defaults) at once,
+        // then swap in the latest published content from api.pawpad.in.
+        this.state = this._loadPublishedCache();
+        this.ready = this.refreshFromServer();
+      } else {
+        this.state = this._load();
+        this.ready = Promise.resolve(false);
+      }
+    }
+
+    /** Content comes from the Pawpad server (api.pawpad.in) unless it is switched off. */
+    _usesServer() {
+      return Boolean(window.PawpadApi && window.PawpadApi.isEnabled());
+    }
+
+    _canPublish() {
+      return this._usesServer() && window.PawpadApi.hasSession();
+    }
+
+    _notify() {
+      window.dispatchEvent(new CustomEvent("pawpad-content-updated", { detail: this.state }));
+    }
+
+    _loadPublishedCache() {
+      try {
+        const cached = JSON.parse(localStorage.getItem(PUBLISHED_CACHE_KEY) || "null");
+        if (cached && cached.content && typeof cached.content === "object") {
+          this.serverVersion = cached.version || "";
+          return this._normalize(cached.content);
+        }
+      } catch (err) {}
+      return JSON.parse(JSON.stringify(DEFAULT_CONTENT));
+    }
+
+    _cachePublished(rawContent) {
+      try {
+        localStorage.setItem(PUBLISHED_CACHE_KEY, JSON.stringify({ version: this.serverVersion, content: rawContent }));
+      } catch (err) {}
+    }
+
+    /**
+     * Loads the published content from the server. If the server can't be
+     * reached, the page keeps the cached copy or the built-in defaults.
+     */
+    async refreshFromServer() {
+      const result = await window.PawpadApi.getContent();
+      if (!result.ok) return false;
+      const version = result.data.version || "";
+      if (version === this.serverVersion) return true;
+      const raw = result.data.content && typeof result.data.content === "object" ? result.data.content : {};
+      this.serverVersion = version;
+      this._cachePublished(JSON.parse(JSON.stringify(raw)));
+      this.state = this._normalize(raw);
+      this._notify();
+      return true;
+    }
+
+    /**
+     * Content an admin saved in this browser before the server existed, or null.
+     */
+    getLegacyLocalContent() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? this._normalize(JSON.parse(saved)) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    discardLegacyLocalContent() {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (err) {}
+    }
+
+    /** Replaces everything with the given content and publishes every page. */
+    publishAllFrom(content) {
+      this.state = JSON.parse(JSON.stringify(content));
+      this._save(Object.keys(this.state));
+      return this.lastPublish;
+    }
+
+    /**
+     * Uploads any "data:" images still inside the content (older browser-only
+     * uploads) so only normal image addresses are published.
+     */
+    async _uploadInlineImages(node, path) {
+      if (!node || typeof node !== "object") return { ok: true };
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (typeof value === "string" && value.startsWith("data:image/")) {
+          let dataUrl = value;
+          if (!value.startsWith("data:image/webp") && window.PawpadImageOptimizer) {
+            const blob = await (await fetch(value)).blob();
+            dataUrl = (await window.PawpadImageOptimizer.convertToWebP(blob, 0.85, 1920)).dataUrl;
+          }
+          const upload = await window.PawpadApi.uploadFile("image", `${path}-${key}.webp`, dataUrl);
+          if (!upload.ok) return { ok: false, error: `Could not upload the image for ${path}.${key}: ${upload.error}` };
+          node[key] = upload.url;
+        } else if (value && typeof value === "object") {
+          const nested = await this._uploadInlineImages(value, `${path}.${key}`);
+          if (!nested.ok) return nested;
+        }
+      }
+      return { ok: true };
+    }
+
+    /** Sends the given pages to the server so every visitor sees them. */
+    async _publish(pageKeys) {
+      const pages = {};
+      pageKeys.forEach((key) => {
+        if (this.state[key] && typeof this.state[key] === "object") {
+          pages[key] = JSON.parse(JSON.stringify(this.state[key]));
+        }
+      });
+      if (Object.keys(pages).length === 0) return { ok: true };
+
+      const images = await this._uploadInlineImages(pages, "content");
+      if (!images.ok) return images;
+      Object.keys(pages).forEach((key) => {
+        this.state[key] = JSON.parse(JSON.stringify(pages[key]));
+      });
+
+      const result = await window.PawpadApi.call("save_content", { pages });
+      if (!result.ok) {
+        return { ok: false, error: (result.data && result.data.error) || "The Pawpad server could not be reached. Nothing was published." };
+      }
+      this.serverVersion = result.data.version || "";
+      this._cachePublished(JSON.parse(JSON.stringify(this.state)));
+      this._notify();
+      return { ok: true };
     }
 
     _load() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed && parsed.home) {
-            if (!parsed.home.heroImage || parsed.home.heroImage.includes("hero-cover-dog-cat")) {
-              parsed.home.heroImage = "assets/img/pawpad/hero-cover-bernese-cat.webp";
-            }
-            if (Array.isArray(parsed.home.services)) {
-              parsed.home.services.forEach(s => {
-                if (s && s.key === "courses") {
-                  if (!s.img || s.img.includes("courses-cover-new")) {
-                    s.img = "assets/img/pawpad/courses-snapshot.webp";
-                  }
-                }
-              });
-            }
-          }
-
-          if (parsed && parsed.grooming) {
-            if (!parsed.grooming.heroImage || parsed.grooming.heroImage.includes("grooming-snapshot-new")) {
-              parsed.grooming.heroImage = "assets/img/pawpad/grooming-snapshot.webp";
-            }
-          }
-
-          if (parsed && parsed.courses) {
-            if (!parsed.courses.heroImage || parsed.courses.heroImage.includes("courses-snapshot") || parsed.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
-              parsed.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
-            }
-          }
-
-          if (parsed && parsed.boarding) {
-            if (parsed.boarding.title === "Boarding, Reimagined" || parsed.boarding.title === "Boarding, Reimagined ") {
-              parsed.boarding.title = "Boarding, ";
-            }
-          }
-
-          if (parsed && parsed.branding && parsed.branding.whatsapp === "918885349267") {
-            parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
-          }
-          if (parsed && parsed.boarding && parsed.boarding.whatsappNumber === "919663077496") {
-            parsed.boarding.whatsappNumber = DEFAULT_CONTENT.boarding.whatsappNumber;
-          }
-          if (parsed && parsed.contact && parsed.contact.socials && parsed.contact.socials.twitter === "https://twitter.com") {
-            parsed.contact.socials.twitter = DEFAULT_CONTENT.contact.socials.twitter;
-          }
-
-          if (parsed && parsed.grooming && Array.isArray(parsed.grooming.packages)) {
-            parsed.grooming.packages.forEach(pkg => {
-              if (pkg && pkg.key === "puppy-short") {
-                if (!pkg.sub || pkg.sub.includes("3 months") || pkg.sub.includes("below 3 months")) {
-                  pkg.sub = "Gentle introductions for puppies below 6 months";
-                }
-              }
-              if (pkg && pkg.key === "bath-brush-dogs" && pkg.img === "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp") {
-                pkg.img = "assets/img/pawpad/bath-brush-dogs.webp";
-              }
-              if (pkg && pkg.img && pkg.img.includes("grooming-nail-clipping-new")) {
-                pkg.img = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
-              }
-            });
-          }
-
-          if (parsed && parsed.courses && Array.isArray(parsed.courses.courseList)) {
-            parsed.courses.courseList = parsed.courses.courseList.filter(
-              c => c && c.key !== "pgfc" && c.key !== "foundations" && c.key !== "consulting" && c.key !== "studio-consulting-online" && c.key !== "studio-consulting-in-person" && !(c.title && (c.title.includes("Grooming Foundations Certificate (PGFC)") || c.title.includes("Pawpad Foundations") || c.title.includes("Studio Setup")))
-            );
-
-            parsed.courses.courseList.forEach(course => {
-              if (course.key === "pacgc" || (course.title && course.title.includes("Applied Canine"))) {
-                course.knowMoreUrl = "course_forms/pawpad-foundations-page.html";
-              }
-              if (course.knowMoreUrl === "course_forms/pawpad-advanced-dog-page.html") {
-                course.knowMoreUrl = "";
-              }
-            });
-
-            const targetOrder = ["pcgec", "pfgec", "pcgpc", "pfgpc", "pacgc"];
-            parsed.courses.courseList.sort((a, b) => {
-              const indexA = targetOrder.indexOf(a.key);
-              const indexB = targetOrder.indexOf(b.key);
-              if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-              if (indexA !== -1) return -1;
-              if (indexB !== -1) return 1;
-              return 0;
-            });
-
-            if (!parsed.courses.lead || parsed.courses.lead.includes("Small cohorts") || parsed.courses.lead.includes("max 3 students") || parsed.courses.lead.includes("A hands-on grooming course") || parsed.courses.lead.includes("stress-free handling methods")) {
-              parsed.courses.lead = DEFAULT_CONTENT.courses.lead;
-            }
-          } else if (parsed && parsed.courses) {
-            if (!parsed.courses.lead || parsed.courses.lead.includes("Small cohorts") || parsed.courses.lead.includes("max 3 students") || parsed.courses.lead.includes("A hands-on grooming course") || parsed.courses.lead.includes("stress-free handling methods")) {
-              parsed.courses.lead = DEFAULT_CONTENT.courses.lead;
-            }
-          }
-
-          if (parsed && parsed.studioSetup) {
-            if (!parsed.studioSetup.eyebrow || parsed.studioSetup.eyebrow.includes("PAWPAD · STUDIO SETUP & BUSINESS CONSULTING")) {
-              parsed.studioSetup.eyebrow = DEFAULT_CONTENT.studioSetup.eyebrow;
-            }
-            if (!parsed.studioSetup.title || parsed.studioSetup.title === "Grooming Studio Setup & ") {
-              parsed.studioSetup.title = DEFAULT_CONTENT.studioSetup.title;
-              parsed.studioSetup.titleAccent = DEFAULT_CONTENT.studioSetup.titleAccent;
-            }
-            if (!parsed.studioSetup.heroLead || parsed.studioSetup.heroLead.includes("Thinking about opening a grooming studio") || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist" || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start.") {
-              parsed.studioSetup.heroLead = DEFAULT_CONTENT.studioSetup.heroLead;
-            }
-            if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage.includes("studio-setup-overview-new")) {
-              parsed.studioSetup.heroImage = DEFAULT_CONTENT.studioSetup.heroImage;
-            }
-            if (Array.isArray(parsed.studioSetup.gallery)) {
-              parsed.studioSetup.gallery = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup.gallery));
-            }
-          } else if (parsed) {
-            parsed.studioSetup = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup));
-          }
-
-          if (parsed && parsed.myotherapy) {
-            if (parsed.myotherapy.web3FormsAccessKey === "YOUR_ACCESS_KEY_HERE" || parsed.myotherapy.web3FormsAccessKey === "a9a21b4b-47ee-4889-b709-9f101c59874d" || !parsed.myotherapy.web3FormsAccessKey) {
-              parsed.myotherapy.web3FormsAccessKey = "ce70cafb-d84c-42f7-b57e-d320ff768866";
-            }
-          }
-          if (parsed && parsed.courses) {
-            if (parsed.courses.web3FormsAccessKey === "YOUR_ACCESS_KEY_HERE" || parsed.courses.web3FormsAccessKey === "ce70cafb-d84c-42f7-b57e-d320ff768866" || !parsed.courses.web3FormsAccessKey) {
-              parsed.courses.web3FormsAccessKey = "a9a21b4b-47ee-4889-b709-9f101c59874d";
-            }
-          }
-
-          // Clean any remaining "-new.webp" references in parsed data
-          const cleanLegacyPaths = (obj) => {
-            if (!obj || typeof obj !== "object") return;
-            for (const k in obj) {
-              if (typeof obj[k] === "string") {
-                if (k === "heroImage" && obj[k].includes("courses-snapshot.webp")) obj[k] = "assets/img/pawpad/courses-cover-new.webp";
-                else if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
-                else if (obj[k].includes("studio-setup-overview-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-overview.webp";
-                else if (obj[k].includes("studio-setup-grooming-area-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-grooming-area.webp";
-                else if (obj[k].includes("studio-setup-hydraulic-table-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-hydraulic-table.webp";
-                else if (obj[k].includes("grooming-nail-clipping-new.webp")) obj[k] = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
-              } else if (typeof obj[k] === "object") {
-                cleanLegacyPaths(obj[k]);
-              }
-            }
-          };
-          cleanLegacyPaths(parsed);
-          const merged = this._deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONTENT)), parsed);
-          if (merged && merged.courses) {
-            if (!merged.courses.heroImage || merged.courses.heroImage.includes("courses-snapshot") || merged.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
-              merged.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
-            }
-          }
+          const merged = this._normalize(JSON.parse(saved));
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
           } catch (_) {}
@@ -967,11 +956,177 @@
       return JSON.parse(JSON.stringify(DEFAULT_CONTENT));
     }
 
-    _save() {
-      try {
-        if (this.state && this.state.courses && this.state.courses.heroImage && (this.state.courses.heroImage.includes("courses-snapshot") || this.state.courses.heroImage.includes("courses-cover-image"))) {
-          this.state.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+    /**
+     * Brings saved content up to date (old image paths, renamed text...) and
+     * fills anything missing from the built-in defaults.
+     */
+    _normalize(parsed) {
+      if (parsed && parsed.home) {
+        if (!parsed.home.heroImage || parsed.home.heroImage.includes("hero-cover-dog-cat")) {
+          parsed.home.heroImage = "assets/img/pawpad/hero-cover-bernese-cat.webp";
         }
+        if (Array.isArray(parsed.home.services)) {
+          parsed.home.services.forEach(s => {
+            if (s && s.key === "courses") {
+              if (!s.img || s.img.includes("courses-cover-new")) {
+                s.img = "assets/img/pawpad/courses-snapshot.webp";
+              }
+            }
+          });
+        }
+      }
+
+      if (parsed && parsed.grooming) {
+        if (!parsed.grooming.heroImage || parsed.grooming.heroImage.includes("grooming-snapshot-new")) {
+          parsed.grooming.heroImage = "assets/img/pawpad/grooming-snapshot.webp";
+        }
+      }
+
+      if (parsed && parsed.courses) {
+        if (!parsed.courses.heroImage || parsed.courses.heroImage.includes("courses-snapshot") || parsed.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
+          parsed.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+        }
+      }
+
+      if (parsed && parsed.boarding) {
+        if (parsed.boarding.title === "Boarding, Reimagined" || parsed.boarding.title === "Boarding, Reimagined ") {
+          parsed.boarding.title = "Boarding, ";
+        }
+      }
+
+      if (parsed && parsed.branding && parsed.branding.whatsapp === "918885349267") {
+        parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
+      }
+      if (parsed && parsed.boarding && parsed.boarding.whatsappNumber === "919663077496") {
+        parsed.boarding.whatsappNumber = DEFAULT_CONTENT.boarding.whatsappNumber;
+      }
+      if (parsed && parsed.contact && parsed.contact.socials && parsed.contact.socials.twitter === "https://twitter.com") {
+        parsed.contact.socials.twitter = DEFAULT_CONTENT.contact.socials.twitter;
+      }
+
+      if (parsed && parsed.grooming && Array.isArray(parsed.grooming.packages)) {
+        parsed.grooming.packages.forEach(pkg => {
+          if (pkg && pkg.key === "puppy-short") {
+            if (!pkg.sub || pkg.sub.includes("3 months") || pkg.sub.includes("below 3 months")) {
+              pkg.sub = "Gentle introductions for puppies below 6 months";
+            }
+          }
+          if (pkg && pkg.key === "bath-brush-dogs" && pkg.img === "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp") {
+            pkg.img = "assets/img/pawpad/bath-brush-dogs.webp";
+          }
+          if (pkg && pkg.img && pkg.img.includes("grooming-nail-clipping-new")) {
+            pkg.img = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
+          }
+        });
+      }
+
+      if (parsed && parsed.courses && Array.isArray(parsed.courses.courseList)) {
+        parsed.courses.courseList = parsed.courses.courseList.filter(
+          c => c && c.key !== "pgfc" && c.key !== "foundations" && c.key !== "consulting" && c.key !== "studio-consulting-online" && c.key !== "studio-consulting-in-person" && !(c.title && (c.title.includes("Grooming Foundations Certificate (PGFC)") || c.title.includes("Pawpad Foundations") || c.title.includes("Studio Setup")))
+        );
+
+        parsed.courses.courseList.forEach(course => {
+          if (course.key === "pacgc" || (course.title && course.title.includes("Applied Canine"))) {
+            course.knowMoreUrl = "course_forms/pawpad-foundations-page.html";
+          }
+          if (course.knowMoreUrl === "course_forms/pawpad-advanced-dog-page.html") {
+            course.knowMoreUrl = "";
+          }
+        });
+
+        const targetOrder = ["pcgec", "pfgec", "pcgpc", "pfgpc", "pacgc"];
+        parsed.courses.courseList.sort((a, b) => {
+          const indexA = targetOrder.indexOf(a.key);
+          const indexB = targetOrder.indexOf(b.key);
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return 0;
+        });
+
+        if (!parsed.courses.lead || parsed.courses.lead.includes("Small cohorts") || parsed.courses.lead.includes("max 3 students") || parsed.courses.lead.includes("A hands-on grooming course") || parsed.courses.lead.includes("stress-free handling methods")) {
+          parsed.courses.lead = DEFAULT_CONTENT.courses.lead;
+        }
+      } else if (parsed && parsed.courses) {
+        if (!parsed.courses.lead || parsed.courses.lead.includes("Small cohorts") || parsed.courses.lead.includes("max 3 students") || parsed.courses.lead.includes("A hands-on grooming course") || parsed.courses.lead.includes("stress-free handling methods")) {
+          parsed.courses.lead = DEFAULT_CONTENT.courses.lead;
+        }
+      }
+
+      if (parsed && parsed.studioSetup) {
+        if (!parsed.studioSetup.eyebrow || parsed.studioSetup.eyebrow.includes("PAWPAD · STUDIO SETUP & BUSINESS CONSULTING")) {
+          parsed.studioSetup.eyebrow = DEFAULT_CONTENT.studioSetup.eyebrow;
+        }
+        if (!parsed.studioSetup.title || parsed.studioSetup.title === "Grooming Studio Setup & ") {
+          parsed.studioSetup.title = DEFAULT_CONTENT.studioSetup.title;
+          parsed.studioSetup.titleAccent = DEFAULT_CONTENT.studioSetup.titleAccent;
+        }
+        if (!parsed.studioSetup.heroLead || parsed.studioSetup.heroLead.includes("Thinking about opening a grooming studio") || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist" || parsed.studioSetup.heroLead === "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start.") {
+          parsed.studioSetup.heroLead = DEFAULT_CONTENT.studioSetup.heroLead;
+        }
+        if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage.includes("studio-setup-overview-new")) {
+          parsed.studioSetup.heroImage = DEFAULT_CONTENT.studioSetup.heroImage;
+        }
+        if (Array.isArray(parsed.studioSetup.gallery)) {
+          parsed.studioSetup.gallery = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup.gallery));
+        }
+      } else if (parsed) {
+        parsed.studioSetup = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup));
+      }
+
+      if (parsed && parsed.myotherapy) {
+        if (parsed.myotherapy.web3FormsAccessKey === "YOUR_ACCESS_KEY_HERE" || parsed.myotherapy.web3FormsAccessKey === "a9a21b4b-47ee-4889-b709-9f101c59874d" || !parsed.myotherapy.web3FormsAccessKey) {
+          parsed.myotherapy.web3FormsAccessKey = "ce70cafb-d84c-42f7-b57e-d320ff768866";
+        }
+      }
+      if (parsed && parsed.courses) {
+        if (parsed.courses.web3FormsAccessKey === "YOUR_ACCESS_KEY_HERE" || parsed.courses.web3FormsAccessKey === "ce70cafb-d84c-42f7-b57e-d320ff768866" || !parsed.courses.web3FormsAccessKey) {
+          parsed.courses.web3FormsAccessKey = "a9a21b4b-47ee-4889-b709-9f101c59874d";
+        }
+      }
+
+      // Clean any remaining "-new.webp" references in parsed data
+      const cleanLegacyPaths = (obj) => {
+        if (!obj || typeof obj !== "object") return;
+        for (const k in obj) {
+          if (typeof obj[k] === "string") {
+            if (k === "heroImage" && obj[k].includes("courses-snapshot.webp")) obj[k] = "assets/img/pawpad/courses-cover-new.webp";
+            else if (obj[k].includes("grooming-snapshot-new.webp")) obj[k] = "assets/img/pawpad/grooming-snapshot.webp";
+            else if (obj[k].includes("studio-setup-overview-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-overview.webp";
+            else if (obj[k].includes("studio-setup-grooming-area-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-grooming-area.webp";
+            else if (obj[k].includes("studio-setup-hydraulic-table-new.webp")) obj[k] = "assets/img/pawpad/studio-setup-hydraulic-table.webp";
+            else if (obj[k].includes("grooming-nail-clipping-new.webp")) obj[k] = "assets/img/pawpad/grooming-page-grooming-nail-clipping.webp";
+          } else if (typeof obj[k] === "object") {
+            cleanLegacyPaths(obj[k]);
+          }
+        }
+      };
+      cleanLegacyPaths(parsed);
+      const merged = this._deepMerge(JSON.parse(JSON.stringify(DEFAULT_CONTENT)), parsed);
+      if (merged && merged.courses) {
+        if (!merged.courses.heroImage || merged.courses.heroImage.includes("courses-snapshot") || merged.courses.heroImage === "assets/img/pawpad/courses-cover-image.webp") {
+          merged.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+        }
+      }
+      return merged;
+    }
+
+    /**
+     * Saves changed pages. With the server on, this publishes them to every
+     * visitor; the result (success or error) is in this.lastPublish.
+     */
+    _save(pageKeys) {
+      if (this.state && this.state.courses && this.state.courses.heroImage && (this.state.courses.heroImage.includes("courses-snapshot") || this.state.courses.heroImage.includes("courses-cover-image"))) {
+        this.state.courses.heroImage = "assets/img/pawpad/courses-cover-new.webp";
+      }
+      if (this._usesServer()) {
+        this._notify();
+        this.lastPublish = this._canPublish()
+          ? this._publish(pageKeys || Object.keys(this.state))
+          : Promise.resolve({ ok: false, error: "Please sign in to the admin panel to publish changes." });
+        return;
+      }
+      try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
         window.dispatchEvent(new CustomEvent("pawpad-content-updated", { detail: this.state }));
       } catch (err) {
@@ -1027,7 +1182,7 @@
       } else {
         this.state[pageKey] = newValues;
       }
-      this._save();
+      this._save([pageKey]);
       return this.state[pageKey];
     }
 
@@ -1039,13 +1194,13 @@
         cur = cur[parts[i]];
       }
       cur[parts[parts.length - 1]] = value;
-      this._save();
+      this._save([pageKey]);
     }
 
     resetPage(pageKey) {
       if (DEFAULT_CONTENT[pageKey]) {
         this.state[pageKey] = JSON.parse(JSON.stringify(DEFAULT_CONTENT[pageKey]));
-        this._save();
+        this._save([pageKey]);
       }
     }
 
@@ -1123,14 +1278,18 @@
             ctx.imageSmoothingQuality = "high";
             ctx.drawImage(img, 0, 0, width, height);
 
-            // Convert to webp data URL
-            const webpDataUrl = canvas.toDataURL("image/webp", quality);
+            // Convert to webp data URL. Safari can't write WebP (it silently returns PNG),
+            // so fall back to a compressed JPEG there.
+            let webpDataUrl = canvas.toDataURL("image/webp", quality);
+            if (!webpDataUrl.startsWith("data:image/webp")) {
+              webpDataUrl = canvas.toDataURL("image/jpeg", quality);
+            }
             const originalSizeBytes = fileOrBlob.size || Math.round((event.target.result.length * 3) / 4);
             const webpSizeBytes = Math.round((webpDataUrl.length * 3) / 4);
 
             resolve({
               dataUrl: webpDataUrl,
-              format: "image/webp",
+              format: webpDataUrl.startsWith("data:image/webp") ? "image/webp" : "image/jpeg",
               width: width,
               height: height,
               originalSizeBytes: originalSizeBytes,

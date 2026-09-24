@@ -77,13 +77,13 @@ function json_error(string $message, int $status = 400): void
     send_json(['ok' => false, 'error' => $message], $status);
 }
 
-function request_json(): array
+function request_json(int $maxBytes = 200000): array
 {
     $raw = file_get_contents('php://input');
     if ($raw === false || $raw === '') {
         return [];
     }
-    if (strlen($raw) > 200000) {
+    if (strlen($raw) > $maxBytes) {
         json_error('Request is too large.', 413);
     }
     $data = json_decode($raw, true);

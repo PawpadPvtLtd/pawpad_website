@@ -40,4 +40,11 @@ return [
 
     // How long an admin stays signed in, in hours.
     'session_hours' => 12,
+
+    // Admin uploads (images and PDFs) are saved in the uploads/ folder.
+    // The hosting has 1 GB in total, so uploads are capped well below that.
+    'public_base_url'     => 'https://api.pawpad.in',
+    'upload_quota_mb'     => 150,   // all uploads together
+    'upload_max_image_kb' => 1500,  // one image, after WebP compression
+    'upload_max_pdf_kb'   => 4000,  // one PDF
 ];

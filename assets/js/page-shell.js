@@ -64,8 +64,23 @@ function PawpadShell({ route, page: PageComponent }) {
   );
 }
 function mountPage(route, PageComponent) {
-  const root = ReactDOM.createRoot(document.getElementById("app"));
-  root.render(/* @__PURE__ */ React.createElement(PawpadShell, { route, page: PageComponent }));
+  const render = () => {
+    const root = ReactDOM.createRoot(document.getElementById("app"));
+    root.render(/* @__PURE__ */ React.createElement(PawpadShell, { route, page: PageComponent }));
+  };
+  // Wait briefly for the latest published content so visitors don't see old text flash first.
+  // If the server is slow, show the page anyway; it updates itself when the content arrives.
+  const ready = window.PawpadContentStore && window.PawpadContentStore.ready;
+  if (!ready) return render();
+  let rendered = false;
+  const once = () => {
+    if (!rendered) {
+      rendered = true;
+      render();
+    }
+  };
+  Promise.resolve(ready).then(once, once);
+  setTimeout(once, 1500);
 }
 Object.assign(window, { PawpadShell, mountPage });
 
