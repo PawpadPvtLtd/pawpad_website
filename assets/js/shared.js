@@ -434,7 +434,7 @@ function Marquee({ items }) {
         @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }
       `));
 }
-const WA_NUMBER = "918885349267";
+const WA_NUMBER = "919845001809";
 const WA_MESSAGE = "Hello, I would like to know more about your services.";
 function WhatsAppFloat() {
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(

@@ -72,8 +72,8 @@ const CART_CATALOG = [
     id: "studio-consulting-in-person",
     title: "On-Site Studio Blueprint & Setup (In-Person)",
     category: "Studio Setup",
-    price: 60000,
-    priceDisplay: "₹60,000",
+    price: 35000,
+    priceDisplay: "₹35,000",
     desc: "Full physical studio layout consultation, plumbing/electrical review, on-site walkthrough, and comprehensive equipment blueprint",
     requiresPetInfo: false,
     img: "assets/img/pawpad/studio-setup-overview.webp"
@@ -257,7 +257,7 @@ const CART_CATALOG = [
     requiresPetInfo: true,
     isDogOnly: true,
     petType: "Dog",
-    img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp"
+    img: "assets/img/pawpad/bath-brush-dogs.webp"
   },
   {
     id: "bath-brush-cats",
@@ -1269,7 +1269,7 @@ function CheckoutModal({ open, onClose }) {
             React.createElement(
               "a",
               {
-                href: `https://wa.me/918885349267?text=${encodeURIComponent(
+                href: `https://wa.me/919845001809?text=${encodeURIComponent(
                   `Hi Pawpad! I placed booking ref ${completedOrder.orderId} for ${completedOrder.pets && completedOrder.pets.length > 0
                     ? completedOrder.pets.map((p) => `${p.name} (${p.type})`).join(", ")
                     : "my booking"

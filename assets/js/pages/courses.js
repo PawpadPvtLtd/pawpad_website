@@ -373,7 +373,7 @@ function CredibilityStrip() {
             ),
             React.createElement("li", null,
               React.createElement("strong", null, "Small batches, personalised attention."),
-              " A maximum of two students at a time allows for focused guidance and personalised feedback."
+              " A maximum of three students at a time allows for focused guidance and personalised feedback."
             ),
             React.createElement("li", null,
               React.createElement("strong", null, "Train in both dogs and cats."),

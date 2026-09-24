@@ -56,6 +56,12 @@
           const m = sub.innerText.match(/₹[\d,]+/);
           if (m) courseFee = m[0];
         }
+        // Consulting has two formats with different fees; use the one the applicant picked
+        const chosenFormat = form.querySelector('input[name="consultation_format"]:checked');
+        if (chosenFormat) {
+          const fm = chosenFormat.value.match(/₹[\d,]+/);
+          if (fm) courseFee = /\/\s*day/i.test(chosenFormat.value) ? `${fm[0]} / day` : fm[0];
+        }
 
         const formData = new FormData(form);
         const acks = {};
@@ -139,6 +145,17 @@
         web3FormData.append("career_fit", appData.careerFit);
         web3FormData.append("health_disclosure", appData.healthDisclosure);
         web3FormData.append("acknowledgments", Object.keys(acks).join(", ") || "Confirmed");
+
+        // Forward every other submitted field (consulting details, physical capability, etc.)
+        // so nothing the applicant filled in is dropped. Fields already sent above are skipped.
+        const alreadySent = ["name", "email", "phone", "city", "why", "experience", "handling", "career_fit", "careerFit", "health_disclosure", "health", "botcheck", "access_key"];
+        Object.keys(responses).forEach((key) => {
+          if (key.startsWith("_") || alreadySent.includes(key)) return;
+          const value = responses[key];
+          if (typeof value === "string" && value.trim() !== "") {
+            web3FormData.append(key, value);
+          }
+        });
         web3FormData.append("botcheck", "");
 
         // Submit to Web3Forms API

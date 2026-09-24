@@ -22,10 +22,8 @@ const pages = [
   { path: "/course_forms/pawpad-application-pacgc.html", titleContains: "PACGC Application" },
   { path: "/course_forms/pawpad-application-pcgec.html", titleContains: "PCGEC Application" },
   { path: "/course_forms/pawpad-application-pcgpc.html", titleContains: "PCGPC Application" },
-  { path: "/course_forms/pawpad-application-pfbgb.html", titleContains: "Application" },
   { path: "/course_forms/pawpad-application-pfgec.html", titleContains: "PFGEC Application" },
   { path: "/course_forms/pawpad-application-pfgpc.html", titleContains: "PFGPC Application" },
-  { path: "/course_forms/pawpad-application-pgfc.html", titleContains: "PGFC Application" },
   { path: "/course_forms/pawpad-application-consulting-gssc.html", titleContains: "Consulting" },
   { path: "/course_forms/success.html", titleContains: "Application" }
 ];

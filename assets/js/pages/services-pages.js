@@ -16,7 +16,7 @@ function BoardingPage({ onBook, onAddToCart }) {
       id: pkg.key === "trial-day" ? "boarding-trial-day" : (pkg.key === "overnight" ? "boarding-overnight" : ("boarding-" + pkg.key)),
       title: pkg.title,
       category: "Boarding",
-      price: pkg.priceNum || (parseFloat(String(pkg.price || "").replace(/[^0-9.]/g, "")) || 1000),
+      price: parseFloat(String(pkg.price || "").replace(/[^0-9.]/g, "")) || pkg.priceNum || 1000,
       priceDisplay: pkg.price ? `${pkg.price}${pkg.priceUnit ? ` / ${pkg.priceUnit.replace(/per /g, "")}` : ""}` : "₹1,000",
       desc: pkg.desc || (isTrial ? "Mandatory assessment trial day for small dogs before overnight stays" : "Calm, supervised overnight stay for small dogs"),
       requiresPetInfo: true,
@@ -269,7 +269,7 @@ function BoardingPage({ onBook, onAddToCart }) {
               React.createElement(Arrow, null)
             ),
             /* @__PURE__ */ React.createElement("a", {
-              href: `https://wa.me/${(cms.whatsappNumber || "919663077496").replace(/[^0-9]/g, "")}?text=Hi%20Pawpad%2C%20I%20would%20like%20to%20enquire%20about%20boarding%20for%20my%20dog`,
+              href: `https://wa.me/${(cms.whatsappNumber || "919845001809").replace(/[^0-9]/g, "")}?text=Hi%20Pawpad%2C%20I%20would%20like%20to%20enquire%20about%20boarding%20for%20my%20dog`,
               target: "_blank",
               rel: "noopener noreferrer",
               className: "btn btn-ghost",
