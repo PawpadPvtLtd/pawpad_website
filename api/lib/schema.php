@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -102,6 +102,59 @@ function create_tables(PDO $pdo): void
         bytes INT UNSIGNED NOT NULL,
         created_at DATETIME NOT NULL,
         created_by VARCHAR(190) NOT NULL DEFAULT ''
+    ) $opts");
+
+    // Grooming bookings. One row per pet; several pets in one order share a ref.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bookings (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        ref VARCHAR(20) NOT NULL,
+        slot_date DATE NOT NULL,
+        slot_time CHAR(5) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'booked',
+        service_id VARCHAR(60) NOT NULL DEFAULT '',
+        service_title VARCHAR(255) NOT NULL DEFAULT '',
+        pet MEDIUMTEXT NOT NULL,
+        customer_name VARCHAR(255) NOT NULL DEFAULT '',
+        customer_email VARCHAR(255) NOT NULL DEFAULT '',
+        customer_phone VARCHAR(60) NOT NULL DEFAULT '',
+        customer_area VARCHAR(255) NOT NULL DEFAULT '',
+        contact_method VARCHAR(30) NOT NULL DEFAULT '',
+        notes TEXT NOT NULL,
+        calendar_href VARCHAR(500) NOT NULL DEFAULT '',
+        calendar_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        email_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at DATETIME NOT NULL,
+        cancelled_at DATETIME NULL,
+        cancelled_by VARCHAR(190) NOT NULL DEFAULT '',
+        INDEX idx_bookings_slot (slot_date, slot_time),
+        INDEX idx_bookings_ref (ref)
+    ) $opts");
+
+    // The unique (date, start time) rule: a slot can only ever have one row here,
+    // so two people can never book the same start time, even at the same moment.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS slot_locks (
+        slot_date DATE NOT NULL,
+        slot_time CHAR(5) NOT NULL,
+        booking_id INT UNSIGNED NOT NULL,
+        PRIMARY KEY (slot_date, slot_time)
+    ) $opts");
+
+    // Slots or whole days blocked by an admin (slot_time '' = the whole day).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS slot_blocks (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        slot_date DATE NOT NULL,
+        slot_time CHAR(5) NOT NULL DEFAULT '',
+        reason VARCHAR(255) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL,
+        created_by VARCHAR(190) NOT NULL DEFAULT '',
+        UNIQUE KEY uniq_block (slot_date, slot_time)
+    ) $opts");
+
+    // Short-lived copy of the calendar's busy times, so every visitor doesn't query the calendar.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS calendar_cache (
+        cache_key VARCHAR(64) NOT NULL PRIMARY KEY,
+        fetched_at INT UNSIGNED NOT NULL,
+        data MEDIUMTEXT NOT NULL
     ) $opts");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS rate_events (

@@ -855,7 +855,9 @@ function derivePetSlots(items) {
         isDogOnly: isDog && !isFlexible,
         isCatOnly: isCat && !isFlexible,
         allowPetTypeSelection: isFlexible,
-        isOvernight: isOvernight
+        isOvernight: isOvernight,
+        // Grooming services each take one real studio slot; boarding stays an enquiry.
+        takesSlot: typeof PawpadSlots !== "undefined" && PawpadSlots.takesSlot(item)
       });
     }
   });
@@ -882,6 +884,11 @@ function CheckoutModal({ open, onClose }) {
   const [petSlots, setPetSlots] = useStateC([]);
   const [pets, setPets] = useStateC([]);
   const [activePetIndex, setActivePetIndex] = useStateC(0);
+  // One chosen { date, time } per pet that needs a grooming slot (same order as petSlots).
+  const [slotChoices, setSlotChoices] = useStateC([]);
+  const [bookingError, setBookingError] = useStateC("");
+  const [placing, setPlacing] = useStateC(false);
+  const [availability, reloadAvailability] = typeof useSlotAvailability === "function" ? useSlotAvailability(open) : [null, () => {}];
 
   useEffectC(() => {
     if (open) {
@@ -893,6 +900,9 @@ function CheckoutModal({ open, onClose }) {
 
       const slots = derivePetSlots(currentItems);
       setPetSlots(slots);
+      setSlotChoices(slots.map(() => ({ date: null, time: null })));
+      setBookingError("");
+      setPlacing(false);
       setPets(
         slots.map((s) => ({
           id: s.id,
@@ -940,6 +950,23 @@ function CheckoutModal({ open, onClose }) {
   const finalTotal = subtotal + mandatoryTrialDayFee;
 
   const updCustomer = (k, v) => setCustomerData((d) => ({ ...d, [k]: v }));
+
+  // Pets whose service takes a real grooming slot, with their index in pets/petSlots.
+  const slotPetIndexes = petSlots.map((s, idx) => (s.takesSlot ? idx : -1)).filter((idx) => idx !== -1);
+  const hasSlotPets = slotPetIndexes.length > 0;
+  // Boarding and course/consulting items are still enquiries with a preferred date.
+  const hasEnquiryItems = items.some((i) => typeof PawpadSlots === "undefined" || !PawpadSlots.takesSlot(i));
+  const updSlot = (idx, choice) => {
+    setBookingError("");
+    setSlotChoices((prev) => {
+      const next = [...prev];
+      next[idx] = choice;
+      return next;
+    });
+  };
+  const slotLabel = (choice) => choice && choice.date && choice.time
+    ? `${PawpadSlots.formatDate(choice.date)} · ${PawpadSlots.formatTime(choice.time)}`
+    : "Not chosen yet";
 
   const updPet = (index, field, value) => {
     setPets((prev) => {
@@ -1080,7 +1107,7 @@ function CheckoutModal({ open, onClose }) {
       return pets.length > 0 && pets.every((p, idx) => isPetValid(p, idx));
     }
     if (step === scheduleStepIndex) {
-      return true;
+      return slotPetIndexes.every((idx) => slotChoices[idx] && slotChoices[idx].date && slotChoices[idx].time);
     }
     return true;
   };
@@ -1114,8 +1141,9 @@ function CheckoutModal({ open, onClose }) {
     }
   };
 
-  const handlePlaceOrder = () => {
-    const orderRef = "PAW-" + Math.floor(100000 + Math.random() * 900000);
+  const handlePlaceOrder = async () => {
+    if (placing) return;
+    let orderRef = "PAW-" + Math.floor(100000 + Math.random() * 900000);
     const resolvedPets = pets.map((p, idx) => {
       const slot = petSlots[idx] || {};
       const isCompatible = pets[0] && (p.petType === pets[0].petType || slot.allowPetTypeSelection);
@@ -1161,6 +1189,45 @@ function CheckoutModal({ open, onClose }) {
       createdAt: new Date().toISOString()
     };
 
+    // Reserve the grooming slots on the Pawpad server first; nothing is sent if that fails.
+    if (hasSlotPets) {
+      setPlacing(true);
+      setBookingError("");
+      const result = await PawpadSlots.book({
+        customer: orderPayload.customer,
+        notes: customerData.notes,
+        estimatedTotal: `₹${formatInr(finalTotal)}`,
+        pets: slotPetIndexes.map((idx) => ({
+          serviceId: petSlots[idx].serviceId,
+          serviceTitle: pets[idx].serviceTitle,
+          date: slotChoices[idx].date,
+          time: slotChoices[idx].time,
+          pet: resolvedPets[idx]
+        })),
+        botcheck: ""
+      });
+      setPlacing(false);
+      if (!result.ok) {
+        setBookingError(result.error);
+        if (result.taken && result.taken.length) {
+          // Someone else got that slot first: clear it and show the latest free times.
+          setSlotChoices((prev) => prev.map((c) => (c && result.taken.some((t) => t.date === c.date && t.time === c.time) ? { date: c.date, time: null } : c)));
+          reloadAvailability(true);
+          setStep(scheduleStepIndex);
+        }
+        return;
+      }
+      orderRef = result.ref;
+      orderPayload.orderId = result.ref;
+      orderPayload.confirmedSlots = result.bookings;
+      orderPayload.confirmationEmailSent = result.emailSent;
+      orderPayload.appointment = {
+        date: result.bookings.map((b) => b.label).join(" | "),
+        time: "Confirmed",
+        notes: customerData.notes
+      };
+    }
+
     if (window.hsSubmit) {
       window.hsSubmit("checkout", orderPayload);
     }
@@ -1200,9 +1267,19 @@ function CheckoutModal({ open, onClose }) {
             { className: "success-icon-wrap" },
             React.createElement(PawIcon, { size: 36, color: "var(--white)" })
           ),
-          React.createElement("p", { className: "eyebrow", style: { justifyContent: "center" } }, "Booking & Order Placed"),
+          React.createElement("p", { className: "eyebrow", style: { justifyContent: "center" } }, completedOrder.confirmedSlots ? "Booking Confirmed" : "Booking & Order Placed"),
           React.createElement("h3", { className: "h-2" }, "Thank you, ", completedOrder.customer.name, "!"),
-          React.createElement(
+          completedOrder.confirmedSlots
+            ? React.createElement(
+              "p",
+              { className: "success-sub" },
+              "Your grooming time is reserved. ",
+              completedOrder.confirmationEmailSent
+                ? `A confirmation email is on its way to ${completedOrder.customer.email}.`
+                : "We'll send your confirmation shortly.",
+              " Payment is at the studio."
+            )
+            : React.createElement(
             "p",
             { className: "success-sub" },
             "We’ve received your booking request. Our team will review your order details and confirm your slot via ",
@@ -1255,7 +1332,14 @@ function CheckoutModal({ open, onClose }) {
                 )).join(" | ")
               )
             ),
-            completedOrder.appointment &&
+            completedOrder.confirmedSlots
+              ? completedOrder.confirmedSlots.map((b, i) => React.createElement(
+                "div",
+                { className: "ref-row confirmed-slot", key: "cs-" + i },
+                React.createElement("span", null, b.petName ? `${b.petName} · ${b.serviceTitle}` : b.serviceTitle),
+                React.createElement("strong", null, b.label)
+              ))
+              : completedOrder.appointment &&
             React.createElement(
               "div",
               { className: "ref-row" },
@@ -1789,14 +1873,35 @@ function CheckoutModal({ open, onClose }) {
                 "div",
                 { className: "step-head" },
                 React.createElement("p", { className: "eyebrow" }, "Step · Schedule"),
-                React.createElement("h4", { className: "h-3" }, "Preferred Date & Time"),
+                React.createElement("h4", { className: "h-3" }, hasSlotPets ? "Choose Your Grooming Time" : "Preferred Date & Time"),
                 React.createElement(
                   "p",
                   { className: "lead-sm" },
-                  "Pick a tentative slot (closed on Thursdays). We will confirm based on studio availability and calm spacing."
+                  hasSlotPets
+                    ? "Only free times are shown. Each pet gets its own time, reserved as soon as you place the booking. Closed on Thursdays."
+                    : "Pick a tentative slot (closed on Thursdays). We will confirm based on studio availability and calm spacing."
                 )
               ),
-              React.createElement(
+              bookingError && React.createElement("div", { className: "slot-status slot-error", role: "alert", style: { marginBottom: 16 } }, bookingError),
+              hasSlotPets && slotPetIndexes.map((idx) =>
+                React.createElement(
+                  "div",
+                  { key: "slot-" + idx, className: "slot-pet-block", "data-slot-pet": idx, style: { marginBottom: 28 } },
+                  React.createElement("p", { className: "eyebrow", style: { marginBottom: 10 } },
+                    `${slotPetIndexes.length > 1 ? `Pet ${slotPetIndexes.indexOf(idx) + 1} · ` : ""}${(pets[idx] && pets[idx].name) || "Your pet"} — ${(pets[idx] && pets[idx].serviceTitle) || "Grooming"}`
+                  ),
+                  React.createElement(SlotPicker, {
+                    availability,
+                    serviceId: petSlots[idx].serviceId,
+                    value: slotChoices[idx],
+                    onChange: (choice) => updSlot(idx, choice),
+                    excluded: slotPetIndexes.filter((other) => other !== idx).map((other) => slotChoices[other]).filter((c) => c && c.date && c.time),
+                    onRetry: () => reloadAvailability(true)
+                  })
+                )
+              ),
+              (!hasSlotPets || hasEnquiryItems) && hasSlotPets && React.createElement("p", { className: "eyebrow", style: { marginTop: 8 } }, "Boarding / enquiry — preferred date (we'll confirm with you)"),
+              (!hasSlotPets || hasEnquiryItems) && React.createElement(
                 "div",
                 { className: "date-picker-wrap" },
                 React.createElement("label", { className: "sub-label" }, "Select Date (Next 14 Days)"),
@@ -1825,7 +1930,7 @@ function CheckoutModal({ open, onClose }) {
                   })
                 )
               ),
-              React.createElement(
+              (!hasSlotPets || hasEnquiryItems) && React.createElement(
                 "div",
                 { className: "time-picker-wrap", style: { marginTop: 24 } },
                 React.createElement("label", { className: "sub-label" }, "Select Time Slot"),
@@ -1875,6 +1980,7 @@ function CheckoutModal({ open, onClose }) {
                   "Check your contact info, pet details, and selected services before submitting."
                 )
               ),
+              bookingError && React.createElement("div", { className: "slot-status slot-error", role: "alert", style: { marginBottom: 16 } }, bookingError),
               React.createElement(
                 "div",
                 { className: "review-summary-grid" },
@@ -1971,6 +2077,11 @@ function CheckoutModal({ open, onClose }) {
                             { className: "review-pet-service" },
                             p.serviceTitle || "Grooming / Wellness"
                           ),
+                          petSlots[idx] && petSlots[idx].takesSlot && React.createElement(
+                            "div",
+                            { className: "review-pet-details", style: { fontWeight: 600 } },
+                            `🕒 ${slotLabel(slotChoices[idx])}`
+                          ),
                           React.createElement(
                             "div",
                             { className: "review-pet-details" },
@@ -2002,7 +2113,10 @@ function CheckoutModal({ open, onClose }) {
                       "div",
                       null,
                       React.createElement("span", { className: "review-label" }, "Schedule:"),
-                      React.createElement(
+                      hasSlotPets
+                        ? slotPetIndexes.map((idx) => React.createElement("p", { key: "rv-" + idx },
+                            `${(pets[idx] && pets[idx].name) || "Pet"}: ${slotLabel(slotChoices[idx])}`))
+                        : React.createElement(
                         "p",
                         null,
                         customerData.date
@@ -2042,9 +2156,10 @@ function CheckoutModal({ open, onClose }) {
                 "button",
                 {
                   className: "btn btn-primary",
-                  onClick: handlePlaceOrder
+                  onClick: handlePlaceOrder,
+                  disabled: placing
                 },
-                "Confirm Booking & Checkout ",
+                placing ? "Reserving your time… " : "Confirm Booking & Checkout ",
                 React.createElement(Arrow, null)
               )
               : React.createElement(

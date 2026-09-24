@@ -69,3 +69,10 @@ Phase 3 moves the website content and admin photos onto the server.
    seconds (pull down to refresh).
 6. Add any other staff under **Settings & Backups → Authorized Administrator Team**
    with a starting password, and give them that password in person.
+
+## One time only: after the Phase 4 update (grooming bookings)
+
+After updating the server, follow **Steps 2–5 in
+[Phase 4 — grooming slot bookings](phase-4-grooming-bookings.md)**: add the
+info@ password to `config.php`, check the calendar address, test a booking, and
+add the info@ calendar to Leena's phone.
