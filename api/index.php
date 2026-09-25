@@ -7,7 +7,7 @@
  * Admin:   login, logout, me, change_password,
  *          list_bookings, cancel_booking, block_slot, unblock_slot,
  *          list_applications, update_application, delete_applications,
- *          save_content, upload_file, list_uploads, delete_upload,
+ *          save_content, upload_file, list_uploads, delete_upload, convert_uploads,
  *          list_admins, add_admin, remove_admin (owner only: add/remove)
  * Admin actions need the X-Pawpad-Token header returned by "login".
  */
@@ -118,6 +118,10 @@ try {
         case 'list_uploads':
             require_admin();
             send_json(['ok' => true] + list_uploads($input));
+            break;
+        case 'convert_uploads':
+            require_admin();
+            send_json(['ok' => true] + convert_existing_uploads());
             break;
         case 'delete_upload':
             require_admin();

@@ -1619,6 +1619,30 @@
   }
 
   // -------------------------------------------------------------
+  // LIST / PARAGRAPH TEXT BOX
+  // Boxes like "Bullet Points (one per line)" are saved as a list. The text is
+  // kept exactly as typed while editing, so Enter, blank lines and spaces work
+  // and the cursor never jumps; empty lines are only dropped from the saved list.
+  // -------------------------------------------------------------
+  function ListTextarea({ value, onChange, separator, ...rest }) {
+    const sep = separator || "\n";
+    const normalize = (text) => String(text || "").split(sep).map((l) => l.trim()).filter((l) => l.length > 0).join(sep);
+    const [raw, setRaw] = useState(value || "");
+    useEffect(() => {
+      // Only take the saved value when it really changed from outside (e.g. "Reset to default").
+      if (normalize(value) !== normalize(raw)) setRaw(value || "");
+    }, [value]);
+    return React.createElement("textarea", {
+      ...rest,
+      value: raw,
+      onChange: (e) => {
+        setRaw(e.target.value);
+        onChange(e);
+      }
+    });
+  }
+
+  // -------------------------------------------------------------
   // IMAGE UPLOAD & WEBP OPTIMIZATION WIDGET
   // -------------------------------------------------------------
   function ImageUploadWidget({ label, currentUrl, onSelectUrl }) {
@@ -1980,60 +2004,13 @@
                   React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Target Page"), React.createElement("input", { className: "input-field", value: svc.target || "", onChange: (e) => { const list = [...formData.services]; list[idx].target = e.target.value; updateField("services", list); } }))
                 ),
                 React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Blurb / Short Description"), React.createElement("textarea", { className: "input-field", style: { minHeight: "60px" }, value: svc.blurb || "", onChange: (e) => { const list = [...formData.services]; list[idx].blurb = e.target.value; updateField("services", list); } })),
-                React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Bullet Points (One per line)"), React.createElement("textarea", { className: "input-field", style: { minHeight: "70px" }, value: Array.isArray(svc.points) ? svc.points.join("\n") : (svc.points || ""), onChange: (e) => { const list = [...formData.services]; list[idx].points = e.target.value.split("\n").filter((p) => p.trim().length > 0); updateField("services", list); } })),
+                React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Bullet Points (One per line)"), React.createElement(ListTextarea, { separator: "\n",  className: "input-field", style: { minHeight: "70px" }, value: Array.isArray(svc.points) ? svc.points.join("\n") : (svc.points || ""), onChange: (e) => { const list = [...formData.services]; list[idx].points = e.target.value.split("\n").filter((p) => p.trim().length > 0); updateField("services", list); } })),
                 React.createElement(ImageUploadWidget, {
                   label: "Card Image (WebP Auto-Converted)",
                   currentUrl: svc.img || "",
                   onSelectUrl: (newUrl) => { const list = [...formData.services]; list[idx].img = newUrl; updateField("services", list); }
                 })
               )
-            )
-          ),
-
-          // 3. Story Tease Section
-          React.createElement(
-            "div",
-            { style: { display: "flex", flexDirection: "column", gap: "16px", background: "var(--admin-bg)", padding: "18px", borderRadius: "10px", border: "1px solid var(--admin-border-subtle)" } },
-            React.createElement("h4", { style: { color: "var(--admin-gold)", fontSize: "15px" } }, "Our Story Tease Section"),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Eyebrow"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.eyebrow) || "Our story", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), eyebrow: e.target.value }) })),
-            React.createElement(
-              "div",
-              { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "10px" } },
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Headline Part 1"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.titleLine1) || '"I always wanted ', onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), titleLine1: e.target.value }) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Headline Part 2"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.titleLine2) || "to work with animals", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), titleLine2: e.target.value }) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Headline Part 3"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.titleLine3) || "I just took the long ", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), titleLine3: e.target.value }) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Accent Word"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.titleAccent) || "way", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), titleAccent: e.target.value }) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Headline End"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.titleEnd) || ' to get here"', onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), titleEnd: e.target.value }) }))
-            ),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Lead Paragraph"), React.createElement("textarea", { className: "input-field", style: { minHeight: "65px" }, value: (formData.storyTease && formData.storyTease.lead) || "", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), lead: e.target.value }) })),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Secondary Paragraph"), React.createElement("textarea", { className: "input-field", style: { minHeight: "65px" }, value: (formData.storyTease && formData.storyTease.paragraph) || "", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), paragraph: e.target.value }) })),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Button Text"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.ctaText) || "Read the full story", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), ctaText: e.target.value }) })),
-            React.createElement(
-              "div",
-              { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
-              React.createElement(ImageUploadWidget, {
-                label: "Story Stack Image 1 (WebP Auto-Converted)",
-                currentUrl: (formData.storyTease && formData.storyTease.img1) || "assets/img/3.webp",
-                onSelectUrl: (newUrl) => updateField("storyTease", { ...(formData.storyTease || {}), img1: newUrl })
-              }),
-              React.createElement(ImageUploadWidget, {
-                label: "Story Stack Image 2 (WebP Auto-Converted)",
-                currentUrl: (formData.storyTease && formData.storyTease.img2) || "assets/img/8.webp",
-                onSelectUrl: (newUrl) => updateField("storyTease", { ...(formData.storyTease || {}), img2: newUrl })
-              })
-            ),
-            React.createElement(
-              "div",
-              { style: { background: "var(--admin-card)", padding: "14px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)", display: "flex", flexDirection: "column", gap: "10px" } },
-              React.createElement("h5", { style: { color: "var(--admin-gold-light)", fontSize: "13.5px" } }, "Floating Memory Card (Dew / Puchki)"),
-              React.createElement(
-                "div",
-                { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" } },
-                React.createElement("div", null, React.createElement("label", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "Card Eyebrow"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.cardEyebrow) || "In memory of", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), cardEyebrow: e.target.value }) })),
-                React.createElement("div", null, React.createElement("label", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "Pet Name"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.cardTitle) || "Dew", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), cardTitle: e.target.value }) })),
-                React.createElement("div", null, React.createElement("label", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "Subtitle"), React.createElement("input", { className: "input-field", value: (formData.storyTease && formData.storyTease.cardSubtitle) || "— Puchki —", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), cardSubtitle: e.target.value }) }))
-              ),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, "Memory Description"), React.createElement("textarea", { className: "input-field", style: { minHeight: "55px" }, value: (formData.storyTease && formData.storyTease.cardText) || "", onChange: (e) => updateField("storyTease", { ...(formData.storyTease || {}), cardText: e.target.value }) }))
             )
           ),
 
@@ -2094,7 +2071,7 @@
             { style: { display: "flex", flexDirection: "column", gap: "10px", background: "var(--admin-bg)", padding: "18px", borderRadius: "10px", border: "1px solid var(--admin-border-subtle)" } },
             React.createElement("h4", { style: { color: "var(--admin-gold)", fontSize: "15px" } }, "Marquee Scrolling Ticker"),
             React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Ticker phrases (One per line)"),
-            React.createElement("textarea", {
+            React.createElement(ListTextarea, { separator: "\n", 
               className: "input-field",
               style: { minHeight: "75px" },
               value: Array.isArray(formData.marqueeItems) ? formData.marqueeItems.join("\n") : (formData.marqueeItems || ""),
@@ -2435,7 +2412,7 @@
                     "div",
                     null,
                     React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Included Highlights / Modules (One per line)"),
-                    React.createElement("textarea", {
+                    React.createElement(ListTextarea, { separator: "\n", 
                       className: "input-field",
                       style: { minHeight: "85px", fontSize: "13px" },
                       value: Array.isArray(course.includes) ? course.includes.join("\n") : (course.includes || ""),
@@ -2706,7 +2683,7 @@
                     "div",
                     null,
                     React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Included Services (One per line)"),
-                    React.createElement("textarea", {
+                    React.createElement(ListTextarea, { separator: "\n", 
                       className: "input-field",
                       style: { minHeight: "80px", fontSize: "13px" },
                       value: Array.isArray(pkg.includes) ? pkg.includes.join("\n") : (pkg.includes || ""),
@@ -3053,7 +3030,7 @@
                     "div",
                     null,
                     React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Included Services & Routine (One per line)"),
-                    React.createElement("textarea", {
+                    React.createElement(ListTextarea, { separator: "\n", 
                       className: "input-field",
                       style: { minHeight: "85px", fontSize: "13px" },
                       value: Array.isArray(pkg.includes) ? pkg.includes.join("\n") : (pkg.includes || ""),
@@ -3338,7 +3315,7 @@
             ),
             React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Founder Quote (Sidebar)"), React.createElement("input", { className: "input-field", value: (formData.founder && formData.founder.quote) || '"Every animal deserves someone who stops. Who looks. Who stays."', onChange: (e) => updateField("founder", { ...(formData.founder || {}), quote: e.target.value }) })),
             React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Main Story Eyebrow"), React.createElement("input", { className: "input-field", value: (formData.founder && formData.founder.eyebrow) || "Our story · told by Leena", onChange: (e) => updateField("founder", { ...(formData.founder || {}), eyebrow: e.target.value }) })),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Story Paragraphs (One per line)"), React.createElement("textarea", { className: "input-field", style: { minHeight: "140px", lineHeight: "1.5" }, value: Array.isArray(formData.founder && formData.founder.paragraphs) ? formData.founder.paragraphs.join("\n\n") : ((formData.founder && formData.founder.paragraphs) || ""), onChange: (e) => updateField("founder", { ...(formData.founder || {}), paragraphs: e.target.value.split("\n\n").map((p) => p.trim()).filter((p) => p.length > 0) }) })),
+            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Story Paragraphs (One per line — press Enter for a new paragraph)"), React.createElement(ListTextarea, { separator: "\n",  className: "input-field", style: { minHeight: "140px", lineHeight: "1.5" }, value: Array.isArray(formData.founder && formData.founder.paragraphs) ? formData.founder.paragraphs.join("\n") : ((formData.founder && formData.founder.paragraphs) || ""), onChange: (e) => updateField("founder", { ...(formData.founder || {}), paragraphs: e.target.value.split("\n").map((p) => p.trim()).filter((p) => p.length > 0) }) })),
 
             // Dew / Puchki Callout
             React.createElement(
@@ -3380,7 +3357,7 @@
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Headline Title"), React.createElement("input", { className: "input-field", value: (formData.philosophy && formData.philosophy.title) || "Our Philosophy", onChange: (e) => updateField("philosophy", { ...(formData.philosophy || {}), title: e.target.value }) }))
             ),
             React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Lead Paragraph"), React.createElement("textarea", { className: "input-field", style: { minHeight: "65px" }, value: (formData.philosophy && formData.philosophy.lead) || "", onChange: (e) => updateField("philosophy", { ...(formData.philosophy || {}), lead: e.target.value }) })),
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Body Paragraphs (Separated by blank line)"), React.createElement("textarea", { className: "input-field", style: { minHeight: "120px" }, value: Array.isArray(formData.philosophy && formData.philosophy.paragraphs) ? formData.philosophy.paragraphs.join("\n\n") : ((formData.philosophy && formData.philosophy.paragraphs) || ""), onChange: (e) => updateField("philosophy", { ...(formData.philosophy || {}), paragraphs: e.target.value.split("\n\n").map((p) => p.trim()).filter((p) => p.length > 0) }) })),
+            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Body Paragraphs (One per line — press Enter for a new paragraph)"), React.createElement(ListTextarea, { separator: "\n",  className: "input-field", style: { minHeight: "120px" }, value: Array.isArray(formData.philosophy && formData.philosophy.paragraphs) ? formData.philosophy.paragraphs.join("\n") : ((formData.philosophy && formData.philosophy.paragraphs) || ""), onChange: (e) => updateField("philosophy", { ...(formData.philosophy || {}), paragraphs: e.target.value.split("\n").map((p) => p.trim()).filter((p) => p.length > 0) }) })),
 
             // 5 Philosophy Collage Images
             React.createElement("h5", { style: { color: "var(--admin-gold-light)", fontSize: "13.5px", marginTop: "8px" } }, "Philosophy Collage Images (5 Grid Tiles)"),
@@ -3555,7 +3532,7 @@
               { style: { display: "flex", flexDirection: "column", gap: "14px", background: "var(--admin-bg)", padding: "18px", borderRadius: "10px", border: "1px solid var(--admin-border-subtle)" } },
               React.createElement("h4", { style: { color: "var(--admin-gold)", fontSize: "15px" } }, "2. Who This Is For (Bullet Points)"),
               React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "One item per line"),
-              React.createElement("textarea", {
+              React.createElement(ListTextarea, { separator: "\n", 
                 className: "input-field",
                 style: { minHeight: "140px" },
                 value: Array.isArray(formData.whoThisIsFor) ? formData.whoThisIsFor.join("\n") : (formData.whoThisIsFor || ""),
@@ -3619,7 +3596,7 @@
                 React.createElement(
                   "div",
                   { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
-                  React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Includes (One per line)"), React.createElement("textarea", { className: "input-field", style: { minHeight: "80px" }, value: Array.isArray(pkg.includes) ? pkg.includes.join("\n") : (pkg.includes || ""), onChange: (e) => { const list = [...formData.packages]; list[idx].includes = e.target.value.split("\n").filter((l) => l.trim().length > 0); updateField("packages", list); } })),
+                  React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Includes (One per line)"), React.createElement(ListTextarea, { separator: "\n",  className: "input-field", style: { minHeight: "80px" }, value: Array.isArray(pkg.includes) ? pkg.includes.join("\n") : (pkg.includes || ""), onChange: (e) => { const list = [...formData.packages]; list[idx].includes = e.target.value.split("\n").filter((l) => l.trim().length > 0); updateField("packages", list); } })),
                   React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Package Note / Travel Terms"), React.createElement("textarea", { className: "input-field", style: { minHeight: "80px" }, value: pkg.note || "", onChange: (e) => { const list = [...formData.packages]; list[idx].note = e.target.value; updateField("packages", list); } }))
                 ),
                 React.createElement(
@@ -3861,7 +3838,7 @@
             ),
 
             // 03 Address
-            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "03 Address Lines (One per line)"), React.createElement("textarea", { className: "input-field", style: { minHeight: "75px" }, value: Array.isArray(formData.addressLines) ? formData.addressLines.join("\n") : (formData.addressLines || ""), onChange: (e) => updateField("addressLines", e.target.value.split("\n").filter((l) => l.trim().length > 0)) })),
+            React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "03 Address Lines (One per line)"), React.createElement(ListTextarea, { separator: "\n",  className: "input-field", style: { minHeight: "75px" }, value: Array.isArray(formData.addressLines) ? formData.addressLines.join("\n") : (formData.addressLines || ""), onChange: (e) => updateField("addressLines", e.target.value.split("\n").filter((l) => l.trim().length > 0)) })),
 
             // 04 Opening Hours
             React.createElement(
@@ -3929,6 +3906,7 @@
     const [selectedSlot, setSelectedSlot] = useState("home.heroImage");
     const [assignNotice, setAssignNotice] = useState("");
     const [uploads, setUploads] = useState({ files: [], usage: null });
+    const [convertNotice, setConvertNotice] = useState("");
     const fileInputRef = useRef(null);
 
     const loadUploads = async () => {
@@ -3940,6 +3918,22 @@
     useEffect(() => {
       loadUploads();
     }, []);
+
+    const oldFormatCount = uploads.files.filter((f) => f.kind === "image" && /\.(jpe?g|png)$/i.test(f.url)).length;
+
+    const handleConvertOld = async () => {
+      setConvertNotice("Converting old JPG/PNG uploads to WebP…");
+      const result = await window.PawpadApi.call("convert_uploads", {});
+      if (!result.ok) {
+        setConvertNotice("⚠️ " + ((result.data && result.data.error) || "The server could not be reached."));
+        return;
+      }
+      // The published pages now point at the new .webp files.
+      if (window.PawpadContentStore) await window.PawpadContentStore.refreshFromServer();
+      setConvertNotice(`✓ Converted ${result.data.converted} image(s) to WebP` + (result.data.failed ? `, ${result.data.failed} could not be converted` : "") + ". The originals were deleted.");
+      setTimeout(() => setConvertNotice(""), 8000);
+      loadUploads();
+    };
 
     const handleDeleteUpload = async (file) => {
       if (!window.confirm(`Delete "${file.name || file.url}" from the server? Any page still using it will show a broken image.`)) return;
@@ -4160,6 +4154,14 @@
         uploads.usage && React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginBottom: "12px" } },
           `Storage used: ${formatBytes(uploads.usage.usedBytes)} of ${formatBytes(uploads.usage.quotaBytes)}. Delete photos you no longer use to free space.`
         ),
+        oldFormatCount > 0 && React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "14px" } },
+          React.createElement("span", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+            `${oldFormatCount} older upload(s) are JPG/PNG. Convert them to smaller WebP files (pages using them are updated automatically):`),
+          React.createElement("button", { className: "btn-admin btn-admin-primary", onClick: handleConvertOld }, "Convert to WebP")
+        ),
+        convertNotice && React.createElement("p", { role: "status", style: { fontSize: "13px", fontWeight: 600, marginBottom: "12px", color: convertNotice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, convertNotice),
         uploads.files.length === 0
           ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No files uploaded yet.")
           : React.createElement(
