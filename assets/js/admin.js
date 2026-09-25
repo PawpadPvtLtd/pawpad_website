@@ -4178,6 +4178,92 @@
   }
 
   // -------------------------------------------------------------
+  // CANCEL / RESCHEDULE A BOOKING (both email the customer, with a copy to info@)
+  // -------------------------------------------------------------
+  function BookingChangeModal({ mode, booking, onClose, onDone }) {
+    const isReschedule = mode === "reschedule";
+    const [reason, setReason] = useState("");
+    const [choice, setChoice] = useState({ date: null, time: null });
+    const [availability, setAvailability] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+
+    const loadSlots = async () => {
+      setAvailability(null);
+      setAvailability(await window.PawpadSlots.load(true));
+    };
+    useEffect(() => {
+      if (isReschedule && window.PawpadSlots) loadSlots();
+    }, []);
+
+    const who = `${booking.pet.name || "Pet"} (${booking.serviceTitle}) for ${booking.customer.name}`;
+    const canSubmit = !saving && (isReschedule ? reason.trim() && choice.date && choice.time : true);
+
+    const submit = async () => {
+      if (!canSubmit) return;
+      setSaving(true);
+      setError("");
+      const result = isReschedule
+        ? await window.PawpadApi.call("reschedule_booking", { id: booking.id, date: choice.date, time: choice.time, reason: reason.trim() })
+        : await window.PawpadApi.call("cancel_booking", { id: booking.id, reason: reason.trim() });
+      setSaving(false);
+      if (!result.ok) {
+        setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
+        if (isReschedule && result.status === 409) {
+          setChoice({ date: choice.date, time: null });
+          loadSlots();
+        }
+        return;
+      }
+      const d = result.data;
+      const parts = [isReschedule ? "✓ Booking rescheduled." : "✓ Booking cancelled."];
+      if (isReschedule ? d.calendarSynced === false : d.calendarRemoved === false) {
+        parts.push("⚠️ The info@ calendar could not be updated; please check it on the phone.");
+      }
+      parts.push(d.emailSent ? `Email sent to ${booking.customer.email} (copy to info@).` : `⚠️ Email not sent: ${d.emailError}`);
+      onDone(parts.join(" "));
+    };
+
+    return React.createElement(
+      "div",
+      { className: "modal-overlay", onClick: onClose },
+      React.createElement(
+        "div",
+        { className: "modal-card", role: "dialog", "aria-label": isReschedule ? "Reschedule booking" : "Cancel booking", style: { maxWidth: isReschedule ? "760px" : "520px", padding: "28px", maxHeight: "90vh", overflowY: "auto" }, onClick: (e) => e.stopPropagation() },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-gold)", marginBottom: "8px" } },
+          isReschedule ? "Reschedule booking" : "Cancel booking"),
+        React.createElement("p", { style: { fontSize: "14px", marginBottom: "4px" } }, who),
+        React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginBottom: "16px" } },
+          `Currently: ${booking.label || `${booking.date} ${formatSlotTime(booking.time)}`} · Ref ${booking.ref}`),
+        React.createElement("label", { style: { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" } },
+          isReschedule ? "Reason for rescheduling (sent to the customer) *" : "Reason for cancelling (sent to the customer, optional)"),
+        React.createElement("textarea", { className: "input-field", rows: 2, value: reason, onChange: (e) => setReason(e.target.value), "aria-label": "Reason", style: { width: "100%", marginBottom: "16px" } }),
+        isReschedule && React.createElement(
+          "div",
+          { className: "reschedule-slots", style: { marginBottom: "16px" } },
+          React.createElement("p", { style: { fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "8px" } }, "New date and time (only free slots are shown)"),
+          window.SlotPicker
+            ? React.createElement(window.SlotPicker, { availability, serviceId: booking.serviceId, value: choice, onChange: setChoice, excluded: [], onRetry: loadSlots })
+            : React.createElement("p", null, "The slot picker could not be loaded. Please reload the page.")
+        ),
+        error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontSize: "13px", fontWeight: 600, marginBottom: "12px" } }, error),
+        React.createElement(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" } },
+          React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: onClose }, "Close"),
+          React.createElement("button", {
+            type: "button",
+            className: `btn-admin ${isReschedule ? "btn-admin-primary" : "btn-admin-danger"}`,
+            disabled: !canSubmit,
+            style: { opacity: canSubmit ? 1 : 0.5 },
+            onClick: submit
+          }, saving ? "Saving…" : isReschedule ? "Reschedule & email customer" : "Cancel booking & email customer")
+        )
+      )
+    );
+  }
+
+  // -------------------------------------------------------------
   // GROOMING BOOKINGS TAB (slots from the Pawpad server + info@ calendar)
   // -------------------------------------------------------------
   function localDateString(d) {
@@ -4223,24 +4309,17 @@
       setTimeout(() => setNotice(""), text.startsWith("⚠️") ? 9000 : 4000);
     };
 
-    const handleCancel = (booking) => {
-      setConfirmModal({
-        isOpen: true,
-        title: "Cancel this booking?",
-        message: `${booking.pet.name || "Pet"} (${booking.serviceTitle}) for ${booking.customer.name} at ${formatSlotTime(booking.time)}. The slot becomes free again and the event is removed from the info@ calendar. Please let the customer know (${booking.customer.phone}).`,
-        confirmText: "Yes, cancel booking",
-        cancelText: "No, keep it",
-        confirmStyle: "btn-admin-danger",
-        onConfirm: async () => {
-          setConfirmModal({ isOpen: false });
-          const result = await window.PawpadApi.call("cancel_booking", { id: booking.id });
-          if (!result.ok) return flash("⚠️ " + serverError(result));
-          flash(result.data.calendarRemoved
-            ? "✓ Booking cancelled and removed from the calendar."
-            : "⚠️ Booking cancelled, but the calendar event could not be removed. Please delete it on the phone calendar.");
-          load();
-        }
-      });
+    // Cancel / reschedule open one window that asks for the reason and emails the customer.
+    const [change, setChange] = useState(null);
+    const handleCancel = (booking) => setChange({ mode: "cancel", booking });
+    const handleReschedule = (booking) => setChange({ mode: "reschedule", booking });
+
+    const handleCleanup = async () => {
+      flash("Removing calendar events left by cancelled bookings…");
+      const result = await window.PawpadApi.call("cleanup_calendar", {});
+      if (!result.ok) return flash("⚠️ " + serverError(result));
+      flash(result.data.failed ? `⚠️ ${result.data.failed} event(s) could not be removed from the calendar.` : "✓ The calendar is tidy: events of cancelled bookings are removed.");
+      load();
     };
 
     const handleBlock = async (time) => {
@@ -4273,6 +4352,16 @@
       "div",
       { style: { display: "flex", flexDirection: "column", gap: "20px" } },
       React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
+      change && React.createElement(BookingChangeModal, {
+        mode: change.mode,
+        booking: change.booking,
+        onClose: () => setChange(null),
+        onDone: (message) => {
+          setChange(null);
+          flash(message.includes("⚠️") ? "⚠️ " + message : message);
+          load();
+        }
+      }),
 
       // Day picker
       React.createElement(
@@ -4283,6 +4372,7 @@
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, 1)) }, "Next day →"),
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(localDateString(new Date())) }, "Today"),
         React.createElement("div", { style: { flex: 1 } }),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: handleCleanup, title: "Removes events of cancelled bookings that are still in the info@ calendar" }, "Tidy calendar"),
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => load() }, loading ? "Refreshing…" : "↻ Refresh")
       ),
 
@@ -4333,12 +4423,14 @@
               b && React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
               b && React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
               b && b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
+              b && (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, `↺ ${entry.text}`)),
               b && React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px" } }, `Ref ${b.ref}`,
                 b.calendarStatus === "failed" ? " · ⚠️ not added to the calendar" : "",
                 b.emailStatus === "failed" ? " · ⚠️ confirmation email not sent" : ""),
               slot.state === "calendar" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "An event in the info@ calendar blocks this time."),
               slot.state === "blocked" && !day.dayBlock && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "Blocked by an admin.")
             ),
+            b && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleReschedule(b) }, "Reschedule"),
             b && React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking"),
             slot.state === "free" && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleBlock(slot.time) }, "Block"),
             slot.state === "blocked" && !day.dayBlock && slot.blockId && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleUnblock(slot.blockId) }, "Unblock")
@@ -4373,22 +4465,7 @@
       load();
     }, []);
 
-    const handleCancel = (b) => {
-      setConfirmModal({
-        isOpen: true,
-        title: "Cancel this booking?",
-        message: `${b.pet.name || "Pet"} (${b.serviceTitle}) for ${b.customer.name} on ${b.label}. The slot becomes free and the calendar event is removed. Please let the customer know (${b.customer.phone}).`,
-        confirmText: "Yes, cancel booking",
-        cancelText: "No, keep it",
-        confirmStyle: "btn-admin-danger",
-        onConfirm: async () => {
-          setConfirmModal({ isOpen: false });
-          const result = await window.PawpadApi.call("cancel_booking", { id: b.id });
-          setNotice(result.ok ? "✓ Booking cancelled." : "⚠️ " + ((result.data && result.data.error) || "The server could not be reached."));
-          load();
-        }
-      });
-    };
+    const [change, setChange] = useState(null);
 
     const days = [];
     (bookings || []).forEach((b) => {
@@ -4401,6 +4478,16 @@
       "div",
       { style: { display: "flex", flexDirection: "column", gap: "16px" } },
       React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
+      change && React.createElement(BookingChangeModal, {
+        mode: change.mode,
+        booking: change.booking,
+        onClose: () => setChange(null),
+        onDone: (message) => {
+          setChange(null);
+          setNotice(message.includes("⚠️") ? "⚠️ " + message : message);
+          load();
+        }
+      }),
       React.createElement(
         "div",
         { className: "card", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" } },
@@ -4427,7 +4514,8 @@
             b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
             React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}`)
           ),
-          React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking")
+          React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => setChange({ mode: "reschedule", booking: b }) }, "Reschedule"),
+          React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => setChange({ mode: "cancel", booking: b }) }, "Cancel booking")
         ))
       ))
     );

@@ -287,6 +287,7 @@ function booking_to_array(array $row): array
         'createdAt' => to_iso($row['created_at']),
         'cancelledAt' => to_iso($row['cancelled_at']),
         'cancelledBy' => $row['cancelled_by'],
+        'adminLog' => json_decode((string) ($row['admin_log'] ?? ''), true) ?: [],
     ];
 }
 
@@ -431,14 +432,7 @@ function create_booking(array $input): array
     // The slots are safely reserved. Now add them to the info@ calendar and email the customer.
     $calendarOk = true;
     foreach ($saved as $item) {
-        $href = caldav_create_event(
-            'pawpad-booking-' . $item['id'] . '-' . bin2hex(random_bytes(4)) . '@pawpad.in',
-            slot_start($item['date'], $item['time']),
-            slot_start($item['date'], $item['time'])->modify('+' . slot_minutes() . ' minutes'),
-            'Grooming: ' . ($item['pet']['name'] ?: 'Pet') . ($item['pet']['type'] ? ' (' . $item['pet']['type'] . ')' : '') . ' – ' . $item['serviceTitle'],
-            booking_event_description($item, $name, $phone, $email, clean_text($input['notes'] ?? '', 2000)),
-            STUDIO_ADDRESS
-        );
+        $href = add_booking_event($item, $name, $phone, $email, clean_text($input['notes'] ?? '', 2000));
         $calendarOk = $calendarOk && $href !== '';
         $pdo->prepare('UPDATE bookings SET calendar_href = ?, calendar_status = ? WHERE id = ?')
             ->execute([$href, $href !== '' ? 'synced' : 'failed', $item['id']]);
@@ -576,28 +570,183 @@ function list_upcoming_bookings(): array
     return ['bookings' => $bookings];
 }
 
-function cancel_booking(array $admin, array $input): array
+/**
+ * Adds one booking to the info@ calendar. Every booking's events share the UID
+ * prefix "pawpad-booking-<id>-", so they can always be found and removed.
+ */
+function add_booking_event(array $item, string $name, string $phone, string $email, string $notes): string
+{
+    return caldav_create_event(
+        'pawpad-booking-' . $item['id'] . '-' . bin2hex(random_bytes(4)),
+        slot_start($item['date'], $item['time']),
+        slot_start($item['date'], $item['time'])->modify('+' . slot_minutes() . ' minutes'),
+        'Grooming: ' . ($item['pet']['name'] ?: 'Pet') . ($item['pet']['type'] ? ' (' . $item['pet']['type'] . ')' : '') . ' – ' . $item['serviceTitle'],
+        booking_event_description($item, $name, $phone, $email, $notes),
+        STUDIO_ADDRESS
+    );
+}
+
+/** The calendar changed: make the next availability check read it fresh. */
+function forget_calendar_cache(): void
+{
+    db()->exec('DELETE FROM calendar_cache');
+}
+
+function find_booking(int $id): array
 {
     $stmt = db()->prepare('SELECT * FROM bookings WHERE id = ?');
-    $stmt->execute([(int) ($input['id'] ?? 0)]);
+    $stmt->execute([$id]);
     $row = $stmt->fetch();
     if (!$row) {
         json_error('Booking not found.', 404);
     }
+    return $row;
+}
+
+/** Adds a line to the booking's admin history (cancelled, rescheduled, ...). */
+function booking_log_entry(array $row, array $admin, string $text): string
+{
+    $log = json_decode((string) ($row['admin_log'] ?? ''), true);
+    $log = is_array($log) ? $log : [];
+    $log[] = ['date' => to_iso(now_utc()), 'by' => $admin['email'], 'text' => $text];
+    return json_encode($log, JSON_UNESCAPED_UNICODE);
+}
+
+/** Customer email for a cancelled or rescheduled appointment (a copy goes to info@). */
+function booking_change_email(array $row, string $subject, string $intro, string $reason): array
+{
+    $pet = json_decode($row['pet'], true) ?: [];
+    $body = 'Dear ' . $row['customer_name'] . ",\n\n" . $intro . "\n\n"
+        . ($reason !== '' ? 'Reason: ' . $reason . "\n\n" : '')
+        . 'Booking reference: ' . $row['ref'] . "\n"
+        . 'Pet: ' . (($pet['name'] ?? '') !== '' ? $pet['name'] : 'Your pet') . ' — ' . $row['service_title'] . "\n\n"
+        . 'Studio: ' . STUDIO_ADDRESS . "\n"
+        . 'Questions? Reply to this email or WhatsApp us on ' . STUDIO_WHATSAPP . ".\n\n"
+        . "Warm regards,\nPawpad Grooming Studio\nhttps://pawpad.in\n";
+    return send_mail('info', $row['customer_email'], $row['customer_name'], $subject, $body);
+}
+
+function cancel_booking(array $admin, array $input): array
+{
+    $row = find_booking((int) ($input['id'] ?? 0));
     if ($row['status'] !== 'booked') {
         json_error('This booking is already cancelled.');
     }
+    $reason = clean_text($input['reason'] ?? '', 500);
+    $when = friendly_slot($row['slot_date'], $row['slot_time']);
     $pdo = db();
     $pdo->beginTransaction();
-    $pdo->prepare("UPDATE bookings SET status = 'cancelled', cancelled_at = ?, cancelled_by = ? WHERE id = ?")
-        ->execute([now_utc(), $admin['email'], $row['id']]);
+    $pdo->prepare("UPDATE bookings SET status = 'cancelled', cancelled_at = ?, cancelled_by = ?, admin_log = ? WHERE id = ?")
+        ->execute([now_utc(), $admin['email'], booking_log_entry($row, $admin, 'Cancelled (' . $when . ')' . ($reason !== '' ? ': ' . $reason : '')), $row['id']]);
     $pdo->prepare('DELETE FROM slot_locks WHERE booking_id = ?')->execute([$row['id']]);
     $pdo->commit();
 
-    $removed = $row['calendar_href'] !== '' ? caldav_delete_event($row['calendar_href']) : true;
+    $removed = caldav_remove_events('pawpad-booking-' . $row['id'] . '-', $row['calendar_href'], parse_studio_date($row['slot_date']));
     $pdo->prepare('UPDATE bookings SET calendar_status = ? WHERE id = ?')
         ->execute([$removed ? 'removed' : 'remove_failed', $row['id']]);
-    return ['calendarRemoved' => $removed];
+    forget_calendar_cache();
+
+    $mail = booking_change_email($row, 'Your Pawpad grooming appointment has been cancelled (' . $row['ref'] . ')',
+        'Your grooming appointment on ' . $when . ' has been cancelled.', $reason);
+    return ['calendarRemoved' => $removed, 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
+}
+
+/**
+ * Moves a booking to another free slot, updates the calendar event, and emails the customer.
+ */
+function reschedule_booking(array $admin, array $input): array
+{
+    $row = find_booking((int) ($input['id'] ?? 0));
+    if ($row['status'] !== 'booked') {
+        json_error('Only active bookings can be rescheduled.');
+    }
+    $reason = clean_text($input['reason'] ?? '', 500);
+    if ($reason === '') {
+        json_error('Please write the reason for rescheduling.');
+    }
+    $date = (string) ($input['date'] ?? '');
+    $time = (string) ($input['time'] ?? '');
+    $day = parse_studio_date($date);
+    if (!$day || !in_array($date, bookable_dates(), true)) {
+        json_error('Please choose a date from tomorrow up to ' . booking_days_ahead() . ' days ahead.');
+    }
+    if (!in_array($time, slot_times_for($day), true)) {
+        json_error('The studio has no ' . $time . ' slot on that day.');
+    }
+    if (!service_allows_time($row['service_id'], $time)) {
+        json_error('The 7 PM slot is only for services without a haircut or clipping.');
+    }
+    if ($date === $row['slot_date'] && $time === $row['slot_time']) {
+        json_error('That is the current time of this booking. Please choose a different one.');
+    }
+    $calendar = calendar_busy($day, $day->modify('+1 day'), true);
+    if (!$calendar['ok']) {
+        json_error('The info@ calendar could not be read, so the new time can\'t be checked. Please try again.', 503);
+    }
+    if (slot_is_busy_in_calendar($calendar['busy'], $date, $time)) {
+        json_error(friendly_slot($date, $time) . ' is no longer free (there is an event in the calendar).', 409);
+    }
+
+    $oldWhen = friendly_slot($row['slot_date'], $row['slot_time']);
+    $newWhen = friendly_slot($date, $time);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)')->execute([$date, $time, $row['id']]);
+        $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
+        $blocked->execute([$date, $time]);
+        if ((int) $blocked->fetchColumn() > 0) {
+            throw new SlotTakenException(['date' => $date, 'time' => $time], true);
+        }
+        $pdo->prepare('DELETE FROM slot_locks WHERE booking_id = ? AND slot_date = ? AND slot_time = ?')
+            ->execute([$row['id'], $row['slot_date'], $row['slot_time']]);
+        $pdo->prepare('UPDATE bookings SET slot_date = ?, slot_time = ?, admin_log = ? WHERE id = ?')
+            ->execute([$date, $time, booking_log_entry($row, $admin, 'Rescheduled from ' . $oldWhen . ' to ' . $newWhen . ': ' . $reason), $row['id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        if ($e instanceof SlotTakenException || ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062)) {
+            json_error(friendly_slot($date, $time) . ' is no longer free. Please choose another time.', 409);
+        }
+        throw $e;
+    }
+
+    // Move the calendar event: remove the old one(s), then add the new time.
+    caldav_remove_events('pawpad-booking-' . $row['id'] . '-', $row['calendar_href'], parse_studio_date($row['slot_date']));
+    $pet = json_decode($row['pet'], true) ?: [];
+    $pet += ['name' => '', 'type' => '', 'breed' => '', 'age' => '', 'size' => '', 'coat' => '', 'temperament' => '', 'healthNotes' => ''];
+    $href = add_booking_event(
+        ['id' => $row['id'], 'ref' => $row['ref'], 'date' => $date, 'time' => $time, 'pet' => $pet, 'serviceTitle' => $row['service_title']],
+        $row['customer_name'], $row['customer_phone'], $row['customer_email'], $row['notes']
+    );
+    $pdo->prepare('UPDATE bookings SET calendar_href = ?, calendar_status = ? WHERE id = ?')
+        ->execute([$href, $href !== '' ? 'synced' : 'failed', $row['id']]);
+    forget_calendar_cache();
+
+    $mail = booking_change_email($row, 'Your Pawpad grooming appointment has been rescheduled (' . $row['ref'] . ')',
+        "Your grooming appointment has been moved.\n\nNew time: " . $newWhen . "\n(was: " . $oldWhen . ')', $reason);
+    return ['booking' => booking_to_array(find_booking((int) $row['id'])), 'calendarSynced' => $href !== '', 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
+}
+
+/**
+ * Removes calendar events still left by bookings that were cancelled earlier.
+ */
+function cleanup_calendar(): array
+{
+    $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'cancelled' AND slot_date >= ?");
+    $stmt->execute([studio_today()->modify('-1 day')->format('Y-m-d')]);
+    $cleaned = 0;
+    $failed = 0;
+    foreach ($stmt->fetchAll() as $row) {
+        if (caldav_remove_events('pawpad-booking-' . $row['id'] . '-', $row['calendar_href'], parse_studio_date($row['slot_date']))) {
+            $cleaned++;
+            db()->prepare("UPDATE bookings SET calendar_status = 'removed' WHERE id = ?")->execute([$row['id']]);
+        } else {
+            $failed++;
+        }
+    }
+    forget_calendar_cache();
+    return ['checked' => $cleaned + $failed, 'failed' => $failed];
 }
 
 function block_slot(array $admin, array $input): array
@@ -627,26 +776,37 @@ function block_slot(array $admin, array $input): array
         }
     }
 
+    $reason = clean_text($input['reason'] ?? '', 255);
     try {
         db()->prepare('INSERT INTO slot_blocks (slot_date, slot_time, reason, created_at, created_by) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$date, $time, clean_text($input['reason'] ?? '', 255), now_utc(), $admin['email']]);
+            ->execute([$date, $time, $reason, now_utc(), $admin['email']]);
     } catch (PDOException $e) {
         if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
             json_error('This is already blocked.');
         }
         throw $e;
     }
-    return list_bookings(['date' => $date]);
+    $blockId = (int) db()->lastInsertId();
+
+    // Show the block in the info@ calendar too, so it's visible on the phone.
+    $summary = 'Blocked' . ($reason !== '' ? ': ' . $reason : '') . ' (Pawpad admin)';
+    $href = $time === ''
+        ? caldav_create_event('pawpad-block-' . $blockId . '-' . bin2hex(random_bytes(4)), $day, $day->modify('+1 day'), $summary, 'Blocked by ' . $admin['email'] . ' in the Pawpad admin panel. Unblock it there.', STUDIO_ADDRESS, true)
+        : caldav_create_event('pawpad-block-' . $blockId . '-' . bin2hex(random_bytes(4)), slot_start($date, $time), slot_start($date, $time)->modify('+' . slot_minutes() . ' minutes'), $summary, 'Blocked by ' . $admin['email'] . ' in the Pawpad admin panel. Unblock it there.', STUDIO_ADDRESS);
+    db()->prepare('UPDATE slot_blocks SET calendar_href = ? WHERE id = ?')->execute([$href, $blockId]);
+    return list_bookings(['date' => $date]) + ['calendarSynced' => $href !== ''];
 }
 
 function unblock_slot(array $input): array
 {
-    $stmt = db()->prepare('SELECT slot_date FROM slot_blocks WHERE id = ?');
+    $stmt = db()->prepare('SELECT * FROM slot_blocks WHERE id = ?');
     $stmt->execute([(int) ($input['id'] ?? 0)]);
-    $date = $stmt->fetchColumn();
-    if (!$date) {
+    $block = $stmt->fetch();
+    if (!$block) {
         json_error('Block not found.', 404);
     }
-    db()->prepare('DELETE FROM slot_blocks WHERE id = ?')->execute([(int) $input['id']]);
-    return list_bookings(['date' => $date]);
+    db()->prepare('DELETE FROM slot_blocks WHERE id = ?')->execute([(int) $block['id']]);
+    $removed = caldav_remove_events('pawpad-block-' . $block['id'] . '-', (string) ($block['calendar_href'] ?? ''), parse_studio_date($block['slot_date']));
+    forget_calendar_cache();
+    return list_bookings(['date' => $block['slot_date']]) + ['calendarRemoved' => $removed];
 }

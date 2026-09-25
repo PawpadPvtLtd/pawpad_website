@@ -5,7 +5,8 @@
  * Public:  health (GET), get_content (GET or POST), submit_application,
  *          booking_availability (GET or POST), create_booking
  * Admin:   login, logout, me, change_password,
- *          list_bookings, list_upcoming_bookings, cancel_booking, block_slot, unblock_slot,
+ *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking,
+ *          cleanup_calendar, block_slot, unblock_slot,
  *          list_applications, update_application, delete_applications,
  *          save_content, upload_file, list_uploads, delete_upload, convert_uploads,
  *          list_admins, add_admin, remove_admin (owner only: add/remove)
@@ -102,6 +103,13 @@ try {
         case 'list_upcoming_bookings':
             require_admin();
             send_json(['ok' => true] + list_upcoming_bookings());
+            break;
+        case 'reschedule_booking':
+            send_json(['ok' => true] + reschedule_booking(require_admin(), $input));
+            break;
+        case 'cleanup_calendar':
+            require_admin();
+            send_json(['ok' => true] + cleanup_calendar());
             break;
         case 'cancel_booking':
             send_json(['ok' => true] + cancel_booking(require_admin(), $input));
