@@ -109,9 +109,11 @@ function caldav_busy(DateTimeImmutable $from, DateTimeImmutable $to): array
 }
 
 /**
- * Adds a booking to the calendar. Returns the event's address, or '' on failure.
+ * Adds an event to the calendar (a booking, or a "Blocked" time or day).
+ * Returns the event's address, or '' on failure.
+ * The UID only uses letters, digits and dashes, so its file name is the same on every server.
  */
-function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmutable $end, string $summary, string $description, string $location): string
+function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmutable $end, string $summary, string $description, string $location, bool $allDay = false): string
 {
     if (!caldav_configured()) {
         return '';
@@ -125,8 +127,8 @@ function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmu
         'BEGIN:VEVENT',
         'UID:' . $uid,
         'DTSTAMP:' . gmdate('Ymd\THis\Z'),
-        'DTSTART:' . $start->setTimezone($utc)->format('Ymd\THis\Z'),
-        'DTEND:' . $end->setTimezone($utc)->format('Ymd\THis\Z'),
+        $allDay ? 'DTSTART;VALUE=DATE:' . $start->format('Ymd') : 'DTSTART:' . $start->setTimezone($utc)->format('Ymd\THis\Z'),
+        $allDay ? 'DTEND;VALUE=DATE:' . $end->format('Ymd') : 'DTEND:' . $end->setTimezone($utc)->format('Ymd\THis\Z'),
         'SUMMARY:' . ics_escape($summary),
         'DESCRIPTION:' . ics_escape($description),
         'LOCATION:' . ics_escape($location),
@@ -135,16 +137,70 @@ function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmu
         'END:VCALENDAR',
     ];
     $ics = implode("\r\n", array_map('ics_fold', $lines)) . "\r\n";
-    $href = caldav_settings()['url'] . rawurlencode($uid) . '.ics';
+    $href = caldav_settings()['url'] . $uid . '.ics';
     $result = caldav_request('PUT', $href, $ics, [
         'Content-Type: text/calendar; charset=utf-8',
         'If-None-Match: *',
     ]);
-    if ($result['status'] !== 201 && $result['status'] !== 204) {
+    // Servers answer 201 Created, 204 No Content or sometimes 200 OK.
+    if (!in_array($result['status'], [200, 201, 204], true)) {
         error_log('Pawpad API calendar event create failed: HTTP ' . $result['status'] . ' ' . $result['error']);
         return '';
     }
     return $href;
+}
+
+/**
+ * Turns an href from the calendar server (usually a path like /calendars/...) into a full address.
+ */
+function caldav_absolute_href(string $href): string
+{
+    if (preg_match('#^https?://#i', $href)) {
+        return $href;
+    }
+    $parts = parse_url(caldav_settings()['url']);
+    $origin = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '') . (isset($parts['port']) ? ':' . $parts['port'] : '');
+    return $origin . '/' . ltrim($href, '/');
+}
+
+/**
+ * Finds our own events in a date range whose UID starts with $uidPrefix
+ * (e.g. "pawpad-booking-12-"), whatever file name the server gave them.
+ * @return array{ok: bool, hrefs: string[]}
+ */
+function caldav_find_events(string $uidPrefix, DateTimeImmutable $from, DateTimeImmutable $to): array
+{
+    if (!caldav_configured()) {
+        return ['ok' => false, 'hrefs' => []];
+    }
+    $utc = new DateTimeZone('UTC');
+    $query = '<?xml version="1.0" encoding="utf-8" ?>'
+        . '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        . '<D:prop><D:getetag/><C:calendar-data/></D:prop>'
+        . '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT">'
+        . '<C:time-range start="' . $from->setTimezone($utc)->format('Ymd\THis\Z') . '" end="' . $to->setTimezone($utc)->format('Ymd\THis\Z') . '"/>'
+        . '</C:comp-filter></C:comp-filter></C:filter>'
+        . '</C:calendar-query>';
+    $result = caldav_request('REPORT', caldav_settings()['url'], $query, ['Depth: 1', 'Content-Type: application/xml; charset=utf-8']);
+    if ($result['status'] !== 207) {
+        return ['ok' => false, 'hrefs' => []];
+    }
+    $hrefs = [];
+    preg_match_all('#<(?:[A-Za-z0-9_-]+:)?response[^>]*>(.*?)</(?:[A-Za-z0-9_-]+:)?response>#s', $result['body'], $responses);
+    foreach ($responses[1] as $response) {
+        if (!preg_match('#<(?:[A-Za-z0-9_-]+:)?href[^>]*>(.*?)</(?:[A-Za-z0-9_-]+:)?href>#s', $response, $h)) {
+            continue;
+        }
+        $data = '';
+        if (preg_match('#<(?:[A-Za-z0-9_-]+:)?calendar-data[^>]*>(.*?)</(?:[A-Za-z0-9_-]+:)?calendar-data>#s', $response, $c)) {
+            $data = html_entity_decode(preg_replace('#^\s*<!\[CDATA\[(.*)\]\]>\s*$#s', '$1', $c[1]), ENT_QUOTES | ENT_XML1, 'UTF-8');
+        }
+        $data = preg_replace("/\r\n[ \t]|\n[ \t]/", '', $data);
+        if (preg_match('/^UID:(.*)$/mi', $data, $u) && strpos(trim($u[1]), $uidPrefix) === 0) {
+            $hrefs[] = caldav_absolute_href(trim(html_entity_decode($h[1], ENT_QUOTES | ENT_XML1, 'UTF-8')));
+        }
+    }
+    return ['ok' => true, 'hrefs' => array_values(array_unique($hrefs))];
 }
 
 function caldav_delete_event(string $href): bool
@@ -153,8 +209,33 @@ function caldav_delete_event(string $href): bool
         return false;
     }
     $result = caldav_request('DELETE', $href);
-    // 404 means it was already removed (e.g. deleted on the phone).
-    return in_array($result['status'], [200, 204, 404], true);
+    return in_array($result['status'], [200, 204], true);
+}
+
+/**
+ * Removes every event of ours with this UID prefix around a date: first the
+ * saved address, then anything the calendar still has with that UID.
+ * Returns true when none are left.
+ */
+function caldav_remove_events(string $uidPrefix, string $savedHref, DateTimeImmutable $day): bool
+{
+    if (!caldav_configured()) {
+        return false;
+    }
+    if ($savedHref !== '') {
+        caldav_delete_event($savedHref);
+    }
+    $from = $day->modify('-1 day');
+    $to = $day->modify('+2 days');
+    $found = caldav_find_events($uidPrefix, $from, $to);
+    if (!$found['ok']) {
+        return false;
+    }
+    foreach ($found['hrefs'] as $href) {
+        caldav_delete_event($href);
+    }
+    $check = caldav_find_events($uidPrefix, $from, $to);
+    return $check['ok'] && !$check['hrefs'];
 }
 
 function ics_escape(string $text): string

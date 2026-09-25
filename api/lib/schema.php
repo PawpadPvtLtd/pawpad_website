@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -27,8 +27,20 @@ function ensure_schema(PDO $pdo): void
         return;
     }
     create_tables($pdo);
+    // Columns added after the tables first went live.
+    add_column_if_missing($pdo, 'bookings', 'admin_log', "MEDIUMTEXT NULL");
+    add_column_if_missing($pdo, 'slot_blocks', 'calendar_href', "VARCHAR(500) NOT NULL DEFAULT ''");
     $pdo->prepare('INSERT INTO schema_info (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)')
         ->execute([SCHEMA_VERSION]);
+}
+
+function add_column_if_missing(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+    $stmt->execute([$table, $column]);
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    }
 }
 
 function create_tables(PDO $pdo): void
