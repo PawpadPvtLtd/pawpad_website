@@ -370,12 +370,11 @@
       });
     }, [applications, statusFilter, searchQuery]);
 
-    const visibleDeclined = useMemo(() => {
-      return filtered.filter((a) => a.status === "rejected");
-    }, [filtered]);
+    // Any candidate can be selected and permanently deleted (removed from the database).
+    const visibleDeclined = filtered;
 
     const selectedDeclinedCount = useMemo(() => {
-      return selectedIds.filter((id) => applications.some((a) => a.id === id && a.status === "rejected")).length;
+      return selectedIds.filter((id) => applications.some((a) => a.id === id)).length;
     }, [selectedIds, applications]);
 
     const allVisibleDeclinedSelected =
@@ -398,9 +397,9 @@
     };
 
     const handleDelete = (app) => {
-      if (!app || app.status !== "rejected") return;
+      if (!app) return;
       const candidateName = app.applicant?.name ? `${app.applicant.name} (${app.id})` : app.id;
-      if (window.confirm(`Are you sure you want to permanently delete declined application ${candidateName}?`)) {
+      if (window.confirm(`Permanently delete ${candidateName}? All of this candidate's details, notes and emails are removed from the database. This cannot be undone.`)) {
         if (window.PawpadApplicationsStore) {
           window.PawpadApplicationsStore.deleteApplication(app.id);
           if (selectedApp && selectedApp.id === app.id) {
@@ -413,19 +412,16 @@
     };
 
     const handleBulkDelete = () => {
-      const declinedSelected = selectedIds.filter((id) => {
-        const found = applications.find((a) => a.id === id);
-        return found && found.status === "rejected";
-      });
+      const declinedSelected = selectedIds.filter((id) => applications.some((a) => a.id === id));
 
       if (declinedSelected.length === 0) {
-        alert("Please select at least one declined application to delete.");
+        alert("Please select at least one candidate to delete.");
         return;
       }
 
       if (
         window.confirm(
-          `Are you sure you want to permanently delete ${declinedSelected.length} declined application(s)? This action cannot be undone.`
+          `Permanently delete ${declinedSelected.length} candidate(s)? All their details, notes and emails are removed from the database. This cannot be undone.`
         )
       ) {
         if (window.PawpadApplicationsStore) {
@@ -562,7 +558,7 @@
       }
     };
 
-    const isDeclinedFilter = statusFilter === "rejected";
+    const isDeclinedFilter = true; // selection checkboxes are shown for every candidate
 
     return React.createElement(
       "div",
@@ -659,7 +655,7 @@
                 disabled: visibleDeclined.length === 0,
                 style: { width: "16px", height: "16px", cursor: "pointer" }
               }),
-              "Select All Visible Declined"
+              "Select all shown"
             ),
             React.createElement(
               "span",
@@ -727,7 +723,7 @@
                       type: "checkbox",
                       checked: allVisibleDeclinedSelected,
                       onChange: toggleSelectAllVisibleDeclined,
-                      title: "Select All Visible Declined",
+                      title: "Select all shown",
                       style: { width: "16px", height: "16px", cursor: "pointer" }
                     })
                   ),
@@ -820,13 +816,12 @@
                             ? "View Record"
                             : "Inspect & Approve"
                         ),
-                        isDeclined &&
                         React.createElement(
                           "button",
                           {
                             className: "btn-admin btn-admin-danger",
                             style: { padding: "6px 12px", fontSize: "13px" },
-                            title: "Delete this declined record",
+                            title: "Permanently delete this candidate",
                             onClick: (e) => {
                               e.stopPropagation();
                               handleDelete(app);
@@ -1261,8 +1256,7 @@
                   },
                   "Reopen for Review"
                 ),
-              selectedApp.status === "rejected" &&
-                React.createElement(
+              React.createElement(
                   "button",
                   {
                     className: "btn-admin btn-admin-danger",
@@ -1270,7 +1264,7 @@
                     onClick: () => handleDelete(selectedApp)
                   },
                   React.createElement(Icons.Trash, null),
-                  " Delete Application"
+                  " Delete Candidate"
                 ),
 
               // Decline action (Only available if NOT rejected and NOT enrolled)
@@ -2813,7 +2807,7 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Standard Trial Day Fee"), React.createElement("input", { className: "input-field", value: formData.trialDayFee || "", onChange: (e) => updateField("trialDayFee", e.target.value) })),
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Standard Overnight Fee"), React.createElement("input", { className: "input-field", value: formData.overnightFee || "", onChange: (e) => updateField("overnightFee", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "WhatsApp Booking Number"), React.createElement("input", { className: "input-field", placeholder: "e.g. 919845001809", value: formData.whatsappNumber || "", onChange: (e) => updateField("whatsappNumber", e.target.value) }))
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "WhatsApp Booking Number"), React.createElement("input", { className: "input-field", placeholder: "e.g. 919148443330", value: formData.whatsappNumber || "", onChange: (e) => updateField("whatsappNumber", e.target.value) }))
             )
           ),
 
@@ -3827,14 +3821,14 @@
               "div",
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "01 Email Address"), React.createElement("input", { className: "input-field", value: formData.email || "info@pawpad.in", onChange: (e) => updateField("email", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 1 (Dial Digits)"), React.createElement("input", { className: "input-field", value: formData.phone || "9663077496", onChange: (e) => updateField("phone", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 1 Display Format"), React.createElement("input", { className: "input-field", value: formData.phoneDisplay || "9663077496", onChange: (e) => updateField("phoneDisplay", e.target.value) }))
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 1 (Dial Digits)"), React.createElement("input", { className: "input-field", value: formData.phone || "9148443330", onChange: (e) => updateField("phone", e.target.value) })),
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 1 Display Format"), React.createElement("input", { className: "input-field", value: formData.phoneDisplay || "9148443330", onChange: (e) => updateField("phoneDisplay", e.target.value) }))
             ),
             React.createElement(
               "div",
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 2 (Dial Digits)"), React.createElement("input", { className: "input-field", value: formData.phone2 || "9148443330", onChange: (e) => updateField("phone2", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 2 Display Format"), React.createElement("input", { className: "input-field", value: formData.phone2Display || "9148443330", onChange: (e) => updateField("phone2Display", e.target.value) }))
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Second Phone (optional, leave empty to hide)"), React.createElement("input", { className: "input-field", value: formData.phone2 || "", onChange: (e) => updateField("phone2", e.target.value) })),
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "02 Phone 2 Display Format"), React.createElement("input", { className: "input-field", value: formData.phone2Display || "", onChange: (e) => updateField("phone2Display", e.target.value) }))
             ),
 
             // 03 Address
@@ -3868,7 +3862,7 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Book Button Text"), React.createElement("input", { className: "input-field", value: formData.cardBtnBook || "Book a session", onChange: (e) => updateField("cardBtnBook", e.target.value) })),
               React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Call Button Text"), React.createElement("input", { className: "input-field", value: formData.cardBtnCall || "Call us", onChange: (e) => updateField("cardBtnCall", e.target.value) })),
-              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Call Phone Link"), React.createElement("input", { className: "input-field", value: formData.cardCallPhone || "+919663077496", onChange: (e) => updateField("cardCallPhone", e.target.value) }))
+              React.createElement("div", null, React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Call Phone Link"), React.createElement("input", { className: "input-field", value: formData.cardCallPhone || "+919148443330", onChange: (e) => updateField("cardCallPhone", e.target.value) }))
             )
           ),
 
@@ -4358,6 +4352,84 @@
             `${formatSlotTime(c.time)} · ${c.pet.name || "Pet"} · ${c.customer.name} · ${c.customer.phone} (cancelled by ${c.cancelledBy || "admin"})`))
         )
       )
+    );
+  }
+
+  // -------------------------------------------------------------
+  // UPCOMING GROOMING SESSIONS (every future booking, soonest first)
+  // -------------------------------------------------------------
+  function UpcomingGroomingTab() {
+    const [bookings, setBookings] = useState(null);
+    const [notice, setNotice] = useState("");
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+
+    const load = async () => {
+      const result = await window.PawpadApi.call("list_upcoming_bookings", {});
+      if (result.ok) setBookings(result.data.bookings || []);
+      else setNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+    };
+
+    useEffect(() => {
+      load();
+    }, []);
+
+    const handleCancel = (b) => {
+      setConfirmModal({
+        isOpen: true,
+        title: "Cancel this booking?",
+        message: `${b.pet.name || "Pet"} (${b.serviceTitle}) for ${b.customer.name} on ${b.label}. The slot becomes free and the calendar event is removed. Please let the customer know (${b.customer.phone}).`,
+        confirmText: "Yes, cancel booking",
+        cancelText: "No, keep it",
+        confirmStyle: "btn-admin-danger",
+        onConfirm: async () => {
+          setConfirmModal({ isOpen: false });
+          const result = await window.PawpadApi.call("cancel_booking", { id: b.id });
+          setNotice(result.ok ? "✓ Booking cancelled." : "⚠️ " + ((result.data && result.data.error) || "The server could not be reached."));
+          load();
+        }
+      });
+    };
+
+    const days = [];
+    (bookings || []).forEach((b) => {
+      const last = days[days.length - 1];
+      if (last && last.date === b.date) last.items.push(b);
+      else days.push({ date: b.date, items: [b] });
+    });
+
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "16px" } },
+      React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
+      React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" } },
+        React.createElement("span", { style: { fontSize: "14px" } },
+          bookings === null ? "Loading…" : `${bookings.length} upcoming grooming session${bookings.length === 1 ? "" : "s"} from today onwards.`),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: load }, "↻ Refresh")
+      ),
+      notice && React.createElement("div", { className: "card", role: "status", style: { fontWeight: 600, fontSize: "14px", color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice),
+      bookings && bookings.length === 0 && React.createElement("div", { className: "card", style: { color: "var(--admin-text-muted)" } }, "No upcoming grooming sessions."),
+      days.map((day) => React.createElement(
+        "div",
+        { key: day.date, className: "card", "data-day": day.date, style: { display: "flex", flexDirection: "column", gap: "10px" } },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--admin-gold)" } },
+          `${new Date(day.date + "T00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · ${day.items.length} session${day.items.length === 1 ? "" : "s"}`),
+        day.items.map((b) => React.createElement(
+          "div",
+          { key: b.id, "data-booking": b.ref, style: { display: "flex", alignItems: "flex-start", gap: "14px", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", flexWrap: "wrap" } },
+          React.createElement("strong", { style: { minWidth: "78px" } }, formatSlotTime(b.time)),
+          React.createElement(
+            "div",
+            { style: { flex: 1, minWidth: "220px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
+            React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
+            React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
+            b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
+            React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}`)
+          ),
+          React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking")
+        ))
+      ))
     );
   }
 
@@ -4856,6 +4928,7 @@
 
     const navigationItems = [
       { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
+      { id: "upcoming", label: "Upcoming Grooming", icon: Icons.Dashboard },
       { id: "bookings", label: "Grooming Bookings", icon: Icons.Dashboard },
       { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: stats.pending > 0 ? stats.pending : null },
       { id: "content", label: "Website Content CMS", icon: Icons.Content },
@@ -5006,6 +5079,7 @@
             null,
             React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontSize: "22px", color: "var(--admin-text)" } },
               activeTab === "dashboard" && "Overview & Admissions Dashboard",
+              activeTab === "upcoming" && "Upcoming Grooming Sessions",
               activeTab === "bookings" && "Grooming Bookings",
               activeTab === "applications" && "Course Applications & Admissions",
               activeTab === "content" && "Omnichannel Content Management",
@@ -5014,6 +5088,7 @@
             ),
             React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
               activeTab === "dashboard" && "Key metrics and real-time site activity",
+              activeTab === "upcoming" && "Every booked grooming session from today onwards, soonest first",
               activeTab === "bookings" && "Bookings by day, cancellations and blocked times (synced with the info@ calendar)",
               activeTab === "applications" && "Review candidate responses and manage course approval lifecycle",
               activeTab === "content" && "Live updates to text, headlines, pricing, and packages",
@@ -5053,6 +5128,7 @@
           "div",
           { className: "admin-content" },
           activeTab === "dashboard" && React.createElement(DashboardTab, { stats, setActiveTab, applications }),
+          activeTab === "upcoming" && React.createElement(UpcomingGroomingTab, null),
           activeTab === "bookings" && React.createElement(BookingsTab, null),
           activeTab === "applications" && React.createElement(ApplicationsTab, { applications, onUpdate: refreshData }),
           activeTab === "content" && React.createElement(ContentEditorTab, null),

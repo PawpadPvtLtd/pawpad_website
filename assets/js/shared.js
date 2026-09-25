@@ -248,7 +248,7 @@ function Footer({ onBook }) {
           /* @__PURE__ */ React.createElement("div", null,
             /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, "Address"),
             /* @__PURE__ */ React.createElement("p", null, "#426, 5th Main Road,", /* @__PURE__ */ React.createElement("br", null), "HRBR 2nd Block, Kalyan Nagar", /* @__PURE__ */ React.createElement("br", null), "Bangalore - 560043 India"),
-            /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:+919663077496" }, "9663077496"), " / ", /* @__PURE__ */ React.createElement("a", { href: "tel:+919148443330" }, "9148443330")),
+            /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:+919148443330" }, "+91 91484 43330")),
             /* @__PURE__ */ React.createElement("div", { className: "socials" },
               /* @__PURE__ */ React.createElement("a", { href: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr", "aria-label": "Instagram", target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(InstagramIcon, { size: 16 })),
               /* @__PURE__ */ React.createElement("a", { href: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr", "aria-label": "Facebook", target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(FacebookIcon, { size: 16 })),
@@ -435,7 +435,7 @@ function Marquee({ items }) {
         @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }
       `));
 }
-const WA_NUMBER = "919845001809";
+const WA_NUMBER = "919148443330";
 const WA_MESSAGE = "Hello, I would like to know more about your services.";
 function WhatsAppFloat() {
   return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(

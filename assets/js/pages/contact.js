@@ -90,12 +90,12 @@
                   /* @__PURE__ */ React.createElement("span", { className: "cd-label" }, "PHONE")
                 ),
                 /* @__PURE__ */ React.createElement("div", { className: "cd-content" },
-                  /* @__PURE__ */ React.createElement("a", { href: `tel:${cms.phone ? (cms.phone.startsWith("+") ? cms.phone : `+91${cms.phone}`) : "+919663077496"}`, className: "cd-value-link cd-value-title" },
-                    cms.phoneDisplay || cms.phone || "9663077496"
+                  /* @__PURE__ */ React.createElement("a", { href: `tel:${cms.phone ? (cms.phone.startsWith("+") ? cms.phone : `+91${cms.phone}`) : "+919148443330"}`, className: "cd-value-link cd-value-title" },
+                    cms.phoneDisplay || cms.phone || "9148443330"
                   ),
-                  /* @__PURE__ */ React.createElement("br", null),
-                  /* @__PURE__ */ React.createElement("a", { href: `tel:${cms.phone2 ? (cms.phone2.startsWith("+") ? cms.phone2 : `+91${cms.phone2}`) : "+919148443330"}`, className: "cd-value-link cd-value-title", style: { marginTop: "4px" } },
-                    cms.phone2Display || cms.phone2 || "9148443330"
+                  cms.phone2 && /* @__PURE__ */ React.createElement("br", null),
+                  cms.phone2 && /* @__PURE__ */ React.createElement("a", { href: `tel:${cms.phone2.startsWith("+") ? cms.phone2 : `+91${cms.phone2}`}`, className: "cd-value-link cd-value-title", style: { marginTop: "4px" } },
+                    cms.phone2Display || cms.phone2
                   )
                 )
               ),
@@ -144,7 +144,7 @@
                   className: "btn btn-primary card-btn-book"
                 }, (cms.cardBtnBook || "Book a session") + " ", /* @__PURE__ */ React.createElement(Arrow, { size: 14 })),
                 /* @__PURE__ */ React.createElement("a", {
-                  href: `tel:${cms.cardCallPhone || "+919663077496"}`,
+                  href: `tel:${cms.cardCallPhone || "+919148443330"}`,
                   className: "btn btn-secondary card-btn-call"
                 }, cms.cardBtnCall || "Call us")
               ),

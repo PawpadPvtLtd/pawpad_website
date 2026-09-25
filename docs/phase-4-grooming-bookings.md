@@ -23,7 +23,7 @@ adds anything to that calendar on her phone (a vet visit, a day off), that time
 disappears from the website within about a minute.
 
 If the calendar can't be reached, the website doesn't guess. It says "Online
-booking is not available right now. Please WhatsApp us on +91 98450 01809"
+booking is not available right now. Please WhatsApp us on +91 91484 43330"
 until the calendar works again.
 
 ---
