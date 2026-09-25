@@ -37,8 +37,8 @@ report is sent from info@pawpad.in with the password that is already there.
 | Block / unblock a time or a whole day, Tidy calendar | ✓ | ✓ | — |
 | Studio Closures | ✓ | ✓ | — |
 | Course Applications: see, add notes, schedule interview (with email) | ✓ | ✓ | ✓ |
-| Record a course payment, then mark **Enrolled** | ✓ | ✓ | ✓ |
-| Approve, decline or reopen an application | ✓ | ✓ | — |
+| Approve, decline or reopen an application (after the interview) | ✓ | ✓ | — |
+| Record a course payment, then mark **Enrolled** (only after Approved) | ✓ | ✓ | ✓ |
 | Delete candidates, remove a payment | ✓ | ✓ | — |
 | Today's Closing, walk-ins, send the daily report | ✓ | ✓ | ✓ |
 | Daily Reports (all sent reports) | ✓ | ✓ | — |
@@ -71,15 +71,23 @@ straight away. Only the Owner can add or remove people.
 
 ---
 
-## Course payments and enrolment
+## The admissions steps
 
-A candidate can be marked **Enrolled** only after a payment is recorded.
+| Step | Who | What happens |
+|---|---|---|
+| 1. New application | — | Status **Pending Review** |
+| 2. Schedule the interview | Manager, Admin or Owner | Choose the date and time, click **Schedule & Send Invite**. The candidate gets the invitation, and every Owner and Administrator gets a short email: "Interview scheduled: name, course, date/time, scheduled by …". Status **Interview Scheduled** (a Manager sees **Pending Admin Approval**) |
+| 3. Approve or decline | Owner or Administrator only | After the interview, click **Approve & Send Confirmation** (the candidate gets the approval email) or **Decline** (you are asked whether to send a polite decline email) |
+| 4. Payment | Manager, Admin or Owner | Only after **Approved**: under **Payments**, fill in the amount, date, mode (UPI / Cash / Card / Bank transfer) and reference, then **Record Payment** |
+| 5. Enrol | Manager, Admin or Owner | **Confirm Enrolled** works only when the application is Approved **and** a payment is recorded |
 
-1. Open **Course Applications** and click a candidate.
-2. Under **Payments**, fill in the amount, the date, how it was paid
-   (UPI / Cash / Card / Bank transfer) and the reference number (UTR or receipt).
-3. Click **Record Payment**.
-4. The **Confirm Enrolled** button now works. Click it.
+The server checks every step, so a step can't be skipped from another device or
+tool. Every step is written in the **Staff Notes & Admissions Log** with who did
+it and when. Deleting a candidate stays with the Owner and Administrators.
+
+The number next to **Course Applications** in the left menu shows what is
+waiting for you: interviews waiting for approval (Owner/Administrator), or
+approved candidates waiting for payment (Manager).
 
 If a payment was typed wrongly, an Owner or Administrator can click **Remove**
 next to it and record it again.
@@ -134,7 +142,9 @@ The times become bookable again and the calendar event is deleted.
 
 The email shows the date and who sent it, the table of bookings, totals
 (completed / no-shows / cancelled, total collected, total per payment mode,
-the Not-paid list) and the day's course payments.
+the Not-paid list), the day's course payments, and three admissions lists:
+applications waiting for Admin approval, interviews on the next day (name,
+course, time) and candidates enrolled that day (with the payment received).
 
 **Made a mistake after sending?** Correct it on Today's Closing and click
 **Send daily report** again. The new email is marked **"Corrected report"**.

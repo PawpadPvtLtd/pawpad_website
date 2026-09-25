@@ -17,9 +17,59 @@ const STATUS_LABELS = [
     'pending_review' => 'Pending Review',
     'interview_scheduled' => 'Interview Scheduled',
     'approved' => 'Approved & Accepted',
-    'rejected' => 'Rejected / Declined',
-    'enrolled' => 'Enrolled & Deposit Confirmed',
+    'rejected' => 'Declined',
+    'enrolled' => 'Enrolled & Payment Confirmed',
 ];
+
+/**
+ * The admissions workflow: which status each step may start from, and who may
+ * take it. New → interview (Manager or Admin) → Approved / Declined (Owner or
+ * Administrator, after the interview) → payment → Enrolled (Manager or Admin).
+ */
+const APPLICATION_STEPS = [
+    'interview_scheduled' => ['from' => ['pending_review', 'interview_scheduled'], 'roles' => STAFF_ROLES],
+    'approved' => ['from' => ['pending_review', 'interview_scheduled'], 'roles' => ADMIN_ROLES],
+    'rejected' => ['from' => ['pending_review', 'interview_scheduled', 'approved'], 'roles' => ADMIN_ROLES],
+    'pending_review' => ['from' => ['rejected'], 'roles' => ADMIN_ROLES],
+    'enrolled' => ['from' => ['approved'], 'roles' => STAFF_ROLES],
+];
+
+function application_step_verb(string $step): string
+{
+    $verbs = [
+        'interview_scheduled' => 'schedule the interview',
+        'approved' => 'approve applications',
+        'rejected' => 'decline applications',
+        'pending_review' => 'reopen applications',
+        'enrolled' => 'enrol this candidate',
+    ];
+    return $verbs[$step] ?? 'do this';
+}
+
+/** "2026-09-26T10:30" (from the admin panel) → "Sat 26 Sep 2026, 10:30 AM". */
+function friendly_interview(string $value): string
+{
+    try {
+        return (new DateTimeImmutable($value, new DateTimeZone(STUDIO_TIMEZONE)))->format('D j M Y, g:i A');
+    } catch (Exception $e) {
+        return $value;
+    }
+}
+
+/** A short note to every Owner and Administrator (from courses@) that an interview was scheduled. */
+function notify_interview_scheduled(array $row, string $interviewDate, array $admin): bool
+{
+    $recipients = report_recipients();
+    if (!$recipients) {
+        return false;
+    }
+    $subject = 'Interview scheduled: ' . $row['applicant_name'] . ', ' . $row['course_name'];
+    $text = 'Interview scheduled: ' . $row['applicant_name'] . ', ' . $row['course_name'] . ', ' . friendly_interview($interviewDate)
+        . ', scheduled by ' . $admin['email'] . ".\n\nApplication " . $row['id'] . ' · ' . $row['applicant_phone'] . ' · ' . $row['applicant_email']
+        . "\n\nAfter the interview, approve or decline it in the Pawpad admin panel (Course Applications).\n";
+    $html = '<p style="font-family:Arial,sans-serif;font-size:14px">' . nl2br(html_text($text)) . '</p>';
+    return send_html_mail('courses', $recipients, $subject, $html, $text)['sent'];
+}
 
 // How a payment was made. "not_paid" is only used in the daily closing.
 const PAYMENT_MODES = ['upi' => 'UPI', 'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer'];
@@ -103,6 +153,7 @@ function application_to_array(array $row, ?array $payments = null): array
         'courseFee' => $row['course_fee'],
         'createdAt' => to_iso($row['created_at']),
         'status' => $row['status'],
+        'enrolledAt' => to_iso($row['enrolled_at'] ?? null),
         'interviewDate' => $row['interview_date'],
         'applicant' => [
             'name' => $row['applicant_name'],
@@ -257,33 +308,51 @@ function update_application(array $admin, array $input): array
     $author = $admin['email'];
     $isManager = !in_array($admin['role'], ADMIN_ROLES, true);
 
+    $step = null;
     if (array_key_exists('status', $input)) {
         $newStatus = (string) $input['status'];
         if (!in_array($newStatus, APPLICATION_STATUSES, true)) {
             json_error('Unknown status.');
         }
-        // A Manager may only schedule interviews and enrol (approve/decline stay with Owner/Administrator).
-        if ($isManager && $newStatus !== $status && !in_array($newStatus, ['interview_scheduled', 'enrolled'], true)) {
-            json_error('Not allowed: a Manager can only schedule interviews and enrol candidates.', 403);
+        // Scheduling again (a new interview time) is a step too; other "same status" saves are not.
+        if ($newStatus !== $status || $newStatus === 'interview_scheduled') {
+            $step = $newStatus;
         }
-        if ($newStatus === 'enrolled' && $status !== 'enrolled') {
+    }
+    if (array_key_exists('interviewDate', $input)) {
+        $interviewDate = clean_text($input['interviewDate'], 40);
+    }
+    if ($step === null && $interviewDate !== $row['interview_date']) {
+        json_error('The interview time can only be changed by scheduling the interview.');
+    }
+
+    if ($step !== null) {
+        $rule = APPLICATION_STEPS[$step] ?? null;
+        if (!$rule || !in_array($admin['role'], $rule['roles'], true)) {
+            json_error('Not allowed: a ' . role_label($admin['role']) . ' cannot ' . application_step_verb($step) . '.', 403);
+        }
+        if (!in_array($status, $rule['from'], true)) {
+            json_error('This candidate is "' . (STATUS_LABELS[$status] ?? $status) . '", so you cannot ' . application_step_verb($step) . ' now.'
+                . ($step === 'enrolled' ? ' An Owner or Administrator must approve the application first.' : ''), 409);
+        }
+        if ($step === 'interview_scheduled' && $interviewDate === '') {
+            json_error('Please choose the interview date and time.');
+        }
+        if ($step === 'enrolled') {
             $paid = db()->prepare('SELECT COUNT(*) FROM course_payments WHERE application_id = ?');
             $paid->execute([$row['id']]);
             if ((int) $paid->fetchColumn() === 0) {
                 json_error('Record the payment first: a candidate can only be enrolled after a payment is recorded.', 409);
             }
         }
-        if ($newStatus !== $status) {
-            $notes[] = [
-                'author' => $author,
-                'date' => $now,
-                'text' => "Status changed from '" . (STATUS_LABELS[$status] ?? $status) . "' to '" . (STATUS_LABELS[$newStatus] ?? $newStatus) . "'.",
-            ];
-            $status = $newStatus;
-        }
-    }
-    if (array_key_exists('interviewDate', $input)) {
-        $interviewDate = clean_text($input['interviewDate'], 40);
+        $notes[] = [
+            'author' => $author,
+            'date' => $now,
+            'text' => $step === 'interview_scheduled'
+                ? 'Interview scheduled for ' . friendly_interview($interviewDate) . ' by ' . $author . '.'
+                : "Status changed from '" . (STATUS_LABELS[$status] ?? $status) . "' to '" . (STATUS_LABELS[$step] ?? $step) . "' by " . $author . '.',
+        ];
+        $status = $step;
     }
     $noteText = clean_text($input['note'] ?? '', 5000);
     if ($noteText !== '') {
@@ -295,8 +364,9 @@ function update_application(array $admin, array $input): array
         $subject = clean_text(str_replace(["\r", "\n"], ' ', (string) ($input['email']['subject'] ?? '')), 300);
         $body = clean_text($input['email']['body'] ?? '', 20000);
         $type = preg_replace('/[^a-z_]/', '', (string) ($input['email']['type'] ?? 'notification'));
-        if ($isManager && $type !== 'interview') {
-            json_error('Not allowed: a Manager can only send the interview email.', 403);
+        // Managers send only the interview invitation, together with scheduling it.
+        if ($isManager && !($type === 'interview_scheduled' && $step === 'interview_scheduled')) {
+            json_error('Not allowed: a Manager can only send the interview invitation.', 403);
         }
         if ($subject === '' || $body === '') {
             json_error('The email needs a subject and a message.');
@@ -319,9 +389,21 @@ function update_application(array $admin, array $input): array
         ];
     }
 
+    if ($step === 'interview_scheduled') {
+        $notified = notify_interview_scheduled($row, $interviewDate, $admin);
+        $notes[] = ['author' => 'System', 'date' => $now, 'text' => $notified
+            ? 'Owner and Administrators were emailed that the interview is scheduled.'
+            : 'Owner and Administrators could NOT be emailed about the interview.'];
+    }
+
     db()->prepare(
-        'UPDATE applications SET status = ?, interview_date = ?, staff_notes = ?, communications = ?, updated_at = ? WHERE id = ?'
-    )->execute([$status, $interviewDate, encode_json($notes), encode_json($communications), now_utc(), $row['id']]);
+        'UPDATE applications SET status = ?, interview_date = ?, staff_notes = ?, communications = ?, updated_at = ?,
+            enrolled_at = ' . ($step === 'enrolled' ? '?' : 'enrolled_at') . ' WHERE id = ?'
+    )->execute(array_merge(
+        [$status, $interviewDate, encode_json($notes), encode_json($communications), now_utc()],
+        $step === 'enrolled' ? [now_utc()] : [],
+        [$row['id']]
+    ));
 
     return [
         'application' => application_to_array(find_application($row['id'])),
@@ -350,6 +432,9 @@ function delete_applications(array $input): array
 function record_payment(array $admin, array $input): array
 {
     $row = find_application(clean_text($input['applicationId'] ?? '', 40));
+    if (!in_array($row['status'], ['approved', 'enrolled'], true)) {
+        json_error('A payment can only be recorded after an Owner or Administrator has approved the application.', 409);
+    }
     $amount = parse_amount($input['amount'] ?? '');
     if ($amount === null || $amount <= 0) {
         json_error('Please enter the amount received (for example 25000).');

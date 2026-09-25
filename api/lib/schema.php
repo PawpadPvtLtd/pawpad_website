@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -31,6 +31,7 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'bookings', 'admin_log', "MEDIUMTEXT NULL");
     add_column_if_missing($pdo, 'slot_blocks', 'calendar_href', "VARCHAR(500) NOT NULL DEFAULT ''");
     add_column_if_missing($pdo, 'bookings', 'price', "DECIMAL(10,2) NULL");
+    add_column_if_missing($pdo, 'applications', 'enrolled_at', "DATETIME NULL");
     add_column_if_missing($pdo, 'bookings', 'source', "VARCHAR(20) NOT NULL DEFAULT 'website'");
     $pdo->prepare('INSERT INTO schema_info (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)')
         ->execute([SCHEMA_VERSION]);

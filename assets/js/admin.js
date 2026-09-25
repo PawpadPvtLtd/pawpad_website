@@ -12,6 +12,38 @@
   const { useState, useEffect, useRef, useMemo } = React;
 
   const AUTH_USER_STORAGE_KEY = "pawpad_admin_user";
+
+  // In-page messages instead of browser pop-ups: showNotice("✓ Saved.") or showNotice("Could not …").
+  // Messages starting with ⚠️, "Could not", "Error", "Failed", "Invalid", "Not " or "Please" show as warnings.
+  function showNotice(text, kind) {
+    const message = String(text);
+    const isError = kind ? kind === "error" : /^(⚠️|Could not|Error|Failed|Invalid|Not |Please)/.test(message);
+    window.dispatchEvent(new CustomEvent("pawpad-admin-notice", { detail: { text: message, kind: isError ? "error" : "info" } }));
+  }
+  window.PawpadAdminNotice = showNotice;
+
+  function NoticeArea() {
+    const [notices, setNotices] = useState([]);
+    useEffect(() => {
+      const onNotice = (e) => {
+        const id = Date.now() + Math.random();
+        setNotices((prev) => [...prev.slice(-3), { id, ...e.detail }]);
+        setTimeout(() => setNotices((prev) => prev.filter((n) => n.id !== id)), e.detail.kind === "error" ? 10000 : 6000);
+      };
+      window.addEventListener("pawpad-admin-notice", onNotice);
+      return () => window.removeEventListener("pawpad-admin-notice", onNotice);
+    }, []);
+    return React.createElement(
+      "div",
+      { "aria-live": "polite", style: { position: "fixed", top: "16px", right: "16px", zIndex: 2000, display: "flex", flexDirection: "column", gap: "8px", maxWidth: "min(420px, calc(100vw - 32px))" } },
+      notices.map((n) => React.createElement(
+        "div",
+        { key: n.id, className: "card", role: n.kind === "error" ? "alert" : "status", "data-notice": n.kind, style: { padding: "12px 14px", display: "flex", gap: "10px", alignItems: "flex-start", fontSize: "14px", fontWeight: 600, boxShadow: "0 6px 24px rgba(0,0,0,0.15)", borderLeft: `4px solid ${n.kind === "error" ? "var(--admin-danger)" : "var(--admin-success)"}`, color: n.kind === "error" ? "var(--admin-danger)" : "var(--admin-text)" } },
+        React.createElement("span", { style: { flex: 1 } }, n.text),
+        React.createElement("button", { type: "button", "aria-label": "Close message", onClick: () => setNotices((prev) => prev.filter((x) => x.id !== n.id)), style: { background: "none", border: "none", cursor: "pointer", color: "inherit", fontSize: "16px", lineHeight: 1 } }, "×")
+      ))
+    );
+  }
   const AUTH_STORAGE_KEY = "pawpad_admin_auth_session";
 
   // Icons Helper
@@ -324,7 +356,7 @@
                       "td",
                       { style: { padding: "12px" } },
                       React.createElement("span", { className: `badge badge-${app.status === "pending_review" ? "pending" : app.status === "approved" ? "approved" : app.status === "rejected" ? "rejected" : app.status === "interview_scheduled" ? "interview" : "enrolled"}` },
-                        app.status === "pending_review" ? "Pending Review" : app.status === "approved" ? "Approved" : app.status === "rejected" ? "Declined" : app.status === "interview_scheduled" ? "Interview Set" : "Enrolled"
+                        applicationStatusLabel(app.status, true)
                       )
                     ),
                     React.createElement(
@@ -356,7 +388,26 @@
     return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
   }
 
+  /**
+   * Status names. After the interview is scheduled, a Manager sees "Pending Admin Approval":
+   * only an Owner or Administrator can approve or decline.
+   */
+  function applicationStatusLabel(status, canAdmin) {
+    if (status === "interview_scheduled") return canAdmin ? "Interview Scheduled" : "Pending Admin Approval";
+    return { pending_review: "Pending Review", approved: "Approved", rejected: "Declined", enrolled: "Enrolled" }[status] || status;
+  }
+
   function ApplicationsTab({ applications, onUpdate, canAdmin }) {
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+    const askConfirm = (options, onYes) => setConfirmModal({
+      isOpen: true,
+      confirmStyle: "btn-admin-danger",
+      ...options,
+      onConfirm: () => {
+        setConfirmModal({ isOpen: false });
+        onYes();
+      }
+    });
     const [selectedApp, setSelectedApp] = useState(null);
     const [payment, setPayment] = useState({ amount: "", paidOn: todayString(), mode: "", reference: "" });
     const [paymentNotice, setPaymentNotice] = useState("");
@@ -419,7 +470,11 @@
     const handleDelete = (app) => {
       if (!app) return;
       const candidateName = app.applicant?.name ? `${app.applicant.name} (${app.id})` : app.id;
-      if (window.confirm(`Permanently delete ${candidateName}? All of this candidate's details, notes and emails are removed from the database. This cannot be undone.`)) {
+      askConfirm({
+        title: "Delete candidate?",
+        message: `Permanently delete ${candidateName}? All of this candidate's details, notes and emails are removed from the database. This cannot be undone.`,
+        confirmText: "Yes, delete"
+      }, () => {
         if (window.PawpadApplicationsStore) {
           window.PawpadApplicationsStore.deleteApplication(app.id);
           if (selectedApp && selectedApp.id === app.id) {
@@ -428,22 +483,22 @@
           setSelectedIds((prev) => prev.filter((id) => id !== app.id));
           onUpdate();
         }
-      }
+      });
     };
 
     const handleBulkDelete = () => {
       const declinedSelected = selectedIds.filter((id) => applications.some((a) => a.id === id));
 
       if (declinedSelected.length === 0) {
-        alert("Please select at least one candidate to delete.");
+        showNotice("Please select at least one candidate to delete.");
         return;
       }
 
-      if (
-        window.confirm(
-          `Permanently delete ${declinedSelected.length} candidate(s)? All their details, notes and emails are removed from the database. This cannot be undone.`
-        )
-      ) {
+      askConfirm({
+        title: "Delete candidates?",
+        message: `Permanently delete ${declinedSelected.length} candidate(s)? All their details, notes and emails are removed from the database. This cannot be undone.`,
+        confirmText: "Yes, delete"
+      }, () => {
         if (window.PawpadApplicationsStore) {
           if (typeof window.PawpadApplicationsStore.deleteMultiple === "function") {
             window.PawpadApplicationsStore.deleteMultiple(declinedSelected);
@@ -456,7 +511,7 @@
           setSelectedIds((prev) => prev.filter((id) => !declinedSelected.includes(id)));
           onUpdate();
         }
-      }
+      });
     };
 
     const handleStatusChange = (id, newStatus, note = "", interviewDate = "") => {
@@ -472,7 +527,7 @@
     const handleScheduleInterview = async () => {
       if (!selectedApp) return;
       if (!interviewInput) {
-        alert("Please select an interview date and time first.");
+        showNotice("Please select an interview date and time first.");
         return;
       }
 
@@ -491,19 +546,48 @@
             title: "Interview Scheduled & Candidate Email Dispatched",
             message: res.emailSent === false
               ? `Interview saved, but the email to ${res.emailData.recipient || "the candidate"} could NOT be sent: ${res.emailError}`
-              : `Notification email sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "via Courses Web3Forms key"}.`,
+              : `Notification email sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "from courses@pawpad.in"}.`,
             emailData: res.emailData
           });
           onUpdate();
         } else {
-          alert("Could not schedule interview: " + (res?.error || "Unknown error"));
+          showNotice("Could not schedule interview: " + (res?.error || "Unknown error"));
         }
       } catch (err) {
         console.error("Failed to schedule interview:", err);
-        alert("Error scheduling interview: " + err.message);
+        showNotice("Error scheduling interview: " + err.message);
       } finally {
         setIsSendingMail(false);
       }
+    };
+
+    const handleDecline = () => {
+      if (!selectedApp) return;
+      const app = selectedApp;
+      const decline = async (sendEmail) => {
+        setConfirmModal({ isOpen: false });
+        setIsSendingMail(true);
+        const res = await window.PawpadApplicationsStore.declineApplication(app.id, sendEmail, newNote.trim());
+        setIsSendingMail(false);
+        if (!res || !res.success) return showNotice("Could not decline the application: " + ((res && res.error) || "Unknown error"));
+        setSelectedApp(window.PawpadApplicationsStore.getById(app.id));
+        setNewNote("");
+        onUpdate();
+        if (!sendEmail) showNotice("✓ Application declined. No email was sent.");
+        else if (res.emailSent === false) showNotice(`⚠️ Application declined, but the email to ${res.emailData.recipient} could NOT be sent: ${res.emailError}`);
+        else showNotice(`✓ Application declined. A polite email was sent to ${res.emailData.recipient} from courses@pawpad.in.`);
+      };
+      setConfirmModal({
+        isOpen: true,
+        title: "Decline this application?",
+        message: `Decline ${app.applicant?.name || app.id}? Would you like to send the candidate a polite decline email from courses@pawpad.in?`,
+        confirmText: "Decline & send email",
+        confirmStyle: "btn-admin-danger",
+        altText: "Decline without email",
+        cancelText: "Cancel",
+        onConfirm: () => decline(true),
+        onAlt: () => decline(false)
+      });
     };
 
     const handleApproveApplication = async () => {
@@ -523,16 +607,16 @@
             title: "Application Approved & Confirmation Email Dispatched",
             message: res.emailSent === false
               ? `Approval saved, but the email to ${res.emailData.recipient || "the candidate"} could NOT be sent: ${res.emailError}`
-              : `Course approval details and next steps sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "via Courses Web3Forms key"}.`,
+              : `Course approval details and next steps sent to ${res.emailData.recipient || "candidate"} ${res.deliveryLabel || "from courses@pawpad.in"}.`,
             emailData: res.emailData
           });
           onUpdate();
         } else {
-          alert("Could not approve application: " + (res?.error || "Unknown error"));
+          showNotice("Could not approve application: " + (res?.error || "Unknown error"));
         }
       } catch (err) {
         console.error("Failed to approve application:", err);
-        alert("Error approving application: " + err.message);
+        showNotice("Error approving application: " + err.message);
       } finally {
         setIsSendingMail(false);
       }
@@ -594,8 +678,13 @@
       setPaymentNotice("✓ Payment recorded. You can now mark the candidate Enrolled.");
     };
 
-    const handleDeletePayment = async (p) => {
-      if (!window.confirm(`Remove the payment of ${formatRupees(p.amount)} (${p.paidOn})? Only do this if it was recorded by mistake.`)) return;
+    const handleDeletePayment = (p) => askConfirm({
+      title: "Remove payment?",
+      message: `Remove the payment of ${formatRupees(p.amount)} (${p.paidOn})? Only do this if it was recorded by mistake.`,
+      confirmText: "Yes, remove"
+    }, () => removePayment(p));
+
+    const removePayment = async (p) => {
       const result = await window.PawpadApi.call("delete_payment", { id: p.id });
       if (!result.ok) {
         setPaymentNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
@@ -622,6 +711,7 @@
     return React.createElement(
       "div",
       { style: { display: "flex", flexDirection: "column", gap: "24px" } },
+      React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
 
       // Top Controls
       React.createElement(
@@ -638,7 +728,7 @@
             [
               { id: "all", label: "All Requests" },
               { id: "pending_review", label: "Pending Review" },
-              { id: "interview_scheduled", label: "Interview Scheduled" },
+              { id: "interview_scheduled", label: canAdmin ? "Interview Scheduled" : "Pending Admin Approval" },
               { id: "approved", label: "Approved" },
               { id: "enrolled", label: "Enrolled" },
               { id: "rejected", label: "Declined" }
@@ -848,7 +938,7 @@
                       "td",
                       { style: { padding: "16px" } },
                       React.createElement("span", { className: `badge badge-${app.status === "pending_review" ? "pending" : app.status === "approved" ? "approved" : app.status === "rejected" ? "rejected" : app.status === "interview_scheduled" ? "interview" : "enrolled"}` },
-                        app.status === "pending_review" ? "Pending Review" : app.status === "approved" ? "Approved" : app.status === "rejected" ? "Declined" : app.status === "interview_scheduled" ? "Interview Set" : "Enrolled"
+                        applicationStatusLabel(app.status, canAdmin)
                       )
                     ),
                     React.createElement(
@@ -917,7 +1007,7 @@
               React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
                 React.createElement("h2", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-text)" } }, "Application ", selectedApp.id),
                 React.createElement("span", { className: `badge badge-${selectedApp.status === "pending_review" ? "pending" : selectedApp.status === "approved" ? "approved" : selectedApp.status === "rejected" ? "rejected" : selectedApp.status === "interview_scheduled" ? "interview" : "enrolled"}` },
-                  selectedApp.status === "pending_review" ? "Pending Review" : selectedApp.status === "approved" ? "Approved" : selectedApp.status === "rejected" ? "Declined" : selectedApp.status === "interview_scheduled" ? "Interview Set" : "Enrolled"
+                  applicationStatusLabel(selectedApp.status, canAdmin)
                 )
               ),
               React.createElement("div", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginTop: "4px" } }, selectedApp.courseName, " (", selectedApp.courseFee, ")")
@@ -1050,7 +1140,7 @@
                 React.createElement(
                   "span",
                   { style: { fontSize: "11px", color: "var(--admin-text-muted)" } },
-                  "Delivery: Courses Web3Forms Key"
+                  "Sent from courses@pawpad.in"
                 )
               ),
 
@@ -1212,14 +1302,14 @@
                 )
             ),
 
-            // Payments (course fee) — needed before a candidate can be enrolled
-            React.createElement(
+            // Payments (course fee): only after an Owner/Administrator approved; needed before enrolling
+            (selectedApp.status === "approved" || selectedApp.status === "enrolled" || (selectedApp.payments || []).length > 0) && React.createElement(
               "div",
               { "data-section": "payments", style: { display: "flex", flexDirection: "column", gap: "10px" } },
               React.createElement("h4", { style: { fontSize: "14px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--admin-gold)" } },
                 "Payments", (selectedApp.payments || []).length > 0 ? ` · ${formatRupees(selectedApp.paidTotal)} received` : ""),
               (selectedApp.payments || []).length === 0
-                ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No payment recorded yet. A candidate can only be enrolled after a payment is recorded.")
+                ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No payment recorded yet. Record the payment, then click Confirm Enrolled.")
                 : (selectedApp.payments || []).map((p) => React.createElement(
                     "div",
                     { key: p.id, style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", fontSize: "13px", padding: "8px 12px", background: "var(--admin-bg)", borderRadius: "6px", border: "1px solid var(--admin-border-subtle)" } },
@@ -1228,7 +1318,7 @@
                     React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px", flex: 1 } }, `recorded by ${p.recordedBy}`),
                     canAdmin && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, onClick: () => handleDeletePayment(p) }, "Remove")
                   )),
-              selectedApp.status !== "rejected" && React.createElement(
+              (selectedApp.status === "approved" || selectedApp.status === "enrolled") && React.createElement(
                 "div",
                 { style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } },
                 React.createElement("input", { className: "input-field", inputMode: "decimal", placeholder: "Amount (₹)", "aria-label": "Payment amount", value: payment.amount, onChange: (e) => setPayment({ ...payment, amount: e.target.value }), style: { width: "130px" } }),
@@ -1306,11 +1396,13 @@
               ? React.createElement(
                   "div",
                   { style: { color: "var(--admin-gold, #f59e0b)", fontSize: "13px", fontWeight: "500" } },
-                  "Application Approved · Awaiting fee deposit to confirm enrollment"
+                  "Application Approved · record the payment, then Confirm Enrolled"
                 )
               : React.createElement(
                   "div",
                   { style: { display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+                  !canAdmin && selectedApp.status === "interview_scheduled" && React.createElement("span", { "data-pending-admin": "true", style: { flexBasis: "100%", fontSize: "13px", color: "var(--admin-gold)", fontWeight: 600 } },
+                    "Pending Admin Approval — after the interview an Owner or Administrator approves or declines. You can still change the interview time."),
                   React.createElement("span", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "Interview Date:"),
                   React.createElement("input", {
                     type: "datetime-local",
@@ -1366,7 +1458,8 @@
                   {
                     className: "btn-admin btn-admin-danger",
                     style: { padding: "10px 16px" },
-                    onClick: () => handleStatusChange(selectedApp.id, "rejected", "Application declined by admissions committee.")
+                    disabled: isSendingMail,
+                    onClick: handleDecline
                   },
                   "Decline"
                 ),
@@ -1387,7 +1480,7 @@
 
               // Confirm Enrolled (after approval; a Manager, who can't approve, may enrol any open application).
               // Needs a recorded payment — the server checks this too.
-              (selectedApp.status === "approved" || (!canAdmin && (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled"))) &&
+              selectedApp.status === "approved" &&
                 React.createElement(
                   "button",
                   {
@@ -1853,11 +1946,12 @@
   // -------------------------------------------------------------
   // REUSABLE CONFIRMATION MODAL (YES / NO)
   // -------------------------------------------------------------
-  function ConfirmModal({ isOpen, title, message, confirmText, cancelText, confirmStyle, onConfirm, onCancel }) {
+  function ConfirmModal({ isOpen, title, message, confirmText, cancelText, confirmStyle, onConfirm, onCancel, altText, onAlt }) {
     if (!isOpen) return null;
     return React.createElement(
       "div",
-      { className: "modal-overlay", onClick: onCancel },
+      // Above any other window (e.g. the candidate popup it was opened from).
+      { className: "modal-overlay", onClick: onCancel, style: { zIndex: 1300 } },
       React.createElement(
         "div",
         { className: "modal-card", style: { maxWidth: "500px", padding: "28px" }, onClick: (e) => e.stopPropagation() },
@@ -1865,8 +1959,9 @@
         React.createElement("p", { style: { fontSize: "14px", color: "var(--admin-text)", lineHeight: "1.6", marginBottom: "24px" } }, message),
         React.createElement(
           "div",
-          { style: { display: "flex", justifyContent: "flex-end", gap: "12px" } },
+          { style: { display: "flex", justifyContent: "flex-end", gap: "12px", flexWrap: "wrap" } },
           React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: onCancel }, cancelText || "No, Cancel"),
+          altText && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: onAlt }, altText),
           React.createElement("button", { type: "button", className: `btn-admin ${confirmStyle || "btn-admin-primary"}`, onClick: onConfirm }, confirmText || "Yes, Proceed")
         )
       )
@@ -4027,7 +4122,7 @@
     const handleDeleteUpload = async (file) => {
       if (!window.confirm(`Delete "${file.name || file.url}" from the server? Any page still using it will show a broken image.`)) return;
       const result = await window.PawpadApi.call("delete_upload", { id: file.id });
-      if (!result.ok) window.alert("Could not delete: " + ((result.data && result.data.error) || "The server could not be reached."));
+      if (!result.ok) showNotice("Could not delete: " + ((result.data && result.data.error) || "The server could not be reached."));
       loadUploads();
     };
 
@@ -4053,7 +4148,7 @@
         }
       } catch (err) {
         console.error("WebP Optimization error:", err);
-        alert("Failed to convert image to WebP format. Please check file.");
+        showNotice("Failed to convert image to WebP format. Please check file.");
       } finally {
         setIsConverting(false);
       }
@@ -5258,7 +5353,7 @@
           setBackupNotice(result.ok ? "✓ Backup restored and published." : "⚠️ Not published: " + result.error);
           setTimeout(() => setBackupNotice(""), result.ok ? 4000 : 9000);
         } else {
-          alert("Invalid backup file. Please provide a valid JSON export.");
+          showNotice("Invalid backup file. Please provide a valid JSON export.");
         }
       };
       reader.readAsText(file);
@@ -5278,11 +5373,11 @@
             window.PawpadContentStore.resetAll();
             const result = await window.PawpadContentStore.lastPublish;
             if (!result.ok) {
-              alert("Not published: " + result.error);
+              showNotice("Not published: " + result.error);
               return;
             }
-            alert("Website content reset to factory defaults and published.");
-            window.location.reload();
+            showNotice("✓ Website content reset to factory defaults and published. Reloading…");
+            setTimeout(() => window.location.reload(), 1500);
           }
         }
       });
@@ -5554,7 +5649,7 @@
       const onUnauthorized = () => {
         if (localStorage.getItem(AUTH_STORAGE_KEY)) {
           handleLogout();
-          window.alert("Please sign in again.");
+          showNotice("Please sign in again.");
         }
       };
       window.addEventListener("pawpad-api-unauthorized", onUnauthorized);
@@ -5599,9 +5694,9 @@
               const result = await store.publishAllFrom(legacy);
               if (result.ok) {
                 store.discardLegacyLocalContent();
-                window.alert("Your earlier changes are now live.");
+                showNotice("Your earlier changes are now live.");
               } else {
-                window.alert("Could not publish: " + result.error);
+                showNotice("Could not publish: " + result.error);
               }
             }
           });
@@ -5655,6 +5750,7 @@
     const role = (currentUser && currentUser.role) || "admin";
     const canAdmin = role === "owner" || role === "admin";
     const roleLabel = (currentUser && currentUser.roleLabel) || (role === "owner" ? "Owner" : role === "manager" ? "Manager" : "Administrator");
+    const applicationsBadge = applications.filter((a) => a.status === (canAdmin ? "interview_scheduled" : "approved")).length;
     const navigationItems = [
       canAdmin && { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
       { id: "upcoming", label: "Upcoming Grooming", icon: Icons.Dashboard },
@@ -5662,7 +5758,9 @@
       { id: "closing", label: "Today's Closing", icon: Icons.Dashboard },
       canAdmin && { id: "reports", label: "Daily Reports", icon: Icons.Dashboard },
       canAdmin && { id: "closures", label: "Studio Closures", icon: Icons.Dashboard },
-      { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: stats.pending > 0 ? stats.pending : null },
+      // Badge: what is waiting for this person — Admins decide after interviews; Managers take payments after approval.
+      { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: applicationsBadge || null,
+        badgeTitle: canAdmin ? "Pending Admin Approval" : "Approved – awaiting payment" },
       canAdmin && { id: "content", label: "Website Content CMS", icon: Icons.Content },
       canAdmin && { id: "media", label: "WebP Media Manager", icon: Icons.Media },
       { id: "settings", label: canAdmin ? "Settings & Backups" : "My Account", icon: Icons.Settings }
@@ -5774,7 +5872,7 @@
               item.badge &&
               React.createElement(
                 "span",
-                { className: "badge badge-pending", style: { fontSize: "11px", padding: "2px 8px" } },
+                { className: "badge badge-pending", title: item.badgeTitle || "", "aria-label": item.badgeTitle ? `${item.badge} ${item.badgeTitle}` : undefined, "data-badge": item.id, style: { fontSize: "11px", padding: "2px 8px" } },
                 item.badge
               )
             )
@@ -5888,6 +5986,9 @@
   const rootEl = document.getElementById("admin-root");
   if (rootEl) {
     ReactDOM.render(React.createElement(AdminApp, null), rootEl);
+    const noticeEl = document.createElement("div");
+    document.body.appendChild(noticeEl);
+    ReactDOM.render(React.createElement(NoticeArea, null), noticeEl);
   }
 
 })();
