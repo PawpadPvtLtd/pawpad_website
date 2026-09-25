@@ -83,6 +83,7 @@
         email: serverUser.email || cleanEmail,
         name: (serverUser.email || cleanEmail).split("@")[0],
         role: serverUser.role || "admin",
+        roleLabel: serverUser.roleLabel || "",
         picture: null,
         authenticatedAt: new Date().toISOString(),
         authMethod: "pawpad_server"
@@ -343,8 +344,27 @@
   // -------------------------------------------------------------
   // COURSE APPLICATIONS APPROVAL SUBPAGE
   // -------------------------------------------------------------
-  function ApplicationsTab({ applications, onUpdate }) {
+  function todayString() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  const PAYMENT_MODE_OPTIONS = [["upi", "UPI"], ["cash", "Cash"], ["card", "Card"], ["bank_transfer", "Bank transfer"]];
+
+  function formatRupees(amount) {
+    const n = Number(amount) || 0;
+    return "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  }
+
+  function ApplicationsTab({ applications, onUpdate, canAdmin }) {
     const [selectedApp, setSelectedApp] = useState(null);
+    const [payment, setPayment] = useState({ amount: "", paidOn: todayString(), mode: "", reference: "" });
+    const [paymentNotice, setPaymentNotice] = useState("");
+    const [savingPayment, setSavingPayment] = useState(false);
+    useEffect(() => {
+      setPaymentNotice("");
+      setPayment({ amount: "", paidOn: todayString(), mode: "", reference: "" });
+    }, [selectedApp && selectedApp.id]);
     const [statusFilter, setStatusFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [newNote, setNewNote] = useState("");
@@ -547,6 +567,44 @@
       }
     };
 
+    const replaceApp = (app) => {
+      if (window.PawpadApplicationsStore && app) {
+        window.PawpadApplicationsStore._replaceFromServer(app);
+        setSelectedApp(window.PawpadApplicationsStore.getById(app.id));
+        onUpdate();
+      }
+    };
+
+    const handleRecordPayment = async () => {
+      if (!selectedApp || savingPayment) return;
+      if (!payment.amount || !payment.mode || !payment.paidOn) {
+        setPaymentNotice("⚠️ Please fill in the amount, the date and how it was paid.");
+        return;
+      }
+      setSavingPayment(true);
+      setPaymentNotice("");
+      const result = await window.PawpadApi.call("record_payment", { applicationId: selectedApp.id, ...payment });
+      setSavingPayment(false);
+      if (!result.ok) {
+        setPaymentNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+        return;
+      }
+      replaceApp(result.data.application);
+      setPayment({ amount: "", paidOn: todayString(), mode: "", reference: "" });
+      setPaymentNotice("✓ Payment recorded. You can now mark the candidate Enrolled.");
+    };
+
+    const handleDeletePayment = async (p) => {
+      if (!window.confirm(`Remove the payment of ${formatRupees(p.amount)} (${p.paidOn})? Only do this if it was recorded by mistake.`)) return;
+      const result = await window.PawpadApi.call("delete_payment", { id: p.id });
+      if (!result.ok) {
+        setPaymentNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+        return;
+      }
+      replaceApp(result.data.application);
+      setPaymentNotice("✓ Payment removed.");
+    };
+
     const handleExport = () => {
       if (window.PawpadApplicationsStore) {
         const csv = window.PawpadApplicationsStore.exportCSV();
@@ -558,7 +616,8 @@
       }
     };
 
-    const isDeclinedFilter = true; // selection checkboxes are shown for every candidate
+    // Selection checkboxes and delete are for the Owner / Administrator only (the server refuses Managers too).
+    const isDeclinedFilter = Boolean(canAdmin);
 
     return React.createElement(
       "div",
@@ -814,9 +873,9 @@
                             ? "Review & Enroll"
                             : app.status === "rejected"
                             ? "View Record"
-                            : "Inspect & Approve"
+                            : canAdmin ? "Inspect & Approve" : "Open"
                         ),
-                        React.createElement(
+                        canAdmin && React.createElement(
                           "button",
                           {
                             className: "btn-admin btn-admin-danger",
@@ -1153,6 +1212,39 @@
                 )
             ),
 
+            // Payments (course fee) — needed before a candidate can be enrolled
+            React.createElement(
+              "div",
+              { "data-section": "payments", style: { display: "flex", flexDirection: "column", gap: "10px" } },
+              React.createElement("h4", { style: { fontSize: "14px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--admin-gold)" } },
+                "Payments", (selectedApp.payments || []).length > 0 ? ` · ${formatRupees(selectedApp.paidTotal)} received` : ""),
+              (selectedApp.payments || []).length === 0
+                ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No payment recorded yet. A candidate can only be enrolled after a payment is recorded.")
+                : (selectedApp.payments || []).map((p) => React.createElement(
+                    "div",
+                    { key: p.id, style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", fontSize: "13px", padding: "8px 12px", background: "var(--admin-bg)", borderRadius: "6px", border: "1px solid var(--admin-border-subtle)" } },
+                    React.createElement("strong", null, formatRupees(p.amount)),
+                    React.createElement("span", null, `${p.paidOn} · ${p.modeLabel}${p.reference ? ` · Ref ${p.reference}` : ""}`),
+                    React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px", flex: 1 } }, `recorded by ${p.recordedBy}`),
+                    canAdmin && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, onClick: () => handleDeletePayment(p) }, "Remove")
+                  )),
+              selectedApp.status !== "rejected" && React.createElement(
+                "div",
+                { style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("input", { className: "input-field", inputMode: "decimal", placeholder: "Amount (₹)", "aria-label": "Payment amount", value: payment.amount, onChange: (e) => setPayment({ ...payment, amount: e.target.value }), style: { width: "130px" } }),
+                React.createElement("input", { type: "date", className: "input-field", "aria-label": "Payment date", value: payment.paidOn, max: todayString(), onChange: (e) => setPayment({ ...payment, paidOn: e.target.value }), style: { width: "auto" } }),
+                React.createElement(
+                  "select",
+                  { className: "input-field", "aria-label": "Payment mode", value: payment.mode, onChange: (e) => setPayment({ ...payment, mode: e.target.value }), style: { width: "auto" } },
+                  React.createElement("option", { value: "" }, "Paid by…"),
+                  PAYMENT_MODE_OPTIONS.map(([value, label]) => React.createElement("option", { key: value, value }, label))
+                ),
+                React.createElement("input", { className: "input-field", placeholder: "Reference no. (UTR / receipt)", "aria-label": "Payment reference", value: payment.reference, onChange: (e) => setPayment({ ...payment, reference: e.target.value }), style: { flex: 1, minWidth: "160px" } }),
+                React.createElement("button", { className: "btn-admin btn-admin-primary", disabled: savingPayment, onClick: handleRecordPayment }, savingPayment ? "Saving…" : "Record Payment")
+              ),
+              paymentNotice && React.createElement("p", { role: "status", style: { fontSize: "13px", fontWeight: 600, color: paymentNotice.startsWith("✓") ? "var(--admin-success)" : "var(--admin-danger)" } }, paymentNotice)
+            ),
+
             // Staff Notes and Audit Trail
             React.createElement(
               "div",
@@ -1246,7 +1338,7 @@
               { style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
 
               // Rejected state actions
-              selectedApp.status === "rejected" &&
+              canAdmin && selectedApp.status === "rejected" &&
                 React.createElement(
                   "button",
                   {
@@ -1256,7 +1348,7 @@
                   },
                   "Reopen for Review"
                 ),
-              React.createElement(
+              canAdmin && React.createElement(
                   "button",
                   {
                     className: "btn-admin btn-admin-danger",
@@ -1268,7 +1360,7 @@
                 ),
 
               // Decline action (Only available if NOT rejected and NOT enrolled)
-              (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled" || selectedApp.status === "approved") &&
+              canAdmin && (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled" || selectedApp.status === "approved") &&
                 React.createElement(
                   "button",
                   {
@@ -1280,7 +1372,7 @@
                 ),
 
               // Approve action (Only available if pending_review or interview_scheduled)
-              (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled") &&
+              canAdmin && (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled") &&
                 React.createElement(
                   "button",
                   {
@@ -1293,14 +1385,17 @@
                   isSendingMail ? "Approving & Sending..." : "✓ Approve & Send Confirmation"
                 ),
 
-              // Confirm Enrolled (Only available when approved)
-              selectedApp.status === "approved" &&
+              // Confirm Enrolled (after approval; a Manager, who can't approve, may enrol any open application).
+              // Needs a recorded payment — the server checks this too.
+              (selectedApp.status === "approved" || (!canAdmin && (selectedApp.status === "pending_review" || selectedApp.status === "interview_scheduled"))) &&
                 React.createElement(
                   "button",
                   {
                     className: "btn-admin btn-admin-primary",
-                    style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px" },
-                    onClick: () => handleStatusChange(selectedApp.id, "enrolled", "Deposit received. Student successfully enrolled.")
+                    disabled: (selectedApp.payments || []).length === 0,
+                    title: (selectedApp.payments || []).length === 0 ? "Record a payment first" : "Mark this candidate as enrolled",
+                    style: { padding: "10px 20px", display: "flex", alignItems: "center", gap: "6px", opacity: (selectedApp.payments || []).length === 0 ? 0.5 : 1 },
+                    onClick: () => handleStatusChange(selectedApp.id, "enrolled", "Payment received. Student successfully enrolled.")
                   },
                   React.createElement(Icons.Check, null),
                   "Confirm Enrolled"
@@ -4280,7 +4375,13 @@
     return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
   }
 
-  function BookingsTab() {
+  /** One line of a booking's history: what was done, by whom, when. */
+  function logLine(entry) {
+    const when = entry.date ? new Date(entry.date).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+    return `↺ ${entry.text}${entry.by ? ` — ${entry.by}` : ""}${when ? `, ${when}` : ""}`;
+  }
+
+  function BookingsTab({ canAdmin }) {
     const [date, setDate] = useState(() => localDateString(new Date()));
     const [day, setDay] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -4343,7 +4444,8 @@
       booked: { text: "Booked", className: "badge-approved" },
       blocked: { text: "Blocked", className: "badge-rejected" },
       calendar: { text: "Calendar event", style: { background: "var(--admin-card-hover)", color: "var(--admin-gold)" } },
-      unknown: { text: "Calendar unreachable", className: "badge-rejected" }
+      unknown: { text: "Calendar unreachable", className: "badge-rejected" },
+      closed: { text: "Studio closed", className: "badge-rejected" }
     };
 
     const cancelled = day ? day.bookings.filter((b) => b.status === "cancelled") : [];
@@ -4372,7 +4474,7 @@
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, 1)) }, "Next day →"),
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(localDateString(new Date())) }, "Today"),
         React.createElement("div", { style: { flex: 1 } }),
-        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: handleCleanup, title: "Removes events of cancelled bookings that are still in the info@ calendar" }, "Tidy calendar"),
+        canAdmin && React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: handleCleanup, title: "Removes events of cancelled bookings that are still in the info@ calendar" }, "Tidy calendar"),
         React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => load() }, loading ? "Refreshing…" : "↻ Refresh")
       ),
 
@@ -4402,12 +4504,14 @@
           "div",
           { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" } },
           React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-text)" } }, day.label),
-          !day.closed && (day.dayBlock
+          canAdmin && !day.closed && (day.dayBlock
             ? React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => handleUnblock(day.dayBlock.id) }, "Unblock whole day")
             : React.createElement("button", { className: "btn-admin btn-admin-danger", onClick: () => handleBlock("") }, "Block whole day"))
         ),
         day.closed && React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "The studio is closed on Thursdays."),
         day.dayBlock && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `Whole day blocked${day.dayBlock.reason ? `: ${day.dayBlock.reason}` : ""}.`),
+        (day.closures || []).map((c) => React.createElement("p", { key: "closure" + c.id, style: { color: "var(--admin-danger)", fontSize: "14px" } },
+          `Studio closure: ${c.label}${c.reason ? ` (${c.reason})` : ""}.${canAdmin ? " Change it under Studio Closures." : ""}`)),
         day.calendarError && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `⚠️ ${day.calendarError} Customers can't book online until this is fixed.`),
         day.slots.map((slot) => {
           const badge = stateBadge[slot.state] || stateBadge.free;
@@ -4423,17 +4527,19 @@
               b && React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
               b && React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
               b && b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
-              b && (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, `↺ ${entry.text}`)),
+              b && b.source === "walkin" && React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-gold)" } }, "Walk-in / phone booking"),
+              b && (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(entry))),
               b && React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px" } }, `Ref ${b.ref}`,
                 b.calendarStatus === "failed" ? " · ⚠️ not added to the calendar" : "",
                 b.emailStatus === "failed" ? " · ⚠️ confirmation email not sent" : ""),
               slot.state === "calendar" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "An event in the info@ calendar blocks this time."),
-              slot.state === "blocked" && !day.dayBlock && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "Blocked by an admin.")
+              slot.state === "blocked" && !day.dayBlock && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "Blocked by an admin."),
+              slot.state === "closed" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, `Studio closure${slot.reason ? `: ${slot.reason}` : ""}.`)
             ),
             b && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleReschedule(b) }, "Reschedule"),
             b && React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking"),
-            slot.state === "free" && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleBlock(slot.time) }, "Block"),
-            slot.state === "blocked" && !day.dayBlock && slot.blockId && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleUnblock(slot.blockId) }, "Unblock")
+            canAdmin && slot.state === "free" && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleBlock(slot.time) }, "Block"),
+            canAdmin && slot.state === "blocked" && !day.dayBlock && slot.blockId && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleUnblock(slot.blockId) }, "Unblock")
           );
         }),
         cancelled.length > 0 && React.createElement(
@@ -4512,12 +4618,522 @@
             React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
             React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
             b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
-            React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}`)
+            (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(entry))),
+            React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}`, b.source === "walkin" ? " · walk-in / phone" : "")
           ),
           React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => setChange({ mode: "reschedule", booking: b }) }, "Reschedule"),
           React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => setChange({ mode: "cancel", booking: b }) }, "Cancel booking")
         ))
       ))
+    );
+  }
+
+  // -------------------------------------------------------------
+  // STUDIO CLOSURES (Owner / Administrator): close dates, all day or some times
+  // -------------------------------------------------------------
+  function ClosuresTab() {
+    const [closures, setClosures] = useState(null);
+    const [times, setTimes] = useState(["10:00", "11:00", "12:00", "13:00", "16:00", "17:00", "18:00", "19:00"]);
+    const [form, setForm] = useState({ startDate: todayString(), endDate: todayString(), allDay: true, times: [], reason: "" });
+    const [preview, setPreview] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [notice, setNotice] = useState("");
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+
+    const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
+
+    const load = async () => {
+      const result = await window.PawpadApi.call("list_closures", {});
+      if (result.ok) {
+        setClosures(result.data.closures || []);
+        if (Array.isArray(result.data.times)) setTimes(result.data.times);
+      } else {
+        setNotice("⚠️ " + serverError(result));
+      }
+    };
+    useEffect(() => {
+      load();
+    }, []);
+
+    const update = (patch) => {
+      setPreview(null);
+      setForm((prev) => {
+        const next = { ...prev, ...patch };
+        if (patch.startDate && next.endDate < patch.startDate) next.endDate = patch.startDate;
+        return next;
+      });
+    };
+    const toggleTime = (t) => update({ times: form.times.includes(t) ? form.times.filter((x) => x !== t) : [...form.times, t] });
+
+    const payload = () => ({ startDate: form.startDate, endDate: form.endDate, allDay: form.allDay, times: form.allDay ? [] : form.times, reason: form.reason.trim() });
+
+    // Step 1: show which bookings are inside the closure before anything is saved.
+    const handleCheck = async () => {
+      setBusy(true);
+      setNotice("");
+      const result = await window.PawpadApi.call("closure_preview", payload());
+      setBusy(false);
+      if (!result.ok) return setNotice("⚠️ " + serverError(result));
+      setPreview(result.data);
+    };
+
+    const handleSave = async () => {
+      setBusy(true);
+      const result = await window.PawpadApi.call("create_closure", payload());
+      setBusy(false);
+      if (!result.ok) return setNotice("⚠️ " + serverError(result));
+      setClosures(result.data.closures || []);
+      setPreview(null);
+      setForm({ startDate: todayString(), endDate: todayString(), allDay: true, times: [], reason: "" });
+      setNotice(result.data.calendarSynced
+        ? "✓ Closure saved. Those slots are no longer bookable, and the closure is in the info@ calendar."
+        : "⚠️ Closure saved and the slots are no longer bookable, but it could not be added to the info@ calendar.");
+    };
+
+    const handleRemove = (c) => {
+      setConfirmModal({
+        isOpen: true,
+        title: "Remove this closure?",
+        message: `${c.label}${c.reason ? ` (${c.reason})` : ""}. The slots open again for booking and the calendar event is removed.`,
+        confirmText: "Yes, re-open the slots",
+        cancelText: "No, keep it",
+        confirmStyle: "btn-admin-danger",
+        onConfirm: async () => {
+          setConfirmModal({ isOpen: false });
+          const result = await window.PawpadApi.call("delete_closure", { id: c.id });
+          if (!result.ok) return setNotice("⚠️ " + serverError(result));
+          setClosures(result.data.closures || []);
+          setNotice(result.data.calendarRemoved === false
+            ? "⚠️ Closure removed and the slots are open again, but its calendar event could not be deleted. Please delete it on the phone."
+            : "✓ Closure removed. The slots are open for booking again.");
+        }
+      });
+    };
+
+    const label = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" };
+    const canCheck = form.startDate && form.endDate && (form.allDay || form.times.length > 0) && !busy;
+
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "20px", maxWidth: "900px" } },
+      React.createElement(ConfirmModal, { ...confirmModal, onCancel: () => setConfirmModal({ isOpen: false }) }),
+      React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "14px" } },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", color: "var(--admin-gold)" } }, "Close the studio"),
+        React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+          "Choose the dates, then \"All day\" or the times to close. Closed slots disappear from the booking page and the closure is added to the info@ calendar. Bookings already made are NOT cancelled — you will see them before saving."),
+        React.createElement(
+          "div",
+          { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
+          React.createElement("div", null, React.createElement("label", { style: label, htmlFor: "closure-start" }, "From"),
+            React.createElement("input", { id: "closure-start", type: "date", className: "input-field", min: todayString(), value: form.startDate, onChange: (e) => e.target.value && update({ startDate: e.target.value }) })),
+          React.createElement("div", null, React.createElement("label", { style: label, htmlFor: "closure-end" }, "To (including)"),
+            React.createElement("input", { id: "closure-end", type: "date", className: "input-field", min: form.startDate, value: form.endDate, onChange: (e) => e.target.value && update({ endDate: e.target.value }) })),
+          React.createElement("div", { style: { flex: 1, minWidth: "220px" } }, React.createElement("label", { style: label, htmlFor: "closure-reason" }, "Reason (optional)"),
+            React.createElement("input", { id: "closure-reason", className: "input-field", placeholder: "e.g. Diwali holiday, staff training", value: form.reason, onChange: (e) => update({ reason: e.target.value }) }))
+        ),
+        React.createElement(
+          "div",
+          { style: { display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" } },
+          React.createElement("label", { style: { display: "inline-flex", gap: "6px", alignItems: "center", fontWeight: 600, fontSize: "14px" } },
+            React.createElement("input", { type: "checkbox", checked: form.allDay, onChange: (e) => update({ allDay: e.target.checked }) }), "All day"),
+          !form.allDay && times.map((t) => React.createElement("label", { key: t, style: { display: "inline-flex", gap: "4px", alignItems: "center", fontSize: "13px", padding: "4px 8px", border: "1px solid var(--admin-border)", borderRadius: "6px" } },
+            React.createElement("input", { type: "checkbox", checked: form.times.includes(t), onChange: () => toggleTime(t), "aria-label": `Close ${t}` }),
+            formatSlotTime(t), t === "10:00" ? " (Sat/Sun)" : ""))
+        ),
+        React.createElement("div", null,
+          React.createElement("button", { className: "btn-admin btn-admin-primary", disabled: !canCheck, style: { opacity: canCheck ? 1 : 0.5 }, onClick: handleCheck }, busy && !preview ? "Checking…" : "Check bookings & continue")),
+        preview && React.createElement(
+          "div",
+          { "data-section": "closure-preview", style: { padding: "14px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", display: "flex", flexDirection: "column", gap: "8px" } },
+          React.createElement("strong", null, `Closure: ${preview.label}`),
+          preview.affected.length === 0
+            ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-success)" } }, "✓ No bookings are inside this closure.")
+            : React.createElement(React.Fragment, null,
+                React.createElement("p", { role: "alert", style: { fontSize: "13px", color: "var(--admin-danger)", fontWeight: 600 } },
+                  `${preview.affected.length} booking${preview.affected.length > 1 ? "s are" : " is"} inside this closure. ${preview.affected.length > 1 ? "They" : "It"} will NOT be cancelled — please contact the customer${preview.affected.length > 1 ? "s" : ""}, or reschedule/cancel under Grooming Bookings.`),
+                React.createElement("ul", { style: { fontSize: "13px", paddingLeft: "18px" } },
+                  preview.affected.map((b) => React.createElement("li", { key: b.id }, `${b.label} · ${b.pet.name || "Pet"} · ${b.serviceTitle} · ${b.customer.name} · ${b.customer.phone} · Ref ${b.ref}`)))),
+          React.createElement("div", { style: { display: "flex", gap: "10px" } },
+            React.createElement("button", { className: "btn-admin btn-admin-danger", disabled: busy, onClick: handleSave }, busy ? "Saving…" : "Save closure"),
+            React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setPreview(null) }, "Change"))
+        ),
+        notice && React.createElement("p", { role: "status", style: { fontSize: "14px", fontWeight: 600, color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice)
+      ),
+      React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "10px" } },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", color: "var(--admin-gold)" } }, "Upcoming closures"),
+        closures === null ? React.createElement("p", null, "Loading…")
+          : closures.length === 0 ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No closures planned.")
+          : closures.map((c) => React.createElement(
+              "div",
+              { key: c.id, "data-closure": c.id, style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)" } },
+              React.createElement("div", { style: { flex: 1, minWidth: "220px", fontSize: "13px" } },
+                React.createElement("div", { style: { fontWeight: 600, fontSize: "14px" } }, c.label),
+                React.createElement("div", { style: { color: "var(--admin-text-muted)" } }, `${c.reason || "No reason given"} · added by ${c.createdBy}`)),
+              React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => handleRemove(c) }, "Remove (re-open)")
+            ))
+      )
+    );
+  }
+
+  // -------------------------------------------------------------
+  // TODAY'S CLOSING (Owner, Administrator, Manager)
+  // -------------------------------------------------------------
+  const CLOSING_STATUS_OPTIONS = [["completed", "Completed"], ["no_show", "No-show"], ["cancelled", "Cancelled"]];
+  const CLOSING_MODE_OPTIONS = [...PAYMENT_MODE_OPTIONS, ["not_paid", "Not paid"]];
+
+  /** Grooming packages from the website content (for prices and the walk-in service list). */
+  function groomingPackages() {
+    const store = window.PawpadContentStore;
+    const grooming = store && typeof store.get === "function" ? store.get("grooming") : null;
+    return (grooming && Array.isArray(grooming.packages) ? grooming.packages : []).filter((p) => p && p.key);
+  }
+
+  function listPrice(serviceId) {
+    const pkg = groomingPackages().find((p) => p.key === serviceId);
+    return pkg && typeof pkg.priceNum === "number" ? pkg.priceNum : null;
+  }
+
+  function closingForm(b) {
+    const c = b.closing || {};
+    let amount = c.amount;
+    if ((amount === null || amount === undefined) && !c.saved) amount = listPrice(b.serviceId);
+    return { status: c.status || "", amount: amount === null || amount === undefined ? "" : String(amount), mode: c.mode || "", reference: c.reference || "", note: c.note || "" };
+  }
+
+  function ClosingTab({ currentUser }) {
+    const [date, setDate] = useState(() => localDateString(new Date()));
+    const [day, setDay] = useState(null);
+    const [forms, setForms] = useState({});
+    const [saveState, setSaveState] = useState({});
+    const [notice, setNotice] = useState("");
+    const [showWalkin, setShowWalkin] = useState(false);
+    const [report, setReport] = useState(null);
+    const timers = useRef({});
+
+    const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
+
+    const applyDay = (data) => {
+      setDay(data);
+      const next = {};
+      (data.bookings || []).forEach((b) => { next[b.id] = closingForm(b); });
+      setForms(next);
+      setSaveState({});
+    };
+
+    const load = async (target) => {
+      const result = await window.PawpadApi.call("closing_day", { date: target || date });
+      if (result.ok) applyDay(result.data);
+      else setNotice("⚠️ " + serverError(result));
+    };
+    useEffect(() => {
+      setDay(null);
+      load(date);
+    }, [date]);
+
+    const save = async (id, values) => {
+      setSaveState((prev) => ({ ...prev, [id]: "saving" }));
+      const result = await window.PawpadApi.call("save_closing", { bookingId: id, ...values });
+      setSaveState((prev) => ({ ...prev, [id]: result.ok ? "saved" : "⚠️ " + serverError(result) }));
+    };
+
+    // Autosave: choices save at once, typing saves after a short pause.
+    const change = (id, patch, immediate) => {
+      const values = { ...forms[id], ...patch };
+      setForms((prev) => ({ ...prev, [id]: values }));
+      clearTimeout(timers.current[id]);
+      if (immediate) save(id, values);
+      else timers.current[id] = setTimeout(() => save(id, values), 700);
+    };
+
+    const isFuture = day && day.isFuture;
+    const rows = day ? day.bookings : [];
+    const totals = useMemo(() => {
+      const t = { completed: 0, no_show: 0, cancelled: 0, none: 0, collected: 0, perMode: { upi: 0, cash: 0, card: 0, bank_transfer: 0 }, notPaid: [] };
+      rows.forEach((b) => {
+        const f = forms[b.id] || closingForm(b);
+        t[f.status || "none"] += 1;
+        const amount = parseFloat(String(f.amount).replace(/,/g, "")) || 0;
+        if (t.perMode[f.mode] !== undefined) {
+          t.perMode[f.mode] += amount;
+          t.collected += amount;
+        }
+        if (f.status === "completed" && t.perMode[f.mode] === undefined) t.notPaid.push(b);
+      });
+      return t;
+    }, [rows, forms]);
+    const courseTotal = day ? (day.coursePayments || []).reduce((sum, p) => sum + p.amount, 0) : 0;
+
+    const openReport = async () => {
+      setNotice("");
+      const result = await window.PawpadApi.call("preview_report", { date });
+      if (!result.ok) return setNotice("⚠️ " + serverError(result));
+      setReport({ ...result.data, sending: false, error: "" });
+    };
+
+    const sendReport = async () => {
+      setReport((r) => ({ ...r, sending: true, error: "" }));
+      const result = await window.PawpadApi.call("send_report", { date, force: (report.missing || []).length > 0 });
+      if (!result.ok) {
+        setReport((r) => ({ ...r, sending: false, error: serverError(result), missing: (result.data && result.data.missing) || r.missing }));
+        return;
+      }
+      setReport(null);
+      setDay((d) => ({ ...d, reports: result.data.reports }));
+      setNotice(`✓ ${result.data.report.corrected ? "Corrected report" : "Daily report"} emailed from info@pawpad.in to ${result.data.report.recipients.join(", ")}.`);
+    };
+
+    const cell = { padding: "8px", borderBottom: "1px solid var(--admin-border-subtle)", verticalAlign: "top" };
+    const small = { fontSize: "13px", padding: "6px 8px" };
+
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "20px" } },
+      report && React.createElement(ReportPreviewModal, { report, onClose: () => setReport(null), onSend: sendReport }),
+      React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" } },
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, -1)) }, "← Previous day"),
+        React.createElement("input", { type: "date", className: "input-field", value: date, onChange: (e) => e.target.value && setDate(e.target.value), style: { width: "auto" }, "aria-label": "Closing date" }),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(shiftDate(date, 1)) }, "Next day →"),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setDate(localDateString(new Date())) }, "Today"),
+        React.createElement("div", { style: { flex: 1 } }),
+        React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setShowWalkin(!showWalkin) }, showWalkin ? "Close walk-in form" : "+ Add walk-in / phone booking"),
+        !isFuture && React.createElement("button", { className: "btn-admin btn-admin-primary", onClick: openReport, disabled: !day }, "Send daily report")
+      ),
+      notice && React.createElement("div", { className: "card", role: "status", style: { fontWeight: 600, fontSize: "14px", color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice),
+      showWalkin && React.createElement(WalkinForm, {
+        date,
+        isFuture,
+        onAdded: (data) => {
+          applyDay(data);
+          setShowWalkin(false);
+          setNotice(`✓ Walk-in / phone booking ${data.added.ref} added. ${data.slotMessage}`);
+        }
+      }),
+      !day ? React.createElement("div", { className: "card" }, "Loading…") : React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "12px" } },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px" } }, day.label),
+        (day.reports || []).length > 0 && React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+          `Report already sent ${day.reports.length} time${day.reports.length > 1 ? "s" : ""} (last by ${day.reports[day.reports.length - 1].sentBy}, ${new Date(day.reports[day.reports.length - 1].sentAt).toLocaleString("en-IN")}). Sending again emails a "Corrected report".`),
+        isFuture && React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "This day is in the future: statuses and payments can be filled in on the day."),
+        rows.length === 0
+          ? React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "No grooming bookings on this day.")
+          : React.createElement(
+              "div",
+              { style: { overflowX: "auto" } },
+              React.createElement(
+                "table",
+                { style: { width: "100%", borderCollapse: "collapse", fontSize: "13px", textAlign: "left" } },
+                React.createElement("thead", null, React.createElement("tr", { style: { color: "var(--admin-text-muted)" } },
+                  ["Time", "Customer / pet / service", "Status", "Amount (₹)", "Payment mode", "Reference", "Note", ""].map((h) => React.createElement("th", { key: h, style: cell }, h)))),
+                React.createElement("tbody", null, rows.map((b) => {
+                  const f = forms[b.id] || closingForm(b);
+                  const st = saveState[b.id];
+                  return React.createElement(
+                    "tr",
+                    { key: b.id, "data-closing": b.ref, style: { background: !f.status && !isFuture ? "rgba(220, 80, 60, 0.06)" : "transparent" } },
+                    React.createElement("td", { style: { ...cell, fontWeight: 600, whiteSpace: "nowrap" } }, formatSlotTime(b.time)),
+                    React.createElement("td", { style: { ...cell, minWidth: "190px" } },
+                      React.createElement("div", { style: { fontWeight: 600 } }, b.customer.name, b.source === "walkin" ? " · walk-in" : ""),
+                      React.createElement("div", null, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type})` : ""} — ${b.serviceTitle}`),
+                      React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}${b.status === "cancelled" ? " · cancelled in the admin panel" : ""}`)),
+                    React.createElement("td", { style: cell },
+                      React.createElement("select", { className: "input-field", style: small, disabled: isFuture, "aria-label": `Status ${b.ref}`, value: f.status, onChange: (e) => change(b.id, { status: e.target.value }, true) },
+                        React.createElement("option", { value: "" }, "— choose —"),
+                        CLOSING_STATUS_OPTIONS.map(([v, l]) => React.createElement("option", { key: v, value: v }, l)))),
+                    React.createElement("td", { style: cell },
+                      React.createElement("input", { className: "input-field", style: { ...small, width: "90px" }, disabled: isFuture, inputMode: "decimal", "aria-label": `Amount ${b.ref}`, value: f.amount, onChange: (e) => change(b.id, { amount: e.target.value }) })),
+                    React.createElement("td", { style: cell },
+                      React.createElement("select", { className: "input-field", style: small, disabled: isFuture, "aria-label": `Payment mode ${b.ref}`, value: f.mode, onChange: (e) => change(b.id, { mode: e.target.value }, true) },
+                        React.createElement("option", { value: "" }, "— choose —"),
+                        CLOSING_MODE_OPTIONS.map(([v, l]) => React.createElement("option", { key: v, value: v }, l)))),
+                    React.createElement("td", { style: cell },
+                      React.createElement("input", { className: "input-field", style: { ...small, width: "110px" }, disabled: isFuture, "aria-label": `Reference ${b.ref}`, placeholder: "UTR / receipt", value: f.reference, onChange: (e) => change(b.id, { reference: e.target.value }) })),
+                    React.createElement("td", { style: cell },
+                      React.createElement("input", { className: "input-field", style: { ...small, width: "140px" }, disabled: isFuture, "aria-label": `Note ${b.ref}`, value: f.note, onChange: (e) => change(b.id, { note: e.target.value }) })),
+                    React.createElement("td", { style: { ...cell, fontSize: "11px", whiteSpace: "nowrap", color: st && st.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-text-faint)" }, "data-save-state": st || "" },
+                      st === "saving" ? "Saving…" : st === "saved" ? "Saved ✓" : st || "")
+                  );
+                }))
+              )
+            ),
+        rows.length > 0 && !isFuture && React.createElement(
+          "div",
+          { "data-section": "closing-totals", style: { display: "flex", gap: "18px", flexWrap: "wrap", fontSize: "13px", padding: "12px", borderRadius: "8px", background: "var(--admin-bg)", border: "1px solid var(--admin-border)" } },
+          React.createElement("span", null, `Completed: ${totals.completed}`),
+          React.createElement("span", null, `No-shows: ${totals.no_show}`),
+          React.createElement("span", null, `Cancelled: ${totals.cancelled}`),
+          totals.none > 0 && React.createElement("span", { style: { color: "var(--admin-danger)", fontWeight: 600 } }, `No status: ${totals.none}`),
+          PAYMENT_MODE_OPTIONS.map(([v, l]) => React.createElement("span", { key: v }, `${l}: ${formatRupees(totals.perMode[v])}`)),
+          React.createElement("strong", null, `Grooming collected: ${formatRupees(totals.collected)}`),
+          totals.notPaid.length > 0 && React.createElement("span", { style: { color: "var(--admin-danger)" } }, `Not paid: ${totals.notPaid.map((b) => `${formatSlotTime(b.time)} ${b.customer.name}`).join(", ")}`)
+        )
+      ),
+      day && React.createElement(
+        "div",
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "8px" } },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "16px", color: "var(--admin-gold)" } }, `Course payments recorded on this day · ${formatRupees(courseTotal)}`),
+        (day.coursePayments || []).length === 0
+          ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "None. (Course payments are recorded under Course Applications.)")
+          : day.coursePayments.map((p) => React.createElement("p", { key: p.id, style: { fontSize: "13px" } },
+              `${p.applicationId} · ${p.candidate || "(application deleted)"} · ${formatRupees(p.amount)} · ${p.modeLabel}${p.reference ? ` · Ref ${p.reference}` : ""} · by ${p.recordedBy}`))
+      )
+    );
+  }
+
+  function WalkinForm({ date, isFuture, onAdded }) {
+    const packages = groomingPackages();
+    const [f, setF] = useState({ time: "", customerName: "", phone: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "" });
+    const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
+    const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+
+    const pickService = (key) => {
+      const pkg = packages.find((p) => p.key === key);
+      set(pkg ? { serviceId: pkg.key, serviceTitle: pkg.title, amount: typeof pkg.priceNum === "number" ? String(pkg.priceNum) : f.amount } : { serviceId: "", serviceTitle: "" });
+    };
+
+    const submit = async (e) => {
+      e.preventDefault();
+      if (!f.time || !f.customerName.trim()) return setError("Please fill in at least the time and the customer's name.");
+      setSaving(true);
+      setError("");
+      const result = await window.PawpadApi.call("add_walkin", { ...f, date });
+      setSaving(false);
+      if (!result.ok) return setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
+      onAdded(result.data);
+    };
+
+    const label = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" };
+    const field = (key, text, props) => React.createElement("div", { style: { minWidth: "140px", flex: 1 } },
+      React.createElement("label", { style: label, htmlFor: "walkin-" + key }, text),
+      React.createElement("input", { id: "walkin-" + key, className: "input-field", value: f[key], onChange: (e) => set({ [key]: e.target.value }), ...(props || {}) }));
+
+    return React.createElement(
+      "form",
+      { className: "card", onSubmit: submit, "data-section": "walkin", style: { display: "flex", flexDirection: "column", gap: "12px" } },
+      React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--admin-gold)" } }, "Add a walk-in or phone booking"),
+      React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "If the time is free, the slot is taken (so nobody can book it online) and an event is added to the info@ calendar."),
+      React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
+        field("time", "Time *", { type: "time", required: true }),
+        field("customerName", "Customer name *", { required: true }),
+        field("phone", "Phone", { type: "tel" }),
+        field("petName", "Pet name"),
+        React.createElement("div", { style: { minWidth: "110px" } },
+          React.createElement("label", { style: label, htmlFor: "walkin-petType" }, "Pet"),
+          React.createElement("select", { id: "walkin-petType", className: "input-field", value: f.petType, onChange: (e) => set({ petType: e.target.value }) },
+            React.createElement("option", { value: "Dog" }, "Dog"), React.createElement("option", { value: "Cat" }, "Cat")))),
+      React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
+        React.createElement("div", { style: { minWidth: "220px", flex: 2 } },
+          React.createElement("label", { style: label, htmlFor: "walkin-service" }, "Service"),
+          React.createElement("select", { id: "walkin-service", className: "input-field", value: f.serviceId, onChange: (e) => pickService(e.target.value) },
+            React.createElement("option", { value: "" }, "Other (type below)"),
+            packages.map((p) => React.createElement("option", { key: p.key, value: p.key }, `${p.title}${p.price ? ` · ${p.price}` : ""}`)))),
+        !f.serviceId && field("serviceTitle", "Service (if other)"),
+        field("amount", "Amount (₹)", { inputMode: "decimal" }),
+        React.createElement("div", { style: { minWidth: "140px" } },
+          React.createElement("label", { style: label, htmlFor: "walkin-mode" }, "Payment mode"),
+          React.createElement("select", { id: "walkin-mode", className: "input-field", value: f.mode, onChange: (e) => set({ mode: e.target.value }) },
+            React.createElement("option", { value: "" }, "— choose —"),
+            CLOSING_MODE_OPTIONS.map(([v, l]) => React.createElement("option", { key: v, value: v }, l)))),
+        !isFuture && React.createElement("div", { style: { minWidth: "140px" } },
+          React.createElement("label", { style: label, htmlFor: "walkin-status" }, "Status"),
+          React.createElement("select", { id: "walkin-status", className: "input-field", value: f.status, onChange: (e) => set({ status: e.target.value }) },
+            React.createElement("option", { value: "" }, "— not yet —"),
+            CLOSING_STATUS_OPTIONS.map(([v, l]) => React.createElement("option", { key: v, value: v }, l))))),
+      error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontWeight: 600, fontSize: "13px" } }, error),
+      React.createElement("div", null, React.createElement("button", { type: "submit", className: "btn-admin btn-admin-primary", disabled: saving }, saving ? "Adding…" : "Add booking"))
+    );
+  }
+
+  function ReportPreviewModal({ report, onClose, onSend }) {
+    const missing = report.missing || [];
+    return React.createElement(
+      "div",
+      { className: "modal-overlay", onClick: onClose },
+      React.createElement(
+        "div",
+        { className: "modal-card", role: "dialog", "aria-label": "Daily report preview", style: { maxWidth: "980px", width: "96vw", padding: "24px", maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px" }, onClick: (e) => e.stopPropagation() },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-gold)" } }, report.corrected ? "Preview: Corrected report" : "Preview: daily report"),
+        React.createElement("p", { style: { fontSize: "13px" } }, `From info@pawpad.in to: ${(report.recipients || []).join(", ")}`),
+        React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, `Subject: ${report.subject}`),
+        missing.length > 0 && React.createElement(
+          "div",
+          { role: "alert", "data-section": "missing-status", style: { padding: "12px", borderRadius: "8px", border: "1px solid var(--admin-danger)", color: "var(--admin-danger)", fontSize: "13px" } },
+          React.createElement("strong", null, `⚠️ ${missing.length} booking${missing.length > 1 ? "s have" : " has"} no status yet:`),
+          React.createElement("ul", { style: { paddingLeft: "18px", marginTop: "6px" } },
+            missing.map((m) => React.createElement("li", { key: m.id }, `${formatSlotTime(m.time)} · ${m.customer} · ${m.pet} · ${m.service} (Ref ${m.ref})`))),
+          React.createElement("p", { style: { marginTop: "6px" } }, "Close this preview and set their status, or send the report anyway.")
+        ),
+        React.createElement("iframe", { title: "Report preview", srcDoc: report.html, sandbox: "", style: { width: "100%", height: "55vh", border: "1px solid var(--admin-border)", borderRadius: "8px", background: "#fff" } }),
+        report.error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontWeight: 600, fontSize: "13px" } }, report.error),
+        React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" } },
+          React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: onClose }, "Back to closing"),
+          React.createElement("button", { className: "btn-admin " + (missing.length ? "btn-admin-danger" : "btn-admin-primary"), disabled: report.sending, onClick: onSend },
+            report.sending ? "Sending…" : missing.length ? "Send anyway" : report.corrected ? "Send corrected report" : "Send report"))
+      )
+    );
+  }
+
+  // -------------------------------------------------------------
+  // DAILY REPORTS (Owner / Administrator): every report that was sent
+  // -------------------------------------------------------------
+  function DailyReportsTab() {
+    const [reports, setReports] = useState(null);
+    const [viewing, setViewing] = useState(null);
+    const [notice, setNotice] = useState("");
+
+    useEffect(() => {
+      window.PawpadApi.call("list_daily_reports", {}).then((result) => {
+        if (result.ok) setReports(result.data.reports || []);
+        else setNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+      });
+    }, []);
+
+    const view = async (r) => {
+      const result = await window.PawpadApi.call("get_daily_report", { id: r.id });
+      if (result.ok) setViewing(result.data.report);
+      else setNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+    };
+
+    const cell = { padding: "10px", borderBottom: "1px solid var(--admin-border-subtle)", textAlign: "left" };
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "16px" } },
+      viewing && React.createElement(
+        "div",
+        { className: "modal-overlay", onClick: () => setViewing(null) },
+        React.createElement(
+          "div",
+          { className: "modal-card", role: "dialog", "aria-label": "Daily report", style: { maxWidth: "980px", width: "96vw", padding: "24px", maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "10px" }, onClick: (e) => e.stopPropagation() },
+          React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", color: "var(--admin-gold)" } }, viewing.subject),
+          React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, `Sent by ${viewing.sentBy} on ${new Date(viewing.sentAt).toLocaleString("en-IN")} to ${viewing.recipients.join(", ")}`),
+          React.createElement("iframe", { title: "Report", srcDoc: viewing.html, sandbox: "", style: { width: "100%", height: "65vh", border: "1px solid var(--admin-border)", borderRadius: "8px", background: "#fff" } }),
+          React.createElement("div", { style: { textAlign: "right" } }, React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => setViewing(null) }, "Close"))
+        )
+      ),
+      notice && React.createElement("div", { className: "card", role: "status", style: { color: "var(--admin-danger)", fontWeight: 600 } }, notice),
+      React.createElement(
+        "div",
+        { className: "card", style: { padding: 0, overflowX: "auto" } },
+        reports === null ? React.createElement("p", { style: { padding: "20px" } }, "Loading…")
+          : reports.length === 0 ? React.createElement("p", { style: { padding: "20px", color: "var(--admin-text-muted)" } }, "No daily reports have been sent yet.")
+          : React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: "14px" } },
+              React.createElement("thead", null, React.createElement("tr", { style: { color: "var(--admin-text-muted)" } },
+                ["Day", "Version", "Sent", "Sent by", ""].map((h) => React.createElement("th", { key: h, style: cell }, h)))),
+              React.createElement("tbody", null, reports.map((r) => React.createElement("tr", { key: r.id, "data-report": r.id },
+                React.createElement("td", { style: { ...cell, fontWeight: 600 } }, new Date(r.date + "T00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })),
+                React.createElement("td", { style: cell }, r.corrected ? React.createElement("span", { className: "badge badge-pending" }, `Corrected report (v${r.version})`) : "Original"),
+                React.createElement("td", { style: cell }, new Date(r.sentAt).toLocaleString("en-IN")),
+                React.createElement("td", { style: cell }, r.sentBy),
+                React.createElement("td", { style: { ...cell, textAlign: "right" } }, React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => view(r) }, "View"))
+              ))))
+      )
     );
   }
 
@@ -4528,6 +5144,7 @@
     const [admins, setAdmins] = useState([]);
     const [newEmail, setNewEmail] = useState("");
     const [newAdminPassword, setNewAdminPassword] = useState("");
+    const [newRole, setNewRole] = useState("admin");
     const [userNotice, setUserNotice] = useState("");
     const [backupNotice, setBackupNotice] = useState("");
     const [newPassword, setNewPassword] = useState("");
@@ -4539,10 +5156,13 @@
 
     const userEmail = (currentUser?.email || "").trim().toLowerCase();
     const isPrimaryOwner = currentUser?.role === "owner";
+    // A Manager only sees their own password here (the server refuses everything else too).
+    const isManager = currentUser?.role === "manager";
     const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
 
     // The admin team lives on the Pawpad server.
     const loadAdmins = async () => {
+      if (isManager) return;
       const result = await window.PawpadApi.call("list_admins", {});
       if (result.ok) setAdmins(result.data.admins || []);
     };
@@ -4558,7 +5178,7 @@
       const clean = newEmail.trim().toLowerCase();
       if (!clean || !clean.includes("@")) return;
       setUserNotice(`Adding '${clean}'...`);
-      const result = await window.PawpadApi.call("add_admin", { email: clean, password: newAdminPassword });
+      const result = await window.PawpadApi.call("add_admin", { email: clean, password: newAdminPassword, role: newRole });
       if (!result.ok) {
         setUserNotice("⚠️ " + serverError(result));
         return;
@@ -4566,15 +5186,15 @@
       setAdmins(result.data.admins || []);
       setNewEmail("");
       setNewAdminPassword("");
-      setUserNotice(`✓ '${clean}' can now sign in. Give them the starting password in person, and ask them to change it under "My Account Password".`);
+      setUserNotice(`✓ '${clean}' can now sign in as ${newRole === "manager" ? "a Manager" : "an Administrator"}. Give them the starting password in person, and ask them to change it under "My Account Password".`);
       setTimeout(() => setUserNotice(""), 8000);
     };
 
     const handleRemoveEmail = (emailToRemove) => {
       setConfirmModal({
         isOpen: true,
-        title: "Remove Administrator",
-        message: `Are you sure you want to remove ${emailToRemove} from administrator access? They will be signed out straight away.`,
+        title: "Remove Team Member",
+        message: `Are you sure you want to remove ${emailToRemove} from the admin panel? They will be signed out straight away.`,
         confirmText: "Yes, Remove",
         cancelText: "No, Cancel",
         confirmStyle: "btn-admin-danger",
@@ -4679,7 +5299,7 @@
       }),
 
       // Authorized Administrator Team (Owner Protected)
-      React.createElement(
+      !isManager && React.createElement(
         "div",
         { className: "card" },
         React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px", marginBottom: "8px" } },
@@ -4694,7 +5314,8 @@
           )
         ),
         isPrimaryOwner ? React.createElement("p", { style: { color: "var(--admin-text-muted)", fontSize: "13px", marginBottom: "16px" } },
-          "Manage who can sign in. Add a person with a starting password (at least 10 characters) and give it to them in person; they can change it after signing in."
+          "Manage who can sign in. Add a person with a starting password (at least 10 characters) and give it to them in person; they can change it after signing in. ",
+          "An Administrator can do everything. A Manager only sees Upcoming Grooming, Grooming Bookings, Course Applications and Today's Closing: they can cancel and reschedule bookings, schedule interviews, record payments, enrol, and send the daily report, but cannot block times, delete, edit the website or see the team."
         ) : React.createElement("p", { style: { color: "var(--admin-text-muted)", fontSize: "13px", marginBottom: "16px" } },
           "View authorized administrator team members."
         ),
@@ -4728,7 +5349,7 @@
                 isOwner ? (
                   React.createElement("span", { className: "badge badge-approved", style: { fontSize: "11px" } }, "Primary Owner")
                 ) : (
-                  React.createElement("span", { className: "badge", style: { fontSize: "11px", background: "var(--admin-card-hover)" } }, "Administrator")
+                  React.createElement("span", { className: "badge", style: { fontSize: "11px", background: "var(--admin-card-hover)" } }, item.roleLabel || "Administrator")
                 ),
                 isCurrent && React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-gold)", fontWeight: "600" } }, "(You)"),
               ),
@@ -4749,7 +5370,7 @@
         isPrimaryOwner ? (
           React.createElement(
             "form",
-            { onSubmit: handleAddEmail, style: { display: "flex", gap: "10px", alignItems: "center" } },
+            { onSubmit: handleAddEmail, style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
             React.createElement("input", {
               type: "email",
               className: "input-field",
@@ -4769,7 +5390,13 @@
               onChange: (e) => setNewAdminPassword(e.target.value),
               style: { flex: 1 }
             }),
-            React.createElement("button", { type: "submit", className: "btn-admin btn-admin-primary" }, "Add Administrator")
+            React.createElement(
+              "select",
+              { className: "input-field", value: newRole, onChange: (e) => setNewRole(e.target.value), "aria-label": "Role", style: { width: "auto" } },
+              React.createElement("option", { value: "admin" }, "Administrator (everything)"),
+              React.createElement("option", { value: "manager" }, "Manager (bookings, applications, daily closing)")
+            ),
+            React.createElement("button", { type: "submit", className: "btn-admin btn-admin-primary" }, "Add Team Member")
           )
         ) : (
           React.createElement(
@@ -4840,7 +5467,7 @@
       ),
 
       // Backup & Restore
-      React.createElement(
+      !isManager && React.createElement(
         "div",
         { className: "card" },
         React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", color: "var(--admin-gold)", marginBottom: "10px" } }, "Backup & JSON Migration"),
@@ -4863,7 +5490,7 @@
       ),
 
       // Factory Reset
-      React.createElement(
+      !isManager && React.createElement(
         "div",
         { className: "card card-danger" },
         React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "18px", marginBottom: "10px" } }, "Factory Reset Site Content"),
@@ -4931,8 +5558,17 @@
         }
       };
       window.addEventListener("pawpad-api-unauthorized", onUnauthorized);
+      // Always use the role the server knows (it may have changed since the last sign-in).
       if (isAuthenticated && window.PawpadApi) {
-        window.PawpadApi.call("me", {});
+        window.PawpadApi.call("me", {}).then((result) => {
+          if (result.ok && result.data.user) {
+            setCurrentUser((prev) => {
+              const next = { ...(prev || {}), ...result.data.user };
+              try { localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(next)); } catch (e) { }
+              return next;
+            });
+          }
+        });
       }
       return () => window.removeEventListener("pawpad-api-unauthorized", onUnauthorized);
     }, [isAuthenticated]);
@@ -4948,7 +5584,8 @@
       // Use the copy loaded with the page; if that failed, ask the server again.
       Promise.resolve(store.ready).then((ok) => (ok ? true : store.refreshFromServer())).then((ok) => {
         setContentStatus(ok ? "ready" : "failed");
-        const legacy = ok && store.serverVersion === "" ? store.getLegacyLocalContent() : null;
+        const role = (currentUser && currentUser.role) || "";
+        const legacy = ok && store.serverVersion === "" && role !== "manager" ? store.getLegacyLocalContent() : null;
         if (legacy) {
           setLegacyPrompt({
             isOpen: true,
@@ -5014,15 +5651,24 @@
       );
     }
 
+    // What each role sees. The server enforces the same rules, so hiding is only for tidiness.
+    const role = (currentUser && currentUser.role) || "admin";
+    const canAdmin = role === "owner" || role === "admin";
+    const roleLabel = (currentUser && currentUser.roleLabel) || (role === "owner" ? "Owner" : role === "manager" ? "Manager" : "Administrator");
     const navigationItems = [
-      { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
+      canAdmin && { id: "dashboard", label: "Dashboard", icon: Icons.Dashboard },
       { id: "upcoming", label: "Upcoming Grooming", icon: Icons.Dashboard },
       { id: "bookings", label: "Grooming Bookings", icon: Icons.Dashboard },
+      { id: "closing", label: "Today's Closing", icon: Icons.Dashboard },
+      canAdmin && { id: "reports", label: "Daily Reports", icon: Icons.Dashboard },
+      canAdmin && { id: "closures", label: "Studio Closures", icon: Icons.Dashboard },
       { id: "applications", label: "Course Applications", icon: Icons.Applications, badge: stats.pending > 0 ? stats.pending : null },
-      { id: "content", label: "Website Content CMS", icon: Icons.Content },
-      { id: "media", label: "WebP Media Manager", icon: Icons.Media },
-      { id: "settings", label: "Settings & Backups", icon: Icons.Settings }
-    ];
+      canAdmin && { id: "content", label: "Website Content CMS", icon: Icons.Content },
+      canAdmin && { id: "media", label: "WebP Media Manager", icon: Icons.Media },
+      { id: "settings", label: canAdmin ? "Settings & Backups" : "My Account", icon: Icons.Settings }
+    ].filter(Boolean);
+    // A Manager starts on Upcoming Grooming and can never open a hidden tab.
+    const shownTab = navigationItems.some((item) => item.id === activeTab) ? activeTab : "upcoming";
 
     return React.createElement(
       "div",
@@ -5086,7 +5732,7 @@
             React.createElement(
               "div",
               { style: { overflow: "hidden" } },
-              React.createElement("div", { style: { fontSize: "13px", fontWeight: "600", color: "var(--admin-text)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.name || "Admin User"),
+              React.createElement("div", { style: { fontSize: "13px", fontWeight: "600", color: "var(--admin-text)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.name || roleLabel),
               React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-gold)", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" } }, currentUser?.email || "")
             )
           )
@@ -5109,11 +5755,11 @@
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "999px",
-                  background: activeTab === item.id ? "var(--admin-champagne)" : "transparent",
-                  color: activeTab === item.id ? "var(--admin-text)" : "var(--admin-text-muted)",
-                  border: activeTab === item.id ? "1px solid var(--admin-border)" : "1px solid transparent",
+                  background: shownTab === item.id ? "var(--admin-champagne)" : "transparent",
+                  color: shownTab === item.id ? "var(--admin-text)" : "var(--admin-text-muted)",
+                  border: shownTab === item.id ? "1px solid var(--admin-border)" : "1px solid transparent",
                   fontSize: "14px",
-                  fontWeight: activeTab === item.id ? "600" : "500",
+                  fontWeight: shownTab === item.id ? "600" : "500",
                   cursor: "pointer",
                   textAlign: "left",
                   transition: "all 0.15s ease"
@@ -5166,27 +5812,35 @@
             "div",
             null,
             React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontSize: "22px", color: "var(--admin-text)" } },
-              activeTab === "dashboard" && "Overview & Admissions Dashboard",
-              activeTab === "upcoming" && "Upcoming Grooming Sessions",
-              activeTab === "bookings" && "Grooming Bookings",
-              activeTab === "applications" && "Course Applications & Admissions",
-              activeTab === "content" && "Omnichannel Content Management",
-              activeTab === "media" && "Media Manager & WebP Optimization",
-              activeTab === "settings" && "System Settings & Backups"
+              shownTab === "dashboard" && "Overview & Admissions Dashboard",
+              shownTab === "upcoming" && "Upcoming Grooming Sessions",
+              shownTab === "bookings" && "Grooming Bookings",
+              shownTab === "applications" && "Course Applications & Admissions",
+              shownTab === "content" && "Omnichannel Content Management",
+              shownTab === "media" && "Media Manager & WebP Optimization",
+              shownTab === "closing" && "Today's Closing",
+              shownTab === "reports" && "Daily Reports",
+              shownTab === "closures" && "Studio Closures",
+              shownTab === "settings" && (canAdmin ? "System Settings & Backups" : "My Account")
             ),
             React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
-              activeTab === "dashboard" && "Key metrics and real-time site activity",
-              activeTab === "upcoming" && "Every booked grooming session from today onwards, soonest first",
-              activeTab === "bookings" && "Bookings by day, cancellations and blocked times (synced with the info@ calendar)",
-              activeTab === "applications" && "Review candidate responses and manage course approval lifecycle",
-              activeTab === "content" && "Live updates to text, headlines, pricing, and packages",
-              activeTab === "media" && "Automated compression to WebP and live asset slot replacement",
-              activeTab === "settings" && "Manage administrator accounts, password settings, and export data backups"
+              shownTab === "dashboard" && "Key metrics and real-time site activity",
+              shownTab === "upcoming" && "Every booked grooming session from today onwards, soonest first",
+              shownTab === "bookings" && "Bookings by day, cancellations and blocked times (synced with the info@ calendar)",
+              shownTab === "applications" && "Review candidate responses and manage course approval lifecycle",
+              shownTab === "content" && "Live updates to text, headlines, pricing, and packages",
+              shownTab === "media" && "Automated compression to WebP and live asset slot replacement",
+              shownTab === "closing" && "Status and payment of every booking of the day, walk-ins, and the daily report email",
+              shownTab === "reports" && "Every daily report that was emailed, with corrections",
+              shownTab === "closures" && "Close the studio for dates or times; the slots disappear from the booking page",
+              shownTab === "settings" && (canAdmin ? "Manage administrator accounts, password settings, and export data backups" : "Change your password")
             )
           ),
           React.createElement(
             "div",
-            { style: { display: "flex", alignItems: "center", gap: "12px" } },
+            { style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" } },
+            React.createElement("span", { className: "badge " + (canAdmin ? "badge-approved" : "badge-interview"), "data-role": role, title: currentUser?.email || "", style: { fontSize: "12px", padding: "6px 12px" } },
+              `Signed in as ${roleLabel}`),
             React.createElement(
               "button",
               {
@@ -5215,13 +5869,16 @@
         React.createElement(
           "div",
           { className: "admin-content" },
-          activeTab === "dashboard" && React.createElement(DashboardTab, { stats, setActiveTab, applications }),
-          activeTab === "upcoming" && React.createElement(UpcomingGroomingTab, null),
-          activeTab === "bookings" && React.createElement(BookingsTab, null),
-          activeTab === "applications" && React.createElement(ApplicationsTab, { applications, onUpdate: refreshData }),
-          activeTab === "content" && React.createElement(ContentEditorTab, null),
-          activeTab === "media" && React.createElement(MediaManagerTab, null),
-          activeTab === "settings" && React.createElement(SettingsTab, { currentUser })
+          shownTab === "dashboard" && React.createElement(DashboardTab, { stats, setActiveTab, applications }),
+          shownTab === "upcoming" && React.createElement(UpcomingGroomingTab, null),
+          shownTab === "bookings" && React.createElement(BookingsTab, { canAdmin }),
+          shownTab === "closing" && React.createElement(ClosingTab, { currentUser }),
+          shownTab === "reports" && React.createElement(DailyReportsTab, null),
+          shownTab === "closures" && React.createElement(ClosuresTab, null),
+          shownTab === "applications" && React.createElement(ApplicationsTab, { applications, onUpdate: refreshData, canAdmin }),
+          shownTab === "content" && React.createElement(ContentEditorTab, null),
+          shownTab === "media" && React.createElement(MediaManagerTab, null),
+          shownTab === "settings" && React.createElement(SettingsTab, { currentUser })
         )
       )
     );

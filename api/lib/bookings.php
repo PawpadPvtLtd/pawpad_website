@@ -8,8 +8,8 @@
  * - 19:00 is only for services without a haircut / clipping.
  * - One booking per start time; every grooming service (one pet) uses one slot.
  * - Bookings from tomorrow up to 30 days ahead. Payment at the studio.
- * A slot is free when it isn't booked, isn't blocked by an admin, and has no
- * event in the info@pawpad.in calendar.
+ * A slot is free when it isn't booked, isn't blocked by an admin, isn't in a
+ * studio closure, and has no event in the info@pawpad.in calendar.
  */
 
 declare(strict_types=1);
@@ -173,6 +173,8 @@ function slot_states(array $dates, bool $freshCalendar): array
         $blocks[$row['slot_date']][$row['slot_time']] = $row;
     }
 
+    $closures = closure_rows_between($first, $last);
+
     $calendar = calendar_busy(
         parse_studio_date($first),
         parse_studio_date($last)->modify('+1 day'),
@@ -194,6 +196,10 @@ function slot_states(array $dates, bool $freshCalendar): array
             } elseif (isset($blocks[$date][$time])) {
                 $state['state'] = 'blocked';
                 $state['blockId'] = (int) $blocks[$date][$time]['id'];
+            } elseif ($closure = closure_for_slot($closures, $date, $time)) {
+                $state['state'] = 'closed';
+                $state['closureId'] = (int) $closure['id'];
+                $state['reason'] = $closure['reason'];
             } elseif (!$calendar['ok']) {
                 $state['state'] = 'unknown';
             } elseif (slot_is_busy_in_calendar($calendar['busy'], $date, $time)) {
@@ -284,6 +290,8 @@ function booking_to_array(array $row): array
         'notes' => $row['notes'],
         'calendarStatus' => $row['calendar_status'],
         'emailStatus' => $row['email_status'],
+        'price' => isset($row['price']) ? (float) $row['price'] : null,
+        'source' => $row['source'] ?? 'website',
         'createdAt' => to_iso($row['created_at']),
         'cancelledAt' => to_iso($row['cancelled_at']),
         'cancelledBy' => $row['cancelled_by'],
@@ -348,6 +356,8 @@ function create_booking(array $input): array
         $items[] = [
             'serviceId' => $serviceId,
             'serviceTitle' => clean_text($item['serviceTitle'] ?? '', 255) ?: 'Grooming',
+            // The price shown at checkout, only used to pre-fill the daily closing.
+            'price' => parse_amount($item['price'] ?? ''),
             'date' => $date,
             'time' => $time,
             'pet' => clean_pet(is_array($item['pet'] ?? null) ? $item['pet'] : []),
@@ -385,8 +395,8 @@ function create_booking(array $input): array
             $ref = 'PAW-' . str_pad((string) next_sequence($pdo, '#GROOMING'), 4, '0', STR_PAD_LEFT);
             $insert = $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $lock = $pdo->prepare('INSERT INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)');
             $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
@@ -395,7 +405,7 @@ function create_booking(array $input): array
                     $ref, $item['date'], $item['time'], 'booked', $item['serviceId'], $item['serviceTitle'],
                     json_encode($item['pet'], JSON_UNESCAPED_UNICODE), $name, $email, $phone,
                     clean_text($customer['area'] ?? '', 255), clean_text($customer['contactMethod'] ?? '', 30),
-                    clean_text($input['notes'] ?? '', 2000), $now,
+                    clean_text($input['notes'] ?? '', 2000), $now, $item['price'], 'website',
                 ]);
                 $id = (int) $pdo->lastInsertId();
                 try {
@@ -407,7 +417,7 @@ function create_booking(array $input): array
                     throw $e;
                 }
                 $blocked->execute([$item['date'], $item['time']]);
-                if ((int) $blocked->fetchColumn() > 0) {
+                if ((int) $blocked->fetchColumn() > 0 || slot_is_closed($pdo, $item['date'], $item['time'])) {
                     throw new SlotTakenException(['date' => $item['date'], 'time' => $item['time']], true);
                 }
                 $saved[] = $item + ['id' => $id, 'ref' => $ref];
@@ -531,6 +541,7 @@ function list_bookings(array $input): array
     $stmt = db()->prepare("SELECT * FROM slot_blocks WHERE slot_date = ? ORDER BY slot_time");
     $stmt->execute([$date]);
     $blocks = array_map('block_to_array', $stmt->fetchAll());
+    $closures = array_map('closure_to_array', closure_rows_between($date, $date));
 
     // How many bookings each coming day has, for the overview.
     $today = studio_today();
@@ -549,6 +560,7 @@ function list_bookings(array $input): array
         'slots' => $slots,
         'bookings' => $bookings,
         'blocks' => $blocks,
+        'closures' => $closures,
         'upcoming' => $upcoming,
         'calendarError' => $states['calendarError'],
         'eveningTime' => EVENING_TIME,
@@ -679,6 +691,9 @@ function reschedule_booking(array $admin, array $input): array
     if ($date === $row['slot_date'] && $time === $row['slot_time']) {
         json_error('That is the current time of this booking. Please choose a different one.');
     }
+    if (slot_is_closed(db(), $date, $time)) {
+        json_error(friendly_slot($date, $time) . ' is inside a studio closure. Please choose another time.', 409);
+    }
     $calendar = calendar_busy($day, $day->modify('+1 day'), true);
     if (!$calendar['ok']) {
         json_error('The info@ calendar could not be read, so the new time can\'t be checked. Please try again.', 503);
@@ -695,7 +710,7 @@ function reschedule_booking(array $admin, array $input): array
         $pdo->prepare('INSERT INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)')->execute([$date, $time, $row['id']]);
         $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
         $blocked->execute([$date, $time]);
-        if ((int) $blocked->fetchColumn() > 0) {
+        if ((int) $blocked->fetchColumn() > 0 || slot_is_closed($pdo, $date, $time)) {
             throw new SlotTakenException(['date' => $date, 'time' => $time], true);
         }
         $pdo->prepare('DELETE FROM slot_locks WHERE booking_id = ? AND slot_date = ? AND slot_time = ?')

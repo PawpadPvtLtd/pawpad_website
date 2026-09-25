@@ -19,9 +19,9 @@ function require_owner(array $admin): void
 
 function list_admins(): array
 {
-    $rows = db()->query('SELECT email, role, created_at FROM admin_users ORDER BY role DESC, email')->fetchAll();
+    $rows = db()->query("SELECT email, role, created_at FROM admin_users ORDER BY FIELD(role, 'owner', 'admin', 'manager'), email")->fetchAll();
     return ['admins' => array_map(function (array $row): array {
-        return ['email' => $row['email'], 'role' => $row['role'], 'createdAt' => to_iso($row['created_at'])];
+        return ['email' => $row['email'], 'role' => $row['role'], 'roleLabel' => role_label($row['role']), 'createdAt' => to_iso($row['created_at'])];
     }, $rows)];
 }
 
@@ -41,7 +41,11 @@ function add_admin(array $admin, array $input): array
     if ($stmt->fetchColumn()) {
         json_error('This email is already an admin.');
     }
-    upsert_admin($email, $password, 'admin');
+    $role = (string) ($input['role'] ?? 'admin');
+    if (!in_array($role, ['admin', 'manager'], true)) {
+        json_error('The role must be Administrator or Manager.');
+    }
+    upsert_admin($email, $password, $role);
     return list_admins();
 }
 

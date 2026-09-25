@@ -13,9 +13,33 @@ if (!defined('PAWPAD_API')) {
 
 const MIN_PASSWORD_LENGTH = 10;
 
+// Who may do what. Owner and Administrator can do everything (only the owner
+// manages the team); a Manager only handles bookings, applications and the
+// daily closing.
+const ADMIN_ROLES = ['owner', 'admin'];
+const STAFF_ROLES = ['owner', 'admin', 'manager'];
+
+function role_label(string $role): string
+{
+    $labels = ['owner' => 'Owner', 'admin' => 'Administrator', 'manager' => 'Manager'];
+    return $labels[$role] ?? $role;
+}
+
+/**
+ * The signed-in person, if their role is one of $roles; otherwise stops with 403.
+ */
+function require_role(array $roles): array
+{
+    $user = require_admin();
+    if (!in_array($user['role'], $roles, true)) {
+        json_error('Not allowed: a ' . role_label($user['role']) . ' cannot do this.', 403);
+    }
+    return $user;
+}
+
 function public_user(array $user): array
 {
-    return ['email' => $user['email'], 'role' => $user['role']];
+    return ['email' => $user['email'], 'role' => $user['role'], 'roleLabel' => role_label($user['role'])];
 }
 
 function login(array $input): array

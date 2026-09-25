@@ -77,6 +77,13 @@ After updating the server, follow **Steps 2–5 in
 info@ password to `config.php`, check the calendar address, test a booking, and
 add the info@ calendar to Leena's phone.
 
+## After the Managers / Studio Closures / Daily Report update
+
+Just update the server as usual. The new database tables are created by
+themselves on the first visit, and nothing new goes in `config.php`. Then see
+[Managers, studio closures and the daily report](managers-closures-daily-report.md)
+for how to add a Manager and use the new pages.
+
 ## If the website pages didn't update after a merge
 
 The public pages and the admin panel are published by **GitHub Pages**

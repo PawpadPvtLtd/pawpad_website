@@ -851,6 +851,7 @@ function derivePetSlots(items) {
         id: `${item.id}-${slots.length}`,
         serviceId: item.id,
         serviceTitle: item.title + (qty > 1 ? ` (Slot #${q + 1})` : ""),
+        price: typeof item.price === "number" && !isNaN(item.price) ? item.price : null,
         petType: isCat ? "Cat" : (isDog ? "Dog" : defaultFlexibleType),
         isDogOnly: isDog && !isFlexible,
         isCatOnly: isCat && !isFlexible,
@@ -1200,6 +1201,7 @@ function CheckoutModal({ open, onClose }) {
         pets: slotPetIndexes.map((idx) => ({
           serviceId: petSlots[idx].serviceId,
           serviceTitle: pets[idx].serviceTitle,
+          price: petSlots[idx].price,
           date: slotChoices[idx].date,
           time: slotChoices[idx].time,
           pet: resolvedPets[idx]

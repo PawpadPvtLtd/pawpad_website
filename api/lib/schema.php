@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -30,6 +30,8 @@ function ensure_schema(PDO $pdo): void
     // Columns added after the tables first went live.
     add_column_if_missing($pdo, 'bookings', 'admin_log', "MEDIUMTEXT NULL");
     add_column_if_missing($pdo, 'slot_blocks', 'calendar_href', "VARCHAR(500) NOT NULL DEFAULT ''");
+    add_column_if_missing($pdo, 'bookings', 'price', "DECIMAL(10,2) NULL");
+    add_column_if_missing($pdo, 'bookings', 'source', "VARCHAR(20) NOT NULL DEFAULT 'website'");
     $pdo->prepare('INSERT INTO schema_info (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)')
         ->execute([SCHEMA_VERSION]);
 }
@@ -167,6 +169,60 @@ function create_tables(PDO $pdo): void
         cache_key VARCHAR(64) NOT NULL PRIMARY KEY,
         fetched_at INT UNSIGNED NOT NULL,
         data MEDIUMTEXT NOT NULL
+    ) $opts");
+
+    // Course fee payments recorded by staff (an application can have several).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS course_payments (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        application_id VARCHAR(40) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        paid_on DATE NOT NULL,
+        mode VARCHAR(20) NOT NULL,
+        reference VARCHAR(120) NOT NULL DEFAULT '',
+        recorded_by VARCHAR(190) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL,
+        INDEX idx_payments_application (application_id),
+        INDEX idx_payments_day (paid_on)
+    ) $opts");
+
+    // Studio closures: a date range, either all day or only some start times.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS closures (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        all_day TINYINT(1) NOT NULL DEFAULT 1,
+        times VARCHAR(200) NOT NULL DEFAULT '[]',
+        reason VARCHAR(255) NOT NULL DEFAULT '',
+        calendar_hrefs TEXT NULL,
+        created_by VARCHAR(190) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL,
+        INDEX idx_closures_range (start_date, end_date)
+    ) $opts");
+
+    // The daily closing: what actually happened with each booking.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS booking_closing (
+        booking_id INT UNSIGNED NOT NULL PRIMARY KEY,
+        status VARCHAR(20) NOT NULL DEFAULT '',
+        amount DECIMAL(10,2) NULL,
+        mode VARCHAR(20) NOT NULL DEFAULT '',
+        reference VARCHAR(120) NOT NULL DEFAULT '',
+        note VARCHAR(500) NOT NULL DEFAULT '',
+        updated_by VARCHAR(190) NOT NULL DEFAULT '',
+        updated_at DATETIME NOT NULL
+    ) $opts");
+
+    // Every daily report that was emailed (a re-send is a new, corrected version).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS daily_reports (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        report_date DATE NOT NULL,
+        version INT UNSIGNED NOT NULL DEFAULT 1,
+        sent_at DATETIME NOT NULL,
+        sent_by VARCHAR(190) NOT NULL DEFAULT '',
+        recipients TEXT NOT NULL,
+        subject VARCHAR(300) NOT NULL DEFAULT '',
+        html MEDIUMTEXT NOT NULL,
+        text_body MEDIUMTEXT NOT NULL,
+        INDEX idx_reports_date (report_date)
     ) $opts");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS rate_events (
