@@ -76,3 +76,21 @@ After updating the server, follow **Steps 2–5 in
 [Phase 4 — grooming slot bookings](phase-4-grooming-bookings.md)**: add the
 info@ password to `config.php`, check the calendar address, test a booking, and
 add the info@ calendar to Leena's phone.
+
+## If the website pages didn't update after a merge
+
+The public pages and the admin panel are published by **GitHub Pages**
+from the `main` branch. After each merge GitHub rebuilds them within a few
+minutes. Very occasionally it skips a rebuild, and the site keeps showing the
+previous version (for example an old phone number).
+
+To check: on GitHub open the repository → **Actions** → **pages build and
+deployment**. The newest run should mention your latest pull request and have
+a green tick.
+
+If it doesn't:
+1. On GitHub open **Settings** → **Pages**.
+2. Under **Build and deployment**, set **Branch** to `none` and click **Save**.
+3. Set it back to `main` and `/ (root)` and click **Save**.
+4. Wait 2–3 minutes. A new **pages build and deployment** run appears in
+   **Actions**. When it has a green tick, reload the website.
