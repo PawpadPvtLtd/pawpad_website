@@ -162,8 +162,6 @@
           "If you have any queries regarding our privacy practices, terms of service, or cancellation terms, please reach out to us at ",
           /* @__PURE__ */ React.createElement("a", { href: "mailto:care@pawpad.in" }, "care@pawpad.in"),
           ", call us at ",
-          /* @__PURE__ */ React.createElement("a", { href: "tel:+919663077496" }, "+91 96630 77496"),
-          " / ",
           /* @__PURE__ */ React.createElement("a", { href: "tel:+919148443330" }, "+91 91484 43330"),
           ", or visit us at #426, 5th Main Road, HRBR 2nd Block, Kalyan Nagar, Bengaluru - 560043."
         )

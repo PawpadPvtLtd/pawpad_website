@@ -15,8 +15,8 @@
     branding: {
       siteName: "Pawpad",
       tagline: "Conscious Pet Grooming & Wellness in Bengaluru",
-      phone: "+91 88853 49267",
-      whatsapp: "919845001809",
+      phone: "+91 91484 43330",
+      whatsapp: "919148443330",
       email: "hello@pawpad.in",
       coursesEmail: "courses@pawpad.in",
       location: "Kalyan Nagar, Bengaluru, Karnataka 560043",
@@ -532,7 +532,7 @@
       trialDayFee: "₹850",
       overnightFee: "₹1,000 / night",
       policyNotice: "Currently open strictly to small dogs only. A mandatory Trial Day assessment must be successfully completed before any overnight booking is accepted.",
-      whatsappNumber: "919845001809",
+      whatsappNumber: "919148443330",
       packages: [
         {
           key: "trial-day",
@@ -647,10 +647,10 @@
       mainTitle: "We are here for you.",
       mainSubtext: "Whether you are booking a grooming session, asking about our services, or simply want to know more about Pawpad, reach out to us.",
       email: "info@pawpad.in",
-      phone: "9663077496",
-      phoneDisplay: "9663077496",
-      phone2: "9148443330",
-      phone2Display: "9148443330",
+      phone: "9148443330",
+      phoneDisplay: "9148443330",
+      phone2: "",
+      phone2Display: "",
       addressLines: [
         "#426, 5th Main Road,",
         "HRBR 2nd Block, Kalyan Nagar",
@@ -665,7 +665,7 @@
       cardDesc: "Sessions are spaced and never rushed. We plan around your pet's temperament, comfort and wellbeing.",
       cardBtnBook: "Book a session",
       cardBtnCall: "Call us",
-      cardCallPhone: "+919663077496",
+      cardCallPhone: "+919148443330",
       socialEyebrow: "Follow Pawpad",
       socialTitle: "Stay connected.",
       socials: {
@@ -994,11 +994,25 @@
         }
       }
 
-      if (parsed && parsed.branding && parsed.branding.whatsapp === "918885349267") {
-        parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
+      // Old studio numbers saved earlier: everything now uses +91 91484 43330.
+      const OLD_WHATSAPP = ["918885349267", "919663077496", "919845001809"];
+      const OLD_PHONES = ["9663077496", "+919663077496", "96630 77496", "+91 96630 77496", "+91 88853 49267"];
+      if (parsed && parsed.branding) {
+        if (OLD_WHATSAPP.includes(parsed.branding.whatsapp)) parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
+        if (OLD_PHONES.includes(parsed.branding.phone)) parsed.branding.phone = DEFAULT_CONTENT.branding.phone;
       }
-      if (parsed && parsed.boarding && parsed.boarding.whatsappNumber === "919663077496") {
+      if (parsed && parsed.boarding && OLD_WHATSAPP.includes(parsed.boarding.whatsappNumber)) {
         parsed.boarding.whatsappNumber = DEFAULT_CONTENT.boarding.whatsappNumber;
+      }
+      if (parsed && parsed.contact) {
+        ["phone", "phoneDisplay", "cardCallPhone"].forEach((k) => {
+          if (OLD_PHONES.includes(parsed.contact[k])) parsed.contact[k] = DEFAULT_CONTENT.contact[k];
+        });
+        // The second number is now the main one, so don't show it twice.
+        if (["9148443330", "+919148443330"].includes(parsed.contact.phone2)) {
+          parsed.contact.phone2 = "";
+          parsed.contact.phone2Display = "";
+        }
       }
       if (parsed && parsed.contact && parsed.contact.socials && parsed.contact.socials.twitter === "https://twitter.com") {
         parsed.contact.socials.twitter = DEFAULT_CONTENT.contact.socials.twitter;

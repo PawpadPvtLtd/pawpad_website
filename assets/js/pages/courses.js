@@ -609,7 +609,7 @@ function CourseCTA({ onBook }) {
             ),
             React.createElement("div", { className: "field" },
               React.createElement("label", null, "Phone"),
-              React.createElement("input", { type: "tel", value: form.phone, onChange: upd("phone"), placeholder: "96630 77496" })
+              React.createElement("input", { type: "tel", value: form.phone, onChange: upd("phone"), placeholder: "98765 43210" })
             )
           ),
           errorMessage && React.createElement("div", { className: "course-form-error" }, errorMessage),

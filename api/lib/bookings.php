@@ -25,7 +25,7 @@ const EVENING_TIME = '19:00';
 // Services with a haircut or clipping: never at 19:00.
 // "grooming-unspecified" is a booking where the service is chosen later at the studio.
 const NO_EVENING_SERVICES = ['dog-grooming-long-hair', 'cat-haircut', 'puppy-long', 'matted-dogs', 'hygiene-clip', 'grooming-unspecified'];
-const STUDIO_WHATSAPP = '+91 98450 01809';
+const STUDIO_WHATSAPP = '+91 91484 43330';
 const STUDIO_ADDRESS = 'Pawpad, #426, 5th Main Road, HRBR 2nd Block, Kalyan Nagar, Bangalore - 560043';
 
 class SlotTakenException extends RuntimeException
@@ -378,15 +378,10 @@ function create_booking(array $input): array
         $saved = [];
         $pdo->beginTransaction();
         try {
-            $ref = '';
-            for ($i = 0; $i < 10 && $ref === ''; $i++) {
-                $candidate = 'PAW-' . random_int(100000, 999999);
-                $check = $pdo->prepare('SELECT COUNT(*) FROM bookings WHERE ref = ?');
-                $check->execute([$candidate]);
-                if ((int) $check->fetchColumn() === 0) {
-                    $ref = $candidate;
-                }
-            }
+            // Sequential reference (PAW-0001, PAW-0002, ...), from the same counter table as
+            // course applications. "#GROOMING" can never clash with a course code (letters/digits only).
+            // The counter is part of this transaction, so a failed booking leaves no gap.
+            $ref = 'PAW-' . str_pad((string) next_sequence($pdo, '#GROOMING'), 4, '0', STR_PAD_LEFT);
             $insert = $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
                     customer_email, customer_phone, customer_area, contact_method, notes, created_at)
@@ -564,6 +559,21 @@ function list_bookings(array $input): array
         'calendarError' => $states['calendarError'],
         'eveningTime' => EVENING_TIME,
     ];
+}
+
+/**
+ * Every booked grooming session from today onwards, soonest first.
+ */
+function list_upcoming_bookings(): array
+{
+    $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'booked' AND slot_date >= ? ORDER BY slot_date, slot_time, id LIMIT 1000");
+    $stmt->execute([studio_today()->format('Y-m-d')]);
+    $bookings = array_map(function (array $row): array {
+        $b = booking_to_array($row);
+        $b['label'] = friendly_slot($row['slot_date'], $row['slot_time']);
+        return $b;
+    }, $stmt->fetchAll());
+    return ['bookings' => $bookings];
 }
 
 function cancel_booking(array $admin, array $input): array

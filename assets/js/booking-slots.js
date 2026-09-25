@@ -30,7 +30,7 @@ const PawpadSlots = {
       : {
           ok: false,
           days: [],
-          error: (result.data && result.data.error) || "Online booking is not available right now. Please WhatsApp us on +91 98450 01809 to book."
+          error: (result.data && result.data.error) || "Online booking is not available right now. Please WhatsApp us on +91 91484 43330 to book."
         };
     if (value.ok) {
       this._cached = value;
@@ -85,7 +85,7 @@ const PawpadSlots = {
     return {
       ok: false,
       taken: (result.data && result.data.taken) || [],
-      error: (result.data && result.data.error) || "Could not reach the Pawpad server. Please check your internet connection, or WhatsApp us on +91 98450 01809."
+      error: (result.data && result.data.error) || "Could not reach the Pawpad server. Please check your internet connection, or WhatsApp us on +91 91484 43330."
     };
   }
 };
@@ -122,7 +122,7 @@ function SlotPicker({ availability, serviceId, value, onChange, excluded, onRetr
         "div",
         { style: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 } },
         onRetry && React.createElement("button", { type: "button", className: "btn btn-ghost", onClick: onRetry }, "Try again"),
-        React.createElement("a", { className: "btn btn-primary", href: "https://wa.me/919845001809?text=" + encodeURIComponent("Hi Pawpad, I would like to book a grooming slot."), target: "_blank", rel: "noopener" }, "WhatsApp us")
+        React.createElement("a", { className: "btn btn-primary", href: "https://wa.me/919148443330?text=" + encodeURIComponent("Hi Pawpad, I would like to book a grooming slot."), target: "_blank", rel: "noopener" }, "WhatsApp us")
       )
     );
   }

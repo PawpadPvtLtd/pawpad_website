@@ -269,7 +269,7 @@ function BoardingPage({ onBook, onAddToCart }) {
               React.createElement(Arrow, null)
             ),
             /* @__PURE__ */ React.createElement("a", {
-              href: `https://wa.me/${(cms.whatsappNumber || "919845001809").replace(/[^0-9]/g, "")}?text=Hi%20Pawpad%2C%20I%20would%20like%20to%20enquire%20about%20boarding%20for%20my%20dog`,
+              href: `https://wa.me/${(cms.whatsappNumber || "919148443330").replace(/[^0-9]/g, "")}?text=Hi%20Pawpad%2C%20I%20would%20like%20to%20enquire%20about%20boarding%20for%20my%20dog`,
               target: "_blank",
               rel: "noopener noreferrer",
               className: "btn btn-ghost",
