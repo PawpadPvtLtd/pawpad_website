@@ -21,6 +21,29 @@ const STATUS_LABELS = [
     'enrolled' => 'Enrolled & Deposit Confirmed',
 ];
 
+// How a payment was made. "not_paid" is only used in the daily closing.
+const PAYMENT_MODES = ['upi' => 'UPI', 'cash' => 'Cash', 'card' => 'Card', 'bank_transfer' => 'Bank transfer'];
+
+/** "1,500.50" or 1500.5 → 1500.5; null when it isn't a sensible amount. */
+function parse_amount($value): ?float
+{
+    if (is_int($value) || is_float($value)) {
+        $amount = (float) $value;
+    } else {
+        $text = str_replace([',', '₹', ' '], '', (string) $value);
+        if (!preg_match('/^\d+(\.\d{1,2})?$/', $text)) {
+            return null;
+        }
+        $amount = (float) $text;
+    }
+    return ($amount >= 0 && $amount <= 10000000) ? round($amount, 2) : null;
+}
+
+function format_rupees(float $amount): string
+{
+    return '₹' . number_format($amount, fmod($amount, 1.0) == 0.0 ? 0 : 2);
+}
+
 function decode_list(?string $json): array
 {
     $value = json_decode((string) $json, true);
@@ -35,9 +58,44 @@ function encode_json($value): string
 /**
  * Database row → the same shape the admin panel already uses.
  */
-function application_to_array(array $row): array
+function payment_to_array(array $row): array
 {
     return [
+        'id' => (int) $row['id'],
+        'amount' => (float) $row['amount'],
+        'paidOn' => $row['paid_on'],
+        'mode' => $row['mode'],
+        'modeLabel' => PAYMENT_MODES[$row['mode']] ?? $row['mode'],
+        'reference' => $row['reference'],
+        'recordedBy' => $row['recorded_by'],
+        'createdAt' => to_iso($row['created_at']),
+    ];
+}
+
+/** Payments per application id, for one application or (null) all of them. */
+function payments_by_application(?string $id = null): array
+{
+    if ($id === null) {
+        $stmt = db()->query('SELECT * FROM course_payments ORDER BY paid_on, id');
+    } else {
+        $stmt = db()->prepare('SELECT * FROM course_payments WHERE application_id = ? ORDER BY paid_on, id');
+        $stmt->execute([$id]);
+    }
+    $byApp = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $byApp[$row['application_id']][] = payment_to_array($row);
+    }
+    return $byApp;
+}
+
+function application_to_array(array $row, ?array $payments = null): array
+{
+    if ($payments === null) {
+        $payments = payments_by_application($row['id'])[$row['id']] ?? [];
+    }
+    return [
+        'payments' => $payments,
+        'paidTotal' => array_sum(array_column($payments, 'amount')),
         'id' => $row['id'],
         'courseKey' => $row['course_key'],
         'courseCode' => $row['course_code'],
@@ -177,7 +235,10 @@ function submit_application(array $input): array
 function list_applications(): array
 {
     $rows = db()->query('SELECT * FROM applications ORDER BY created_at DESC, id DESC')->fetchAll();
-    return ['applications' => array_map('application_to_array', $rows)];
+    $payments = payments_by_application();
+    return ['applications' => array_map(function (array $row) use ($payments): array {
+        return application_to_array($row, $payments[$row['id']] ?? []);
+    }, $rows)];
 }
 
 /**
@@ -194,11 +255,23 @@ function update_application(array $admin, array $input): array
     $interviewDate = $row['interview_date'];
     $now = to_iso(now_utc());
     $author = $admin['email'];
+    $isManager = !in_array($admin['role'], ADMIN_ROLES, true);
 
     if (array_key_exists('status', $input)) {
         $newStatus = (string) $input['status'];
         if (!in_array($newStatus, APPLICATION_STATUSES, true)) {
             json_error('Unknown status.');
+        }
+        // A Manager may only schedule interviews and enrol (approve/decline stay with Owner/Administrator).
+        if ($isManager && $newStatus !== $status && !in_array($newStatus, ['interview_scheduled', 'enrolled'], true)) {
+            json_error('Not allowed: a Manager can only schedule interviews and enrol candidates.', 403);
+        }
+        if ($newStatus === 'enrolled' && $status !== 'enrolled') {
+            $paid = db()->prepare('SELECT COUNT(*) FROM course_payments WHERE application_id = ?');
+            $paid->execute([$row['id']]);
+            if ((int) $paid->fetchColumn() === 0) {
+                json_error('Record the payment first: a candidate can only be enrolled after a payment is recorded.', 409);
+            }
         }
         if ($newStatus !== $status) {
             $notes[] = [
@@ -222,6 +295,9 @@ function update_application(array $admin, array $input): array
         $subject = clean_text(str_replace(["\r", "\n"], ' ', (string) ($input['email']['subject'] ?? '')), 300);
         $body = clean_text($input['email']['body'] ?? '', 20000);
         $type = preg_replace('/[^a-z_]/', '', (string) ($input['email']['type'] ?? 'notification'));
+        if ($isManager && $type !== 'interview') {
+            json_error('Not allowed: a Manager can only send the interview email.', 403);
+        }
         if ($subject === '' || $body === '') {
             json_error('The email needs a subject and a message.');
         }
@@ -266,4 +342,70 @@ function delete_applications(array $input): array
     $stmt = db()->prepare("DELETE FROM applications WHERE id IN ($placeholders)");
     $stmt->execute($ids);
     return ['deleted' => $stmt->rowCount()];
+}
+
+/**
+ * Records a course fee payment (amount, date, mode, reference) on an application.
+ */
+function record_payment(array $admin, array $input): array
+{
+    $row = find_application(clean_text($input['applicationId'] ?? '', 40));
+    $amount = parse_amount($input['amount'] ?? '');
+    if ($amount === null || $amount <= 0) {
+        json_error('Please enter the amount received (for example 25000).');
+    }
+    $paidOn = (string) ($input['paidOn'] ?? '');
+    $day = DateTimeImmutable::createFromFormat('!Y-m-d', $paidOn, new DateTimeZone(STUDIO_TIMEZONE));
+    $today = new DateTimeImmutable('today', new DateTimeZone(STUDIO_TIMEZONE));
+    if (!$day || $day->format('Y-m-d') !== $paidOn || $day > $today || $day < $today->modify('-1 year')) {
+        json_error('Please choose the date the payment was received (today or earlier).');
+    }
+    $mode = (string) ($input['mode'] ?? '');
+    if (!isset(PAYMENT_MODES[$mode])) {
+        json_error('Please choose how it was paid: UPI, cash, card or bank transfer.');
+    }
+    $reference = clean_text(str_replace(["\r", "\n"], ' ', (string) ($input['reference'] ?? '')), 120);
+    $now = now_utc();
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    $pdo->prepare('INSERT INTO course_payments (application_id, amount, paid_on, mode, reference, recorded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        ->execute([$row['id'], $amount, $paidOn, $mode, $reference, $admin['email'], $now]);
+    $notes = decode_list($row['staff_notes']);
+    $notes[] = [
+        'author' => $admin['email'],
+        'date' => to_iso($now),
+        'text' => 'Payment recorded: ' . format_rupees($amount) . ' received on ' . $paidOn . ' by ' . PAYMENT_MODES[$mode]
+            . ($reference !== '' ? ' (ref. ' . $reference . ')' : '') . '.',
+    ];
+    $pdo->prepare('UPDATE applications SET staff_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute([encode_json($notes), $now, $row['id']]);
+    $pdo->commit();
+    return ['application' => application_to_array(find_application($row['id']))];
+}
+
+/** Owner/Administrator: removes a payment recorded by mistake. */
+function delete_payment(array $admin, array $input): array
+{
+    $stmt = db()->prepare('SELECT * FROM course_payments WHERE id = ?');
+    $stmt->execute([(int) ($input['id'] ?? 0)]);
+    $payment = $stmt->fetch();
+    if (!$payment) {
+        json_error('Payment not found.', 404);
+    }
+    $row = find_application($payment['application_id']);
+    $now = now_utc();
+    $notes = decode_list($row['staff_notes']);
+    $notes[] = [
+        'author' => $admin['email'],
+        'date' => to_iso($now),
+        'text' => 'Payment removed: ' . format_rupees((float) $payment['amount']) . ' of ' . $payment['paid_on'] . ' (' . (PAYMENT_MODES[$payment['mode']] ?? $payment['mode']) . ').',
+    ];
+    $pdo = db();
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM course_payments WHERE id = ?')->execute([$payment['id']]);
+    $pdo->prepare('UPDATE applications SET staff_notes = ?, updated_at = ? WHERE id = ?')
+        ->execute([encode_json($notes), $now, $row['id']]);
+    $pdo->commit();
+    return ['application' => application_to_array(find_application($row['id']))];
 }

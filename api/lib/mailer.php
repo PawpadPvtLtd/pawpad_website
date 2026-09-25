@@ -110,6 +110,65 @@ function send_mail(string $which, string $toEmail, string $toName, string $subje
 }
 
 /**
+ * An HTML email (with a plain-text copy) to several people at once, e.g. the
+ * daily report from info@ to every Owner and Administrator.
+ * @return array{sent: bool, error: string}
+ */
+function send_html_mail(string $which, array $toEmails, string $subject, string $html, string $text): array
+{
+    $toEmails = array_values(array_filter($toEmails, function ($email): bool {
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
+    }));
+    if (!$toEmails) {
+        return ['sent' => false, 'error' => 'There is no valid email address to send to.'];
+    }
+    if (!mail_configured($which)) {
+        $a = mail_account($which);
+        return ['sent' => false, 'error' => 'Email is not set up yet (' . $a['setting'] . ' in config.php).'];
+    }
+    $a = mail_account($which);
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host = $a['host'];
+        $mail->Port = $a['port'];
+        $mail->SMTPAuth = true;
+        $mail->Username = $a['user'];
+        $mail->Password = $a['password'];
+        if ($a['secure'] === 'tls') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } elseif ($a['secure'] === 'ssl') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } else {
+            $mail->SMTPSecure = '';
+            $mail->SMTPAutoTLS = false;
+        }
+        $mail->Timeout = 20;
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
+        $mail->setFrom($a['from'], $a['from_name']);
+        $mail->addReplyTo($a['from'], $a['from_name']);
+        foreach ($toEmails as $email) {
+            $mail->addAddress($email);
+        }
+        $inList = array_filter($toEmails, function ($email) use ($a): bool {
+            return strcasecmp($email, (string) $a['bcc']) === 0;
+        });
+        if (!empty($a['bcc']) && !$inList) {
+            $mail->addBCC($a['bcc']);
+        }
+        $mail->isHTML(true);
+        $mail->Subject = $subject;
+        $mail->Body = $html;
+        $mail->AltBody = $text;
+        $mail->send();
+        return ['sent' => true, 'error' => ''];
+    } catch (Throwable $e) {
+        error_log('Pawpad API email failed (' . $which . '): ' . $mail->ErrorInfo);
+        return ['sent' => false, 'error' => 'The mail server refused the email. Check the ' . $a['setting'] . ' setting in config.php.'];
+    }
+}
+
+/**
  * Admissions emails, sent from courses@ with a copy to courses@.
  */
 function send_candidate_email(string $toEmail, string $toName, string $subject, string $body): array

@@ -113,7 +113,7 @@ function caldav_busy(DateTimeImmutable $from, DateTimeImmutable $to): array
  * Returns the event's address, or '' on failure.
  * The UID only uses letters, digits and dashes, so its file name is the same on every server.
  */
-function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmutable $end, string $summary, string $description, string $location, bool $allDay = false): string
+function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmutable $end, string $summary, string $description, string $location, bool $allDay = false, string $rrule = ''): string
 {
     if (!caldav_configured()) {
         return '';
@@ -129,13 +129,18 @@ function caldav_create_event(string $uid, DateTimeImmutable $start, DateTimeImmu
         'DTSTAMP:' . gmdate('Ymd\THis\Z'),
         $allDay ? 'DTSTART;VALUE=DATE:' . $start->format('Ymd') : 'DTSTART:' . $start->setTimezone($utc)->format('Ymd\THis\Z'),
         $allDay ? 'DTEND;VALUE=DATE:' . $end->format('Ymd') : 'DTEND:' . $end->setTimezone($utc)->format('Ymd\THis\Z'),
+    ];
+    if ($rrule !== '') {
+        $lines[] = 'RRULE:' . $rrule; // repeats, e.g. the same hours on every day of a studio closure
+    }
+    $lines = array_merge($lines, [
         'SUMMARY:' . ics_escape($summary),
         'DESCRIPTION:' . ics_escape($description),
         'LOCATION:' . ics_escape($location),
         'STATUS:CONFIRMED',
         'END:VEVENT',
         'END:VCALENDAR',
-    ];
+    ]);
     $ics = implode("\r\n", array_map('ics_fold', $lines)) . "\r\n";
     $href = caldav_settings()['url'] . $uid . '.ics';
     $result = caldav_request('PUT', $href, $ics, [
@@ -217,7 +222,7 @@ function caldav_delete_event(string $href): bool
  * saved address, then anything the calendar still has with that UID.
  * Returns true when none are left.
  */
-function caldav_remove_events(string $uidPrefix, string $savedHref, DateTimeImmutable $day): bool
+function caldav_remove_events(string $uidPrefix, string $savedHref, DateTimeImmutable $day, ?DateTimeImmutable $lastDay = null): bool
 {
     if (!caldav_configured()) {
         return false;
@@ -226,7 +231,7 @@ function caldav_remove_events(string $uidPrefix, string $savedHref, DateTimeImmu
         caldav_delete_event($savedHref);
     }
     $from = $day->modify('-1 day');
-    $to = $day->modify('+2 days');
+    $to = ($lastDay ?? $day)->modify('+2 days');
     $found = caldav_find_events($uidPrefix, $from, $to);
     if (!$found['ok']) {
         return false;
