@@ -1797,6 +1797,15 @@ body[data-palette="dark"] .card {
 .ref-row strong {
   color: var(--ink);
   font-weight: 600;
+  text-align: right;
+}
+
+.ref-row {
+  gap: 16px;
+}
+
+.ref-row.confirmed-slot {
+  align-items: flex-start;
 }
 
 .ref-number {
@@ -2090,4 +2099,9 @@ body[data-palette="dark"] .checkout-stepper {
 }
 .date-chip-grid .date-chip.closed .d-closed {
   font-size: 10px;
+}
+
+/* Line breaks typed in the admin panel (Enter) show as new lines on the website. */
+p, li {
+  white-space: pre-line;
 }

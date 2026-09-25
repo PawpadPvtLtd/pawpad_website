@@ -45,6 +45,94 @@ function format_mb(int $bytes): string
     return number_format($bytes / 1048576, 2) . ' MB';
 }
 
+/**
+ * JPEG / PNG → WebP with the server's GD library, keeping transparency and
+ * shrinking anything wider or taller than 1920 px. Returns null if this server
+ * can't write WebP.
+ */
+function convert_image_to_webp(string $bytes, int $maxDimension = 1920): ?string
+{
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagewebp') || !(imagetypes() & IMG_WEBP)) {
+        return null;
+    }
+    $image = @imagecreatefromstring($bytes);
+    if ($image === false) {
+        return null;
+    }
+    if (!imageistruecolor($image)) {
+        imagepalettetotruecolor($image);
+    }
+    $width = imagesx($image);
+    $height = imagesy($image);
+    if ($width > $maxDimension || $height > $maxDimension) {
+        $scale = $maxDimension / max($width, $height);
+        $newWidth = max(1, (int) round($width * $scale));
+        $newHeight = max(1, (int) round($height * $scale));
+        $resized = imagecreatetruecolor($newWidth, $newHeight);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        imagefill($resized, 0, 0, imagecolorallocatealpha($resized, 0, 0, 0, 127));
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        imagedestroy($image);
+        $image = $resized;
+    }
+    imagealphablending($image, false);
+    imagesavealpha($image, true);
+    ob_start();
+    $ok = imagewebp($image, null, 82);
+    $webp = (string) ob_get_clean();
+    imagedestroy($image);
+    return ($ok && $webp !== '') ? $webp : null;
+}
+
+/**
+ * Converts JPEG / PNG files uploaded earlier (from Safari) to WebP, points the
+ * published pages at the new files, and deletes the originals.
+ */
+function convert_existing_uploads(): array
+{
+    $rows = db()->query("SELECT * FROM uploads WHERE kind = 'image' AND path NOT LIKE '%.webp'")->fetchAll();
+    $root = dirname(__DIR__);
+    $replacements = [];
+    $failed = 0;
+    foreach ($rows as $row) {
+        $oldAbsolute = $root . '/' . $row['path'];
+        $bytes = is_file($oldAbsolute) ? file_get_contents($oldAbsolute) : false;
+        $webp = $bytes !== false ? convert_image_to_webp($bytes) : null;
+        if ($webp === null) {
+            $failed++;
+            continue;
+        }
+        $newRelative = preg_replace('/\.(jpe?g|png)$/i', '', $row['path']) . '-' . bin2hex(random_bytes(3)) . '.webp';
+        if (file_put_contents($root . '/' . $newRelative, $webp, LOCK_EX) !== strlen($webp)) {
+            $failed++;
+            continue;
+        }
+        @chmod($root . '/' . $newRelative, 0644);
+        db()->prepare('UPDATE uploads SET path = ?, bytes = ? WHERE id = ?')->execute([$newRelative, strlen($webp), $row['id']]);
+        $replacements[public_url($row['path'])] = public_url($newRelative);
+        @unlink($oldAbsolute);
+    }
+
+    $pagesUpdated = 0;
+    if ($replacements) {
+        $pages = db()->query('SELECT page_key, data FROM site_content')->fetchAll();
+        $update = db()->prepare('UPDATE site_content SET data = ?, updated_at = ? WHERE page_key = ?');
+        foreach ($pages as $page) {
+            $escaped = [];
+            foreach ($replacements as $old => $new) {
+                $escaped[str_replace('/', '\\/', $old)] = str_replace('/', '\\/', $new);
+            }
+            $data = strtr(strtr($page['data'], $replacements), $escaped);
+            if ($data !== $page['data']) {
+                $update->execute([$data, now_utc(), $page['page_key']]);
+                $pagesUpdated++;
+            }
+        }
+    }
+    return ['converted' => count($replacements), 'failed' => $failed, 'pagesUpdated' => $pagesUpdated, 'usage' => upload_usage()];
+}
+
 function upload_file(array $admin, array $input): array
 {
     $kind = (string) ($input['kind'] ?? '');
@@ -70,6 +158,18 @@ function upload_file(array $admin, array $input): array
         $info = @getimagesizefromstring($bytes);
         if ($info === false || !isset($types[$info['mime'] ?? '']) || $info[0] < 1 || $info[1] < 1 || $info[0] > 5000 || $info[1] > 5000) {
             json_error('Please upload a WebP, JPEG or PNG image through the admin panel.');
+        }
+        if ($size > 6 * 1024 * 1024) {
+            json_error('This image is too large (' . format_mb($size) . '). Please use a photo under 6 MB.', 413);
+        }
+        // Safari sends JPEG or PNG (it can't write WebP): turn it into WebP here.
+        if ($info['mime'] !== 'image/webp') {
+            $webp = convert_image_to_webp($bytes);
+            if ($webp !== null) {
+                $bytes = $webp;
+                $size = strlen($bytes);
+                $info['mime'] = 'image/webp';
+            }
         }
         if ($size > $limits['image_bytes']) {
             json_error('This image is ' . format_mb($size) . ' after compression; the limit is ' . format_mb($limits['image_bytes']) . '. Please use a smaller photo.', 413);

@@ -295,6 +295,7 @@ function Footer({ onBook }) {
         .site-footer p { color: color-mix(in oklab, var(--white), transparent 20%); }
         .site-footer a { color: var(--white); transition: color var(--t-fast) var(--ease); }
         .site-footer a:hover { color: var(--driftwood); }
+        .site-footer a.btn, .site-footer a.btn:hover { color: var(--cream-bg); }
         .footer-top { display: grid; grid-template-columns: 1.2fr 1fr; gap: 80px; align-items: start; padding-bottom: 80px; }
         .footer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; padding-top: 12px; }
         .f-h { font-family: var(--f-body); font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--white); margin: 0 0 14px; }

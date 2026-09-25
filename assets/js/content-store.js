@@ -1282,14 +1282,27 @@
             // so fall back to a compressed JPEG there.
             let webpDataUrl = canvas.toDataURL("image/webp", quality);
             if (!webpDataUrl.startsWith("data:image/webp")) {
-              webpDataUrl = canvas.toDataURL("image/jpeg", quality);
+              // Safari can't write WebP. Keep transparency with PNG; otherwise a high-quality
+              // JPEG. The Pawpad server turns either into WebP when it is uploaded.
+              let hasTransparency = false;
+              try {
+                const pixels = ctx.getImageData(0, 0, width, height).data;
+                for (let i = 3; i < pixels.length; i += 4) {
+                  if (pixels[i] < 255) { hasTransparency = true; break; }
+                }
+              } catch (e) {}
+              if (hasTransparency) {
+                webpDataUrl = canvas.toDataURL("image/png");
+              } else {
+                webpDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+              }
             }
             const originalSizeBytes = fileOrBlob.size || Math.round((event.target.result.length * 3) / 4);
             const webpSizeBytes = Math.round((webpDataUrl.length * 3) / 4);
 
             resolve({
               dataUrl: webpDataUrl,
-              format: webpDataUrl.startsWith("data:image/webp") ? "image/webp" : "image/jpeg",
+              format: webpDataUrl.slice(5, webpDataUrl.indexOf(";")),
               width: width,
               height: height,
               originalSizeBytes: originalSizeBytes,
