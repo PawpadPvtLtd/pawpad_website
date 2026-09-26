@@ -62,6 +62,8 @@ function Hero({ onBook }) {
   }, []);
   const motion = document.body.dataset.motion;
   const par = motion === "still" ? 0 : scrollY;
+  // Keep hyphenated words like "well-being" on one line (non-breaking hyphen).
+  const keepWords = (text) => String(text || "").replace(/(\w)-(\w)/g, "$1\u2011$2");
   const statsList = cms.stats && Array.isArray(cms.stats) ? cms.stats : [
     { strong: "8+", label: "years of conscious care" },
     { strong: "4,200+", label: "tails wagged" },
@@ -86,8 +88,8 @@ function Hero({ onBook }) {
           /* @__PURE__ */ React.createElement("span", { className: "hero-title-accent" }, cms.heroTitleAccent || "& Holistic Petcare"), /* @__PURE__ */ React.createElement("br", null),
           cms.heroTitleEnd || "in Bangalore"
         ),
-        /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28 } }, cms.heroLead || "Calm, stress-free grooming, pet-wellness therapy, boarding, along with professional grooming courses, all designed keeping your pet's well-being in mind."),
-        /* @__PURE__ */ React.createElement("p", { className: "hero-sub reveal in", style: { marginTop: 18, maxWidth: "48ch" } }, cms.heroSub || "Pawpad offers conscious pet grooming and wellness care designed around your pet's physical and emotional wellbeing. Instead of rushed grooming focused only on looks, we prioritise stress-free handling, coat health, skin care, and calm environments that support long-term comfort for dogs and cats alike.")
+        /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28 } }, keepWords(cms.heroLead || "Calm, stress-free grooming, pet-wellness therapy, boarding, along with professional grooming courses, all designed keeping your pet's well-being in mind.")),
+        /* @__PURE__ */ React.createElement("p", { className: "hero-sub reveal in", style: { marginTop: 18, maxWidth: "48ch" } }, keepWords(cms.heroSub || "Pawpad offers conscious pet grooming and wellness care designed around your pet's physical and emotional wellbeing. Instead of rushed grooming focused only on looks, we prioritise stress-free handling, coat health, skin care, and calm environments that support long-term comfort for dogs and cats alike."))
       ),
       /* @__PURE__ */ React.createElement("div", { className: "hero-image-wrap" },
         /* @__PURE__ */ React.createElement("div", { className: "hero-image blob-1", style: { transform: `translateY(${par * -0.03}px) scale(1)` } },
@@ -137,7 +139,12 @@ function Hero({ onBook }) {
           border-radius: 999px;
           white-space: nowrap;
         }
-        .hero-title { font-family: var(--f-display); font-weight: 400; font-size: clamp(38px, 4.6vw, 68px); line-height: 1.04; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+        .hero-title { font-family: var(--f-display); font-weight: 400; font-size: clamp(38px, 4.6vw, 68px); line-height: 1.04; letter-spacing: -.01em; color: var(--ink); margin: 0; text-wrap: balance; }
+        .hero-text .lead, .hero-sub { text-wrap: pretty; hyphens: manual; }
+        @media (max-width: 600px) {
+          .eyebrow-pill { white-space: normal; max-width: 100%; line-height: 1.5; font-size: 11px; letter-spacing: .1em; }
+          .hero-paws .paw-fl { opacity: .06 !important; }
+        }
         .hero-title-accent {
           background: linear-gradient(100deg, var(--driftwood) 0%, var(--driftwood-deep) 60%, var(--driftwood) 100%);
           -webkit-background-clip: text; background-clip: text; color: transparent;

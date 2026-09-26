@@ -150,7 +150,7 @@
 
             if (found) {
               // Directly use the Course Code / Key entered by admin in the box
-              const adminBoxValue = found.key || found.code || found.shortCode;
+              const adminBoxValue = found.code || found.key || found.shortCode;
               if (adminBoxValue && typeof adminBoxValue === "string" && adminBoxValue.trim()) {
                 const clean = adminBoxValue.trim().replace(/[^A-Za-z0-9_\-]/g, "").toUpperCase();
                 if (clean.length >= 1) return clean;

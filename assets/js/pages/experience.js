@@ -30,7 +30,7 @@ const EXPERIENCE_STEPS = [
     no: "05",
     title: "One-on-One Attention",
     body: "No cages. No rushing. Just dedicated care focused entirely on your pet's wellbeing.",
-    img: "assets/img/pawpad/grooming-snapshot.webp"
+    img: "assets/img/pawpad/grooming-page-grooming-hair-cut.webp"
   },
   {
     no: "06",
@@ -39,12 +39,26 @@ const EXPERIENCE_STEPS = [
     img: "assets/img/pawpad/experience-ready-to-head-home-snapshot.webp"
   }
 ];
+// Everything on this page can be edited in the admin panel (Website Content CMS → Experience Page).
+function useExperienceContent() {
+  const cms = typeof useCmsContent === "function" ? useCmsContent("experience") : {};
+  const c = cms || {};
+  const list = (value, fallback) => (Array.isArray(value) && value.length ? value : fallback);
+  return {
+    ...c,
+    steps: list(c.steps, EXPERIENCE_STEPS).map((st, i) => ({ ...(EXPERIENCE_STEPS[i] || {}), ...st, no: String(i + 1).padStart(2, "0") })),
+    handling: c.handling || {},
+    products: c.products || {}
+  };
+}
 function ExperienceHero() {
-  return /* @__PURE__ */ React.createElement("section", { className: "exp-hero" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow reveal in" }, "The Pawpad experience"), /* @__PURE__ */ React.createElement("h1", { className: "h-display reveal in", style: { marginTop: 24, maxWidth: "18ch" } }, "What it actually ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "feels like"), " to bring your pet here"), /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28, maxWidth: "60ch" } }, "At Pawpad, appointments are intentionally spaced out to ensure that grooming is never rushed. We work at a pace that allows pets to settle, adjust, and feel comfortable throughout the grooming process.")), /* @__PURE__ */ React.createElement("style", null, `
+  const c = useExperienceContent();
+  return /* @__PURE__ */ React.createElement("section", { className: "exp-hero" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow reveal in" }, c.eyebrow || "The Pawpad experience"), /* @__PURE__ */ React.createElement("h1", { className: "h-display reveal in", style: { marginTop: 24, maxWidth: "18ch" } }, c.title || "What it actually ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, c.titleAccent || "feels like"), c.titleEnd === undefined ? " to bring your pet here" : c.titleEnd), /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 28, maxWidth: "60ch" } }, c.lead || "At Pawpad, appointments are intentionally spaced out to ensure that grooming is never rushed. We work at a pace that allows pets to settle, adjust, and feel comfortable throughout the grooming process.")), /* @__PURE__ */ React.createElement("style", null, `
         .exp-hero { padding: 180px 0 60px; }
       `));
 }
 function StepJourney() {
+  const EXPERIENCE_STEPS = useExperienceContent().steps;
   const [active, setActive] = useStateE(0);
   const stepsRef = useRefE([]);
 
@@ -170,7 +184,15 @@ function StepJourney() {
   );
 }
 function HandlingPhilosophy() {
-  return /* @__PURE__ */ React.createElement("section", { className: "handling" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "handling-grid" }, /* @__PURE__ */ React.createElement("div", { className: "handling-images reveal" }, /* @__PURE__ */ React.createElement("div", { className: "h-img-1 blob-2" }, /* @__PURE__ */ React.createElement("img", { src: "assets/img/pawpad/grooming-snapshot.webp", alt: "Gentle grooming at Pawpad" })), /* @__PURE__ */ React.createElement("div", { className: "h-img-2 blob-1" }, /* @__PURE__ */ React.createElement("img", { src: "assets/img/pawpad/grooming-page-grooming-massage.webp", alt: "A dog calmly relaxing during a gentle massage" })), /* @__PURE__ */ React.createElement("div", { className: "handling-badge" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 20, color: "var(--driftwood)" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, "Calm"), /* @__PURE__ */ React.createElement("span", null, "appointment-only care with room to pause")))), /* @__PURE__ */ React.createElement("div", { className: "handling-text reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "The Pawpad experience"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "15ch" } }, "Grooming at ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "your pet's pace")), /* @__PURE__ */ React.createElement("p", { style: { marginTop: 28, maxWidth: "54ch" } }, "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive."), /* @__PURE__ */ React.createElement("p", { style: { maxWidth: "54ch" } }, "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity."), /* @__PURE__ */ React.createElement("p", { style: { maxWidth: "54ch" } }, "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process."), /* @__PURE__ */ React.createElement("p", { style: { maxWidth: "54ch" } }, "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating."), /* @__PURE__ */ React.createElement("p", { style: { maxWidth: "54ch" } }, "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet.")))), /* @__PURE__ */ React.createElement("style", null, `
+  const h = useExperienceContent().handling;
+  const paragraphs = Array.isArray(h.paragraphs) && h.paragraphs.length ? h.paragraphs : [
+    "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive.",
+    "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity.",
+    "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process.",
+    "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating.",
+    "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet."
+  ];
+  return /* @__PURE__ */ React.createElement("section", { className: "handling" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "handling-grid" }, /* @__PURE__ */ React.createElement("div", { className: "handling-images reveal" }, /* @__PURE__ */ React.createElement("div", { className: "h-img-1 blob-2" }, /* @__PURE__ */ React.createElement("img", { src: h.img1 || "assets/img/pawpad/grooming-snapshot.webp", alt: "Gentle grooming at Pawpad" })), /* @__PURE__ */ React.createElement("div", { className: "h-img-2 blob-1" }, /* @__PURE__ */ React.createElement("img", { src: h.img2 || "assets/img/pawpad/grooming-page-grooming-massage.webp", alt: "A dog calmly relaxing during a gentle massage" })), /* @__PURE__ */ React.createElement("div", { className: "handling-badge" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 20, color: "var(--driftwood)" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, h.badgeTitle || "Calm"), /* @__PURE__ */ React.createElement("span", null, h.badgeText || "appointment-only care with room to pause")))), /* @__PURE__ */ React.createElement("div", { className: "handling-text reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, h.eyebrow || "The Pawpad experience"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "15ch" } }, h.title || "Grooming at ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, h.titleAccent || "your pet's pace")), paragraphs.map((text, i) => /* @__PURE__ */ React.createElement("p", { key: i, style: i === 0 ? { marginTop: 28, maxWidth: "54ch" } : { maxWidth: "54ch" } }, text))))), /* @__PURE__ */ React.createElement("style", null, `
         .handling { background: var(--cream-bg); }
         .handling-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
         .handling-images { position: relative; aspect-ratio: 1/1.1; }
@@ -198,7 +220,8 @@ function HandlingPhilosophy() {
       `));
 }
 function ProductsStrip() {
-  const products = [
+  const pr = useExperienceContent().products;
+  const defaultProducts = [
     { name: "Coat-specific care", note: "Products are selected according to each pet's coat type, skin condition, sensitivities, and grooming requirements." },
     { name: "Healthy skin", note: "Shampoos, conditioners, treatments, and coat care products are chosen to support skin and coat maintenance." },
     { name: "Sensitive pets", note: "Particular care is taken when working with pets who have sensitive skin, allergies, coat concerns, or specific grooming needs." },
@@ -206,7 +229,8 @@ function ProductsStrip() {
     { name: "Individual plans", note: "Rather than taking a one-product-fits-all approach, each product choice is tailored to the individual animal." },
     { name: "Long-term comfort", note: "Every product used should contribute positively to your pet's comfort, wellbeing, and long-term coat health." }
   ];
-  return /* @__PURE__ */ React.createElement("section", { className: "products" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "products-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Products we use"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "22ch" } }, "What we put ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "on them"), ", matters"), /* @__PURE__ */ React.createElement("p", { className: "lead", style: { marginTop: 24, maxWidth: "54ch" } }, "We use professional-grade grooming products selected according to each pet's individual coat type, skin condition, sensitivities, and grooming requirements.")), /* @__PURE__ */ React.createElement("div", { className: "products-grid reveal" }, products.map((p, i) => /* @__PURE__ */ React.createElement("div", { key: p.name, className: "product-card", style: { transitionDelay: `${i * 70}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "product-no" }, "0", i + 1), /* @__PURE__ */ React.createElement("h4", { className: "h-3", style: { fontFamily: "var(--f-display)" } }, p.name), /* @__PURE__ */ React.createElement("p", null, p.note))))), /* @__PURE__ */ React.createElement("style", null, `
+  const products = Array.isArray(pr.items) && pr.items.length ? pr.items : defaultProducts;
+  return /* @__PURE__ */ React.createElement("section", { className: "products" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "products-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, pr.eyebrow || "Products we use"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "22ch" } }, pr.title || "What we put ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, pr.titleAccent || "on them"), pr.titleEnd === undefined ? ", matters" : pr.titleEnd), /* @__PURE__ */ React.createElement("p", { className: "lead", style: { marginTop: 24, maxWidth: "54ch" } }, pr.lead || "We use professional-grade grooming products selected according to each pet's individual coat type, skin condition, sensitivities, and grooming requirements.")), /* @__PURE__ */ React.createElement("div", { className: "products-grid reveal" }, products.map((p, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "product-card", style: { transitionDelay: `${i * 70}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "product-no" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("h4", { className: "h-3", style: { fontFamily: "var(--f-display)" } }, p.name), /* @__PURE__ */ React.createElement("p", null, p.note))))), /* @__PURE__ */ React.createElement("style", null, `
         .products { background: var(--champagne); }
         .products-head { max-width: 720px; margin-bottom: 56px; }
         .products-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }

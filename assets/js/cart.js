@@ -841,7 +841,8 @@ function derivePetSlots(items) {
     const isCat = !!(item.isCatOnly || item.petType === "Cat");
     const isDog = !!(item.isDogOnly || item.petType === "Dog" || item.category === "Boarding");
     const isFlexible = !!(item.allowPetTypeSelection || (!isCat && !isDog));
-    const isOvernight = item.id === "boarding-overnight" || !!item.requiresTrialDayCheck;
+    // Stays that need a trial day first (set per boarding package in the admin panel).
+    const isOvernight = item.requiresTrialDayCheck !== undefined ? !!item.requiresTrialDayCheck : item.id === "boarding-overnight";
 
     // Default pet type for flexible service: if only cat services exist in cart, default to Cat, else Dog
     const defaultFlexibleType = (hasCat && !hasDog) ? "Cat" : "Dog";
@@ -864,6 +865,20 @@ function derivePetSlots(items) {
   });
 
   return slots;
+}
+
+/** The Trial Day price from Website Content CMS → Boarding (₹850 if it can't be read). */
+function boardingTrialDayPrice() {
+  try {
+    const boarding = window.PawpadContentStore && window.PawpadContentStore.get("boarding");
+    const trial = boarding && Array.isArray(boarding.packages)
+      ? boarding.packages.find((p) => p && (p.key === "trial-day" || String(p.title || "").toLowerCase().includes("trial")))
+      : null;
+    const n = trial ? parseFloat(String(trial.price || trial.priceNum || "").replace(/[^0-9.]/g, "")) : NaN;
+    return n > 0 ? n : 850;
+  } catch (e) {
+    return 850;
+  }
 }
 
 function CheckoutModal({ open, onClose }) {
@@ -942,11 +957,15 @@ function CheckoutModal({ open, onClose }) {
   if (!open) return null;
 
   const requiresPetInfo = petSlots.length > 0;
-  const hasOvernight = items.some((i) => i.id === "boarding-overnight" || i.requiresTrialDayCheck);
-  const hasTrialDay = items.some((i) => i.id === "boarding-trial-day");
+  const hasOvernight = items.some((i) => (i.requiresTrialDayCheck !== undefined ? !!i.requiresTrialDayCheck : i.id === "boarding-overnight"));
+  const trialDayItems = items.filter((i) => i.id === "boarding-trial-day").reduce((n, i) => n + (i.quantity || 1), 0);
+  const hasTrialDay = trialDayItems > 0;
 
+  // Every dog staying overnight that hasn't done a trial day pays for one (at the Trial Day price
+  // set in the admin panel), unless a trial day is already in the cart for it.
   const anyPetHasCompletedTrial = pets.some((p) => p.isOvernight && p.hasCompletedTrialDay);
-  const mandatoryTrialDayFee = (hasOvernight && !anyPetHasCompletedTrial && !hasTrialDay) ? 850 : 0;
+  const petsNeedingTrial = pets.filter((p) => p.isOvernight && p.hasCompletedTrialDay === false).length;
+  const mandatoryTrialDayFee = hasOvernight ? Math.max(0, petsNeedingTrial - trialDayItems) * boardingTrialDayPrice() : 0;
   const subtotal = items.reduce((acc, i) => acc + (Number(i.price) || 0) * (i.quantity || 1), 0);
   const finalTotal = subtotal + mandatoryTrialDayFee;
 
@@ -1230,6 +1249,28 @@ function CheckoutModal({ open, onClose }) {
       };
     }
 
+    // Boarding stays are saved on the Pawpad server too, so the team can confirm them in the admin panel.
+    const boardingItems = items.filter((i) => i.category === "Boarding");
+    if (boardingItems.length && window.PawpadApi && window.PawpadApi.isEnabled()) {
+      setPlacing(true);
+      const boarding = await window.PawpadApi.call("create_boarding_request", {
+        customer: orderPayload.customer,
+        stayDate: orderPayload.appointment.date,
+        stayTime: orderPayload.appointment.time,
+        notes: customerData.notes || "",
+        items: boardingItems.map((i) => ({ title: i.title, quantity: i.quantity || 1, priceDisplay: i.priceDisplay || `₹${formatInr(i.price)}` })),
+        pets: resolvedPets.filter((p, idx) => petSlots[idx] && String(petSlots[idx].serviceId || "").startsWith("boarding")),
+        total: `₹${formatInr(finalTotal)}`,
+        trialFee: mandatoryTrialDayFee > 0 ? `₹${formatInr(mandatoryTrialDayFee)}` : "",
+        botcheck: ""
+      });
+      setPlacing(false);
+      if (boarding.ok) {
+        orderPayload.boardingRef = boarding.data.ref;
+        if (!hasSlotPets) orderPayload.orderId = boarding.data.ref; // no grooming booking: use the boarding reference
+      }
+    }
+
     if (window.hsSubmit) {
       window.hsSubmit("checkout", orderPayload);
     }
@@ -1359,7 +1400,7 @@ function CheckoutModal({ open, onClose }) {
                   `Hi Pawpad! I placed booking ref ${completedOrder.orderId} for ${completedOrder.pets && completedOrder.pets.length > 0
                     ? completedOrder.pets.map((p) => `${p.name} (${p.type})`).join(", ")
                     : "my booking"
-                  }. Total: ₹${formatInr(completedOrder.totalAmount)}${completedOrder.mandatoryTrialDayFee > 0 ? " (includes ₹850 mandatory Trial Day fee)" : ""}.`
+                  }. Total: ₹${formatInr(completedOrder.totalAmount)}${completedOrder.mandatoryTrialDayFee > 0 ? " (includes ₹${formatInr(completedOrder.mandatoryTrialDayFee)} Trial Day fee)" : ""}.`
                 )}`,
                 target: "_blank",
                 rel: "noopener",
@@ -1831,7 +1872,7 @@ function CheckoutModal({ open, onClose }) {
                         : React.createElement(
                           "div",
                           { className: "trial-day-helper-badge fee-notice" },
-                          "ℹ️ First-Time Stay: Since your pet hasn't had a trial day before, the mandatory Trial Day fee (₹850) will be added to your final bill summary."
+                          `ℹ️ First-Time Stay: Since your pet hasn't had a trial day before, the mandatory Trial Day fee (₹${formatInr(boardingTrialDayPrice())}) will be added to your final bill summary.`
                         )
                   )
                 )
@@ -2108,7 +2149,7 @@ function CheckoutModal({ open, onClose }) {
                         { style: { color: anyPetHasCompletedTrial ? "#2e7d32" : "var(--driftwood-deep)", fontWeight: 600 } },
                         anyPetHasCompletedTrial
                           ? "✓ Completed & Verified (No trial fee)"
-                          : (hasTrialDay ? "Trial Day included in cart" : "First-Time Stay (+₹850 Assessment Fee added)")
+                          : (hasTrialDay ? "Trial Day included in cart" : `First-Time Stay (+₹${formatInr(mandatoryTrialDayFee || boardingTrialDayPrice())} Assessment Fee added)`)
                       )
                     ),
                     React.createElement(

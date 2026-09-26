@@ -11,8 +11,12 @@ const ROUTE_HREF = {
   myotherapy: "myotherapy.html",
   contact: "contact.html"
 };
+// Accepts "studioSetup", "studio-setup", "Studio Setup", "studio-setup.html"… (typed in the admin panel).
 function hrefFor(key) {
-  return ROUTE_HREF[key] || ROUTE_HREF.home;
+  if (ROUTE_HREF[key]) return ROUTE_HREF[key];
+  const wanted = String(key || "").toLowerCase().replace(/\.html$/, "").replace(/[^a-z]/g, "");
+  const match = Object.keys(ROUTE_HREF).find((k) => k.toLowerCase() === wanted || ROUTE_HREF[k].replace(/\.html$/, "").replace(/[^a-z]/g, "") === wanted);
+  return match ? ROUTE_HREF[match] : ROUTE_HREF.home;
 }
 const PawIcon = ({ size = 18, color = "currentColor", style }) => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 64 64", width: size, height: size, style, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("ellipse", { cx: "32", cy: "16", rx: "5.5", ry: "7.5", fill: color }), /* @__PURE__ */ React.createElement("ellipse", { cx: "20", cy: "24", rx: "6", ry: "8", fill: color }), /* @__PURE__ */ React.createElement("ellipse", { cx: "44", cy: "24", rx: "6", ry: "8", fill: color }), /* @__PURE__ */ React.createElement("ellipse", { cx: "11", cy: "38", rx: "5", ry: "6.5", fill: color }), /* @__PURE__ */ React.createElement("ellipse", { cx: "53", cy: "38", rx: "5", ry: "6.5", fill: color }), /* @__PURE__ */ React.createElement("ellipse", { cx: "32", cy: "46", rx: "13", ry: "11", fill: color }));
 const Arrow = ({ size = 14 }) => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: size, height: size, fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", className: "arr" }, /* @__PURE__ */ React.createElement("line", { x1: "5", y1: "12", x2: "19", y2: "12" }), /* @__PURE__ */ React.createElement("polyline", { points: "13 6 19 12 13 18" }));
@@ -211,6 +215,8 @@ function TopNav({ route, onBook, onOpenCart }) {
           padding: 80px 32px 32px;
           display: flex; flex-direction: column; gap: 24px;
           animation: slideIn .35s var(--ease) both;
+          /* Long menus scroll inside the panel on small phones. */
+          overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
         }
         .mobile-menu-inner .close {
           position: absolute; top: 20px; right: 24px;
@@ -228,35 +234,61 @@ function TopNav({ route, onBook, onOpenCart }) {
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
       `));
 }
+// Footer text comes from the admin panel (Website Content CMS → Footer), the same on every page.
+const FOOTER_DEFAULTS = {
+  eyebrow: "Ready when you are",
+  title: "Soft hands",
+  titleAccent: "Calm pets",
+  lead: "Walk in with anxiety, leave with a wagging tail. Sessions are spaced, never rushed \u2014 and we plan around your pet's temperament, not our calendar.",
+  buttonText: "Read our story",
+  buttonTarget: "about",
+  hoursTitle: "Hours",
+  hoursLines: ["Weekdays: 11 AM - 8 PM", "Weekends: 10 AM - 8 PM", "Thursdays: Closed"],
+  addressTitle: "Address",
+  addressLines: ["#426, 5th Main Road,", "HRBR 2nd Block, Kalyan Nagar", "Bangalore - 560043 India"],
+  phoneDisplay: "+91 91484 43330",
+  phone: "+919148443330",
+  email: "",
+  instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
+  facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
+  twitter: "https://x.com/Pawpad_Blore",
+  exploreTitle: "Explore",
+  logo: "assets/img/logo-pawpad-03.png",
+  copyright: "\u00A9 2017 Pawpad. All rights reserved."
+};
 function Footer({ onBook }) {
+  const cms = typeof useCmsContent === "function" ? useCmsContent("footer") : {};
+  const f = { ...FOOTER_DEFAULTS, ...(cms || {}) };
+  const lines = (list, fallback) => (Array.isArray(list) && list.length ? list : fallback);
+  const withBreaks = (list) => list.flatMap((line, i) => (i ? [/* @__PURE__ */ React.createElement("br", { key: "b" + i }), line] : [line]));
+  const socials = [["instagram", "Instagram", InstagramIcon], ["facebook", "Facebook", FacebookIcon], ["twitter", "Twitter", TwitterIcon]].filter(([k]) => f[k]);
   return /* @__PURE__ */ React.createElement("footer", { className: "site-footer" },
     /* @__PURE__ */ React.createElement("div", { className: "container" },
       /* @__PURE__ */ React.createElement("div", { className: "footer-top" },
         /* @__PURE__ */ React.createElement("div", { className: "footer-cta-block" },
-          /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Ready when you are"),
-          /* @__PURE__ */ React.createElement("h2", { className: "h-1" }, "Soft hands", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--white)" } }, "Calm pets")),
-          /* @__PURE__ */ React.createElement("p", { className: "lead", style: { marginTop: 24 } }, "Walk in with anxiety, leave with a wagging tail. Sessions are spaced, never rushed — and we plan around your pet's temperament, not our calendar."),
-          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 32 } },
-            /* @__PURE__ */ React.createElement("a", { href: hrefFor("about"), className: "btn btn-primary" }, "Read our story ", /* @__PURE__ */ React.createElement(Arrow, null))
+          /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, f.eyebrow),
+          /* @__PURE__ */ React.createElement("h2", { className: "h-1" }, f.title, f.titleAccent && /* @__PURE__ */ React.createElement("br", null), f.titleAccent && /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--white)" } }, f.titleAccent)),
+          f.lead && /* @__PURE__ */ React.createElement("p", { className: "lead", style: { marginTop: 24 } }, f.lead),
+          f.buttonText && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 32 } },
+            /* @__PURE__ */ React.createElement("a", { href: hrefFor(f.buttonTarget), className: "btn btn-primary" }, f.buttonText, " ", /* @__PURE__ */ React.createElement(Arrow, null))
           )
         ),
         /* @__PURE__ */ React.createElement("div", { className: "footer-grid" },
           /* @__PURE__ */ React.createElement("div", null,
-            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, "Hours"),
-            /* @__PURE__ */ React.createElement("p", null, "Weekdays: 11 AM - 8 PM", /* @__PURE__ */ React.createElement("br", null), "Weekends: 10 AM - 8 PM", /* @__PURE__ */ React.createElement("br", null), "Thursdays: Closed")
+            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, f.hoursTitle),
+            /* @__PURE__ */ React.createElement("p", null, withBreaks(lines(f.hoursLines, FOOTER_DEFAULTS.hoursLines)))
           ),
           /* @__PURE__ */ React.createElement("div", null,
-            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, "Address"),
-            /* @__PURE__ */ React.createElement("p", null, "#426, 5th Main Road,", /* @__PURE__ */ React.createElement("br", null), "HRBR 2nd Block, Kalyan Nagar", /* @__PURE__ */ React.createElement("br", null), "Bangalore - 560043 India"),
-            /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:+919148443330" }, "+91 91484 43330")),
-            /* @__PURE__ */ React.createElement("div", { className: "socials" },
-              /* @__PURE__ */ React.createElement("a", { href: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr", "aria-label": "Instagram", target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(InstagramIcon, { size: 16 })),
-              /* @__PURE__ */ React.createElement("a", { href: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr", "aria-label": "Facebook", target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(FacebookIcon, { size: 16 })),
-              /* @__PURE__ */ React.createElement("a", { href: "https://x.com/Pawpad_Blore", "aria-label": "Twitter", target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(TwitterIcon, { size: 16 }))
+            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, f.addressTitle),
+            /* @__PURE__ */ React.createElement("p", null, withBreaks(lines(f.addressLines, FOOTER_DEFAULTS.addressLines))),
+            f.phoneDisplay && /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:" + String(f.phone || f.phoneDisplay).replace(/[^+\d]/g, "") }, f.phoneDisplay)),
+            f.email && /* @__PURE__ */ React.createElement("p", { style: { marginTop: 6 } }, /* @__PURE__ */ React.createElement("a", { href: "mailto:" + f.email }, f.email)),
+            socials.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "socials" },
+              socials.map(([k, label, Icon]) => /* @__PURE__ */ React.createElement("a", { key: k, href: f[k], "aria-label": label, target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(Icon, { size: 16 })))
             )
           ),
           /* @__PURE__ */ React.createElement("div", null,
-            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, "Explore"),
+            /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, f.exploreTitle),
             /* @__PURE__ */ React.createElement("ul", null,
               NAV_ITEMS.filter((i) => i.key !== "home").map((i) =>
                 /* @__PURE__ */ React.createElement("li", { key: i.key },
@@ -269,10 +301,10 @@ function Footer({ onBook }) {
       ),
       /* @__PURE__ */ React.createElement("div", { className: "footer-bottom" },
         /* @__PURE__ */ React.createElement("div", { className: "brand-mark" },
-          /* @__PURE__ */ React.createElement("img", { src: "assets/img/logo-pawpad-03.webp", alt: "Pawpad" })
+          /* @__PURE__ */ React.createElement("img", { src: f.logo || FOOTER_DEFAULTS.logo, alt: "Pawpad", decoding: "async" })
         ),
         /* @__PURE__ */ React.createElement("div", { className: "footer-bottom-meta" },
-          /* @__PURE__ */ React.createElement("p", { className: "micro" }, "© 2017 Pawpad. All rights reserved."),
+          /* @__PURE__ */ React.createElement("p", { className: "micro" }, f.copyright),
           /* @__PURE__ */ React.createElement("div", { className: "footer-legal" },
             /* @__PURE__ */ React.createElement("a", { href: "policies.html#privacy" }, "Privacy Policy"),
             /* @__PURE__ */ React.createElement("span", { className: "sep" }, "|"),
@@ -315,7 +347,7 @@ function Footer({ onBook }) {
           padding-top: 36px; border-top: 1px solid color-mix(in oklab, var(--cream-bg), transparent 88%);
           display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
         }
-        .brand-mark img { height: 88px; width: auto; max-width: 360px; object-fit: contain; opacity: .98; }
+        .brand-mark img { height: 88px; width: auto; max-width: 360px; object-fit: contain; opacity: .98; image-rendering: auto; }
         .footer-bottom-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
         .footer-bottom-meta .micro { margin: 0; font-size: 12px; letter-spacing: .04em; color: color-mix(in oklab, var(--white), transparent 25%); }
         .footer-legal { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
@@ -335,47 +367,21 @@ function Footer({ onBook }) {
       `)
   );
 }
-const TESTIMONIALS = [
-  {
-    quote: "Thank you so much to you Leena and your incredible team for taking such good care of Maggie during her grooming session. Maggie is generally anxious during grooming and after trying several large chain groomers, Pawpad has been a saviour.",
-    name: "Rithika Narayan",
-    pet: "Maggie"
-  },
-  {
-    quote: "Leena is a very patient and considerate groomer who really cares for your pets. Talks to them soothingly and is very gentle with them. Small touches like covering pets ears with a small towel while blow drying make a world of difference. Highly recommend!",
-    name: "Nisha Viswanathan",
-    pet: "Cat grooming client"
-  },
-  {
-    quote: "We take care of an abandoned 13-year-old Indie\u2013Poodle mix named Pepsi who lives near our apartment. When we first started looking after her, her coat was in a terrible condition with severe matting, cuts, and rashes. We began taking her to Pawpad, run by Leena Munikempanna, and the experience has been incredible. Leena and her team handled Pepsi with so much patience and care, and over a few grooming sessions they completely brought her coat back to life. What touched us even more was Leena's kindness \u2014 she generously offered us a discount on grooming sessions so we could continue bringing Pepsi in regularly. It's rare to find businesses that care this deeply not just for pets, but also for community animals. Highly recommend Pawpad to anyone looking for thoughtful, skilled, and compassionate grooming for their pets. \u{1F43E}",
-    name: "Koganti Jahnavi",
-    pet: "Pepsi \xB7 Community dog"
-  },
-  {
-    quote: "We have been taking my pet to Pawpad for over two years, and we have always been so happy with the care and service they provide. The team is consistently kind, welcoming, and genuinely caring, which makes every visit a positive experience. Their service level is excellent, and they always treat my pet with patience, gentleness, and professionalism. It is clear that they truly love animals and take pride in their work. Our dog always comes back looking great and well cared for.",
-    name: "Cidella",
-    pet: "Long-time grooming client"
-  },
-  {
-    quote: "Took my four cats for a spa today and I'm really happy with the service! All of them came back looking clean, relaxed, and super happy. The staff was gentle and caring throughout. Special thanks to Leena for doing such a wonderful job she handled them with so much love and patience. Highly recommend this place for pet grooming!",
-    name: "Lubna H.K",
-    pet: "Cat grooming client"
-  },
-  {
-    quote: "Pawpad in Kamanahalli is one of the best grooming places I\u2019ve been to\u2014mainly because they truly understand the assignment. I have a cocker spaniel who needs extra care due to her long coat, and Lena and her team understand her needs perfectly. I usually share reference pictures, and they follow the instructions exactly as requested. My dog always comes back happy, looking fresh, smelling great, and groomed beautifully. I would highly recommend Pawpad to any pet parent looking for a stress-free, hassle-free grooming experience where their dog is genuinely well cared for.",
-    name: "Thanky Mathew",
-    pet: "Cocker Spaniels"
-  }
-];
 function Testimonials() {
+  // Editable in the admin panel (Website Content CMS → Home Page → Testimonials).
+  const cms = typeof useCmsContent === "function" ? useCmsContent("home") : {};
+  const TESTIMONIALS = cms && Array.isArray(cms.testimonials) ? cms.testimonials.filter((t) => t && t.quote && String(t.quote).trim()) : [];
+  const head = { eyebrow: "Word of paw", title: "Trusted by humans ", titleAccent: "and their pets", ...((cms && cms.testimonialsHead) || {}) };
   const [i, setI] = useState(0);
+  const current = TESTIMONIALS.length ? i % TESTIMONIALS.length : 0;
   const [paused, setPaused] = useState(false);
   useEffect(() => {
-    if (paused) return;
+    if (paused || TESTIMONIALS.length < 2) return;
     const t = setInterval(() => setI((v) => (v + 1) % TESTIMONIALS.length), 6500);
     return () => clearInterval(t);
-  }, [paused]);
-  return /* @__PURE__ */ React.createElement("section", { className: "testi-section", onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false) }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "testi-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Word of paw"), /* @__PURE__ */ React.createElement("h2", { className: "h-1" }, "Trusted by humans ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "and their pets"))), /* @__PURE__ */ React.createElement("div", { className: "testi-stage reveal" }, TESTIMONIALS.map((t, idx) => /* @__PURE__ */ React.createElement("div", { key: idx, className: "testi-card " + (idx === i ? "active" : idx === (i + TESTIMONIALS.length - 1) % TESTIMONIALS.length ? "prev" : "next") }, /* @__PURE__ */ React.createElement("div", { className: "testi-body" }, /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 32 24", width: "38", className: "testi-quote-mark", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { fill: "currentColor", d: "M0 24V14C0 6 4 1 12 0v6c-4 1-6 4-6 8h6v10H0zm20 0V14c0-8 4-13 12-14v6c-4 1-6 4-6 8h6v10H20z" })), /* @__PURE__ */ React.createElement("p", { className: "testi-quote" }, t.quote), /* @__PURE__ */ React.createElement("div", { className: "testi-who" }, /* @__PURE__ */ React.createElement("strong", null, t.name), /* @__PURE__ */ React.createElement("span", null, t.pet)))))), /* @__PURE__ */ React.createElement("div", { className: "testi-controls" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setI((i + TESTIMONIALS.length - 1) % TESTIMONIALS.length), "aria-label": "Previous testimonial" }, "\u2190"), /* @__PURE__ */ React.createElement("div", { className: "dots" }, TESTIMONIALS.map((_, idx) => /* @__PURE__ */ React.createElement("button", { key: idx, className: "dot " + (idx === i ? "on" : ""), onClick: () => setI(idx), "aria-label": `Testimonial ${idx + 1}` }))), /* @__PURE__ */ React.createElement("button", { onClick: () => setI((i + 1) % TESTIMONIALS.length), "aria-label": "Next testimonial" }, "\u2192"))), /* @__PURE__ */ React.createElement("style", null, `
+  }, [paused, TESTIMONIALS.length]);
+  if (!TESTIMONIALS.length) return null;
+  return /* @__PURE__ */ React.createElement("section", { className: "testi-section", onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false) }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "testi-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, head.eyebrow), /* @__PURE__ */ React.createElement("h2", { className: "h-1" }, head.title, /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, head.titleAccent))), /* @__PURE__ */ React.createElement("div", { className: "testi-stage reveal" }, TESTIMONIALS.map((t, idx) => /* @__PURE__ */ React.createElement("div", { key: idx, className: "testi-card " + (idx === current ? "active" : idx === (current + TESTIMONIALS.length - 1) % TESTIMONIALS.length ? "prev" : "next") }, /* @__PURE__ */ React.createElement("div", { className: "testi-body" }, /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 32 24", width: "38", className: "testi-quote-mark", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { fill: "currentColor", d: "M0 24V14C0 6 4 1 12 0v6c-4 1-6 4-6 8h6v10H0zm20 0V14c0-8 4-13 12-14v6c-4 1-6 4-6 8h6v10H20z" })), /* @__PURE__ */ React.createElement("p", { className: "testi-quote" }, "\u201C", String(t.quote).trim().replace(/^["\u201C]|["\u201D]$/g, ""), "\u201D"), /* @__PURE__ */ React.createElement("div", { className: "testi-who" }, /* @__PURE__ */ React.createElement("strong", null, t.name), /* @__PURE__ */ React.createElement("span", null, t.pet)))))), /* @__PURE__ */ React.createElement("div", { className: "testi-controls" }, /* @__PURE__ */ React.createElement("button", { onClick: () => setI((current + TESTIMONIALS.length - 1) % TESTIMONIALS.length), "aria-label": "Previous testimonial" }, "\u2190"), /* @__PURE__ */ React.createElement("div", { className: "dots" }, TESTIMONIALS.map((_, idx) => /* @__PURE__ */ React.createElement("button", { key: idx, className: "dot " + (idx === current ? "on" : ""), onClick: () => setI(idx), "aria-label": `Testimonial ${idx + 1}` }))), /* @__PURE__ */ React.createElement("button", { onClick: () => setI((current + 1) % TESTIMONIALS.length), "aria-label": "Next testimonial" }, "\u2192"))), /* @__PURE__ */ React.createElement("style", null, `
         .testi-section { background: var(--champagne-soft); }
         .testi-head { margin-bottom: 64px; max-width: 720px; }
         .testi-stage { display: grid; }
@@ -427,12 +433,20 @@ function Testimonials() {
       `));
 }
 function Marquee({ items }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "marquee", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("div", { className: "m-track" }, [...items, ...items, ...items].map((it, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: "m-item" }, /* @__PURE__ */ React.createElement("span", null, it), /* @__PURE__ */ React.createElement(PawIcon, { size: 14, color: "currentColor" })))), /* @__PURE__ */ React.createElement("style", null, `
+  // Two identical halves that each fill more than a wide screen; sliding by exactly one half
+  // loops without a gap, however few phrases there are.
+  const list = (Array.isArray(items) ? items : []).map((x) => String(x).trim()).filter(Boolean);
+  const phrases = list.length ? list : ["made with care"];
+  const half = [];
+  while (half.length < 14) half.push(...phrases);
+  const seconds = Math.max(24, half.length * 4);
+  const renderHalf = (h) => half.map((it, i) => /* @__PURE__ */ React.createElement("span", { key: h + i, className: "m-item" }, /* @__PURE__ */ React.createElement("span", null, it), /* @__PURE__ */ React.createElement(PawIcon, { size: 14, color: "currentColor" })));
+  return /* @__PURE__ */ React.createElement("div", { className: "marquee", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("div", { className: "m-track", style: { animationDuration: seconds + "s" } }, renderHalf("a"), renderHalf("b")), /* @__PURE__ */ React.createElement("style", null, `
         .marquee { overflow: hidden; padding: 28px 0; background: #2e2e2e; color: var(--white); border-top: 1px solid color-mix(in oklab, var(--cream-bg), transparent 88%); border-bottom: 1px solid color-mix(in oklab, var(--cream-bg), transparent 88%); }
-        .m-track { display: flex; gap: 56px; white-space: nowrap; animation: scroll 38s linear infinite; }
+        .m-track { display: flex; width: max-content; white-space: nowrap; animation: marquee-scroll 60s linear infinite; }
         body[data-motion="still"] .m-track { animation: none; }
-        .m-item { display: inline-flex; align-items: center; gap: 24px; font-family: var(--f-display); font-size: clamp(28px, 3vw, 44px); }
-        @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-33.333%); } }
+        .m-item { display: inline-flex; align-items: center; gap: 24px; padding-right: 56px; font-family: var(--f-display); font-size: clamp(28px, 3vw, 44px); }
+        @keyframes marquee-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
       `));
 }
 const WA_NUMBER = "919148443330";

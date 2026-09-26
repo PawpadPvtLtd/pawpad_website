@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -224,6 +224,30 @@ function create_tables(PDO $pdo): void
         html MEDIUMTEXT NOT NULL,
         text_body MEDIUMTEXT NOT NULL,
         INDEX idx_reports_date (report_date)
+    ) $opts");
+
+    // Boarding requests from the website checkout (confirmed by the team, not instantly).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS boarding_requests (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        ref VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'new',
+        customer_name VARCHAR(255) NOT NULL DEFAULT '',
+        customer_email VARCHAR(255) NOT NULL DEFAULT '',
+        customer_phone VARCHAR(60) NOT NULL DEFAULT '',
+        contact_method VARCHAR(30) NOT NULL DEFAULT '',
+        stay_date VARCHAR(40) NOT NULL DEFAULT '',
+        stay_time VARCHAR(40) NOT NULL DEFAULT '',
+        pets MEDIUMTEXT NOT NULL,
+        items MEDIUMTEXT NOT NULL,
+        total VARCHAR(40) NOT NULL DEFAULT '',
+        trial_fee VARCHAR(40) NOT NULL DEFAULT '',
+        notes TEXT NOT NULL,
+        admin_log MEDIUMTEXT NULL,
+        email_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX idx_boarding_created (created_at),
+        INDEX idx_boarding_status (status)
     ) $opts");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS rate_events (

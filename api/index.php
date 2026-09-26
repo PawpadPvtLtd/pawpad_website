@@ -3,12 +3,13 @@
  * Pawpad API — https://api.pawpad.in/index.php?action=<name>
  *
  * Public:  health (GET), get_content (GET or POST), submit_application,
- *          booking_availability (GET or POST), create_booking
+ *          booking_availability (GET or POST), create_booking, create_boarding_request
  * Staff (Owner, Administrator and Manager):
  *          login, logout, me, change_password,
  *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking,
  *          list_applications, update_application (Manager: interviews, notes, enrol only),
- *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report
+ *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report,
+ *          list_boarding_requests, update_boarding_request
  * Owner and Administrator only:
  *          cleanup_calendar, block_slot, unblock_slot,
  *          closure_preview, create_closure, list_closures, delete_closure,
@@ -35,6 +36,7 @@ require __DIR__ . '/lib/caldav.php';
 require __DIR__ . '/lib/bookings.php';
 require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
+require __DIR__ . '/lib/boarding.php';
 
 apply_security_headers();
 apply_cors();
@@ -82,6 +84,9 @@ try {
         case 'create_booking':
             send_json(['ok' => true] + create_booking($input), 201);
             break;
+        case 'create_boarding_request':
+            send_json(['ok' => true] + create_boarding_request($input), 201);
+            break;
         case 'login':
             send_json(['ok' => true] + login($input));
             break;
@@ -119,6 +124,13 @@ try {
             break;
         case 'cancel_booking':
             send_json(['ok' => true] + cancel_booking(require_role(STAFF_ROLES), $input));
+            break;
+        case 'list_boarding_requests':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + list_boarding_requests());
+            break;
+        case 'update_boarding_request':
+            send_json(['ok' => true] + update_boarding_request(require_role(STAFF_ROLES), $input));
             break;
         case 'closing_day':
             require_role(STAFF_ROLES);

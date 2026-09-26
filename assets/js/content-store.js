@@ -116,7 +116,151 @@
           { title: "Skilled with fearful & rescue dogs", body: "Years of rescue work means we know how to meet scared, overwhelmed or unsocialised animals at their level of comfort without imposing" }
         ]
       },
-      marqueeItems: ["conscious grooming", "calm handling", "no sedation", "streetie-friendly", "kalyan nagar", "since 2017", "made with care"]
+      marqueeItems: ["conscious grooming", "calm handling", "no sedation", "streetie-friendly", "kalyan nagar", "since 2017", "made with care"],
+      testimonialsHead: { eyebrow: "Word of paw", title: "Trusted by humans ", titleAccent: "and their pets" },
+      testimonials: [
+        {
+          quote: "Thank you so much to you Leena and your incredible team for taking such good care of Maggie during her grooming session. Maggie is generally anxious during grooming and after trying several large chain groomers, Pawpad has been a saviour.",
+          name: "Rithika Narayan",
+          pet: "Maggie"
+        },
+        {
+          quote: "Leena is a very patient and considerate groomer who really cares for your pets. Talks to them soothingly and is very gentle with them. Small touches like covering pets ears with a small towel while blow drying make a world of difference. Highly recommend!",
+          name: "Nisha Viswanathan",
+          pet: "Cat grooming client"
+        },
+        {
+          quote: "We take care of an abandoned 13-year-old Indie\u2013Poodle mix named Pepsi who lives near our apartment. When we first started looking after her, her coat was in a terrible condition with severe matting, cuts, and rashes. We began taking her to Pawpad, run by Leena Munikempanna, and the experience has been incredible. Leena and her team handled Pepsi with so much patience and care, and over a few grooming sessions they completely brought her coat back to life. What touched us even more was Leena's kindness \u2014 she generously offered us a discount on grooming sessions so we could continue bringing Pepsi in regularly. It's rare to find businesses that care this deeply not just for pets, but also for community animals. Highly recommend Pawpad to anyone looking for thoughtful, skilled, and compassionate grooming for their pets. \u{1F43E}",
+          name: "Koganti Jahnavi",
+          pet: "Pepsi \xB7 Community dog"
+        },
+        {
+          quote: "We have been taking my pet to Pawpad for over two years, and we have always been so happy with the care and service they provide. The team is consistently kind, welcoming, and genuinely caring, which makes every visit a positive experience. Their service level is excellent, and they always treat my pet with patience, gentleness, and professionalism. It is clear that they truly love animals and take pride in their work. Our dog always comes back looking great and well cared for.",
+          name: "Cidella",
+          pet: "Long-time grooming client"
+        },
+        {
+          quote: "Took my four cats for a spa today and I'm really happy with the service! All of them came back looking clean, relaxed, and super happy. The staff was gentle and caring throughout. Special thanks to Leena for doing such a wonderful job she handled them with so much love and patience. Highly recommend this place for pet grooming!",
+          name: "Lubna H.K",
+          pet: "Cat grooming client"
+        },
+        {
+          quote: "Pawpad in Kamanahalli is one of the best grooming places I\u2019ve been to\u2014mainly because they truly understand the assignment. I have a cocker spaniel who needs extra care due to her long coat, and Lena and her team understand her needs perfectly. I usually share reference pictures, and they follow the instructions exactly as requested. My dog always comes back happy, looking fresh, smelling great, and groomed beautifully. I would highly recommend Pawpad to any pet parent looking for a stress-free, hassle-free grooming experience where their dog is genuinely well cared for.",
+          name: "Thanky Mathew",
+          pet: "Cocker Spaniels"
+        }
+      ]
+    },
+    experience: {
+      "eyebrow": "The Pawpad experience",
+      "title": "What it actually ",
+      "titleAccent": "feels like",
+      "titleEnd": " to bring your pet here",
+      "lead": "At Pawpad, appointments are intentionally spaced out to ensure that grooming is never rushed. We work at a pace that allows pets to settle, adjust, and feel comfortable throughout the grooming process.",
+      "steps": [
+        {
+          "title": "A Little Hello",
+          "body": "Tell us about your pet — their personality, preferences, and anything you'd like us to know.",
+          "img": "assets/img/pawpad/experience-a-little-hello.webp",
+          "pos": "right center"
+        },
+        {
+          "title": "A Calm Welcome",
+          "body": "Your pet arrives in a quiet, appointment-only space designed to help them settle in comfortably.",
+          "img": "assets/img/pawpad/experience-a-calm-welcome-snapshot.webp"
+        },
+        {
+          "title": "Getting to Know Them",
+          "body": "We take a moment to assess their coat, comfort levels, and individual needs before we begin.",
+          "img": "assets/img/pawpad/experience-getting-to-know-them-snapshot.webp"
+        },
+        {
+          "title": "Care at Their Pace",
+          "body": "Grooming is tailored to your pet, with plenty of patience, breaks, and gentle handling along the way.",
+          "img": "assets/img/pawpad/experience-care-at-their-pace-snapshot.webp"
+        },
+        {
+          "title": "One-on-One Attention",
+          "body": "No cages. No rushing. Just dedicated care focused entirely on your pet's wellbeing.",
+          "img": "assets/img/pawpad/grooming-page-grooming-hair-cut.webp"
+        },
+        {
+          "title": "Ready to Head Home",
+          "body": "A fresh coat, a comfortable pet, and personalised recommendations for care between visits.",
+          "img": "assets/img/pawpad/experience-ready-to-head-home-snapshot.webp"
+        }
+      ],
+      "handling": {
+        "eyebrow": "The Pawpad experience",
+        "title": "Grooming at ",
+        "titleAccent": "your pet's pace",
+        "paragraphs": [
+          "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive.",
+          "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity.",
+          "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process.",
+          "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating.",
+          "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet."
+        ],
+        "img1": "assets/img/pawpad/grooming-snapshot.webp",
+        "img2": "assets/img/pawpad/grooming-page-grooming-massage.webp",
+        "badgeTitle": "Calm",
+        "badgeText": "appointment-only care with room to pause"
+      },
+      "products": {
+        "eyebrow": "Products we use",
+        "title": "What we put ",
+        "titleAccent": "on them",
+        "titleEnd": ", matters",
+        "lead": "We use professional-grade grooming products selected according to each pet's individual coat type, skin condition, sensitivities, and grooming requirements.",
+        "items": [
+          {
+            "name": "Coat-specific care",
+            "note": "Products are selected according to each pet's coat type, skin condition, sensitivities, and grooming requirements."
+          },
+          {
+            "name": "Healthy skin",
+            "note": "Shampoos, conditioners, treatments, and coat care products are chosen to support skin and coat maintenance."
+          },
+          {
+            "name": "Sensitive pets",
+            "note": "Particular care is taken when working with pets who have sensitive skin, allergies, coat concerns, or specific grooming needs."
+          },
+          {
+            "name": "Gentle formulas",
+            "note": "We prioritise products that are gentle, safe, and effective without unnecessarily harsh ingredients or overpowering fragrances."
+          },
+          {
+            "name": "Individual plans",
+            "note": "Rather than taking a one-product-fits-all approach, each product choice is tailored to the individual animal."
+          },
+          {
+            "name": "Long-term comfort",
+            "note": "Every product used should contribute positively to your pet's comfort, wellbeing, and long-term coat health."
+          }
+        ]
+      }
+    },
+    // Shown at the bottom of every page (edited once in the admin panel).
+    footer: {
+      eyebrow: "Ready when you are",
+      title: "Soft hands",
+      titleAccent: "Calm pets",
+      lead: "Walk in with anxiety, leave with a wagging tail. Sessions are spaced, never rushed \u2014 and we plan around your pet's temperament, not our calendar.",
+      buttonText: "Read our story",
+      buttonTarget: "about",
+      hoursTitle: "Hours",
+      hoursLines: ["Weekdays: 11 AM - 8 PM", "Weekends: 10 AM - 8 PM", "Thursdays: Closed"],
+      addressTitle: "Address",
+      addressLines: ["#426, 5th Main Road,", "HRBR 2nd Block, Kalyan Nagar", "Bangalore - 560043 India"],
+      phoneDisplay: "+91 91484 43330",
+      phone: "+919148443330",
+      email: "",
+      instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
+      facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
+      twitter: "https://x.com/Pawpad_Blore",
+      exploreTitle: "Explore",
+      logo: "assets/img/logo-pawpad-03.png",
+      copyright: "\u00A9 2017 Pawpad. All rights reserved."
     },
     about: {
       hero: {
@@ -171,7 +315,8 @@
           "assets/img/pawpad/about-our-philosophy-collage-2.webp",
           "assets/img/pawpad/about-our-philosophy-collage-3.webp",
           "assets/img/pawpad/about-our-philosophy-collage-4.webp",
-          "assets/img/pawpad/about-our-philosophy-collage-5.webp"
+          "assets/img/pawpad/about-our-philosophy-collage-5.webp",
+          "assets/img/pawpad/about-our-philosophy-collage-3-1.webp"
         ]
       },
       studio: {
@@ -217,6 +362,15 @@
     grooming: {
       eyebrow: "Grooming services",
       title: "Stress-free grooming",
+      notesHead: { eyebrow: "Before you book", title: "A few small things that ", titleAccent: "help a lot" },
+      notes: [
+        { t: "Arrive 10 minutes early", d: "Your pet gets time to sniff the studio and meet the team before anything starts." },
+        { t: "A calm, safe environment", d: "Cats should arrive in a secure carrier, while dogs remain on a leash. We carefully manage every arrival and keep pets separate at all times to ensure a relaxed, stress-free experience." },
+        { t: "Skip food right before", d: "Light meals 2 hours before help avoid grooming-time tummy upset." },
+        { t: "Tell us everything", d: "Past grooming trauma, ticklish spots, recent vet visits \u2014 all useful." },
+        { t: "Mats need time", d: "Severe matting may need to be clipped down. Coats grow back; pain doesn't." },
+        { t: "Cancellation", d: "Give us 24 hours where possible \u2014 we hold spots so other anxious pets get the long slots they need." }
+      ],
       lead: "Conscious pet grooming in Bangalore — built around coat health, hygiene, gentle handling, and emotional wellbeing. Every session is paced around your pet's comfort.",
       heroImage: "assets/img/pawpad/grooming-snapshot.webp",
       packages: [
@@ -453,6 +607,8 @@
       courseList: [
         {
           key: "pcgec",
+          code: "PCGEC",
+          img: "assets/img/pawpad/course-dog-grooming.webp",
           cat: "Essentials",
           title: "Pawpad Canine Grooming Essentials Certificate (PCGEC)",
           price: "₹30,000",
@@ -467,6 +623,8 @@
         },
         {
           key: "pfgec",
+          code: "PFGEC",
+          img: "assets/img/pawpad/course-cat-grooming.webp",
           cat: "Essentials",
           title: "Pawpad Feline Grooming Essentials Certificate (PFGEC)",
           price: "₹30,000",
@@ -481,6 +639,8 @@
         },
         {
           key: "pcgpc",
+          code: "PCGPC",
+          img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
           cat: "Practitioner",
           title: "Pawpad Canine Grooming Practitioner Certificate (PCGPC)",
           price: "₹50,000",
@@ -495,6 +655,8 @@
         },
         {
           key: "pfgpc",
+          code: "PFGPC",
+          img: "assets/img/pawpad/cat-hair-cut.webp",
           cat: "Practitioner",
           title: "Pawpad Feline Grooming Practitioner Certificate (PFGPC)",
           price: "₹50,000",
@@ -509,6 +671,8 @@
         },
         {
           key: "pacgc",
+          code: "PACGC",
+          img: "assets/img/pawpad/courses-collage-images.webp",
           cat: "Comprehensive Certification",
           title: "Pawpad Applied Canine & Feline Grooming Certification (PACGC)",
           price: "₹95,000",
@@ -681,6 +845,14 @@
       heroLead: "Get layout, equipment and budget guidance from PawPad, where many working studio owners got their start — not a generic checklist.",
       introText: "Whether you're setting up your first grooming space or reworking an existing one, the equipment you choose and the way you lay out your studio shape everything downstream — how efficiently you can work, how safe it is for you and the animals, and how much you spend fixing avoidable mistakes later. This consulting service gives you direct, practical guidance grounded in real operating experience, not a template.",
       heroImage: "assets/img/pawpad/studio-setup-overview.webp",
+      heroCaption: "Practical Setup \u00B7 Real Experience",
+      headings: {
+        audience: { eyebrow: "AUDIENCE & FIT", title: "Who this is for" },
+        value: { eyebrow: "DELIVERABLES & VALUE", title: "What you get" },
+        packages: { eyebrow: "CONSULTATION FORMATS", title: "Two ways to ", titleAccent: "work together", lead: "Choose remote video consultations or an intensive on-site studio visit based on your stage and location." },
+        gallery: { eyebrow: "STUDIO INFRASTRUCTURE", title: "Designed for ", titleAccent: "calm, ergonomic care", lead: "From non-slip flooring and hydraulic lift tables to specialized stainless steel bathing stations, every detail is engineered for safety and ease." },
+        roadmap: { eyebrow: "HOW TO GET STARTED", title: "Simple 3-step ", titleAccent: "process", buttonText: "Get in Touch & Book" }
+      },
       whoThisIsFor: [
         "Anyone planning to open a grooming studio, whether your first or a new location",
         "Groomers reworking an existing space that isn't working well",
@@ -1081,9 +1253,7 @@
         if (!parsed.studioSetup.heroImage || parsed.studioSetup.heroImage.includes("studio-setup-overview-new")) {
           parsed.studioSetup.heroImage = DEFAULT_CONTENT.studioSetup.heroImage;
         }
-        if (Array.isArray(parsed.studioSetup.gallery)) {
-          parsed.studioSetup.gallery = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup.gallery));
-        }
+        // (The gallery used to be reset to the defaults here, which undid every admin change.)
       } else if (parsed) {
         parsed.studioSetup = JSON.parse(JSON.stringify(DEFAULT_CONTENT.studioSetup));
       }
@@ -1172,6 +1342,11 @@
         }
       }
       return target;
+    }
+
+    /** The built-in content of a page, before any admin changes (a copy). */
+    getDefault(pageKey) {
+      return JSON.parse(JSON.stringify(pageKey ? (DEFAULT_CONTENT[pageKey] || {}) : DEFAULT_CONTENT));
     }
 
     get(pageKey) {

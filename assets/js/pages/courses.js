@@ -55,7 +55,11 @@ const COURSE_LIST = [
 ];
 
 function renderCoursesHeroTitle(cms) {
-  if (cms.title1 && cms.titleAccent) {
+  // title1 + titleAccent (+ titleEnd) are what the admin panel edits. An older "title" that was
+  // changed in the admin panel (and so differs from them) still wins.
+  const joined = [cms.title1, cms.titleAccent, cms.titleEnd].filter(Boolean).join(" ").trim();
+  const oldCustomTitle = cms.title && cms.title.trim() !== joined && cms.title.trim() !== "Learn Conscious Pet Grooming";
+  if (cms.title1 && cms.titleAccent && !oldCustomTitle) {
     return React.createElement(React.Fragment, null,
       cms.title1,
       " ",
@@ -144,6 +148,14 @@ function CoursesHero() {
   );
 }
 
+// Photo for a course card when none has been uploaded in the admin panel.
+const COURSE_DEFAULT_IMAGES = {
+  pcgec: "assets/img/pawpad/course-dog-grooming.webp",
+  pfgec: "assets/img/pawpad/course-cat-grooming.webp",
+  pcgpc: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
+  pfgpc: "assets/img/pawpad/cat-hair-cut.webp",
+  pacgc: "assets/img/pawpad/courses-collage-images.webp"
+};
 function CourseCards({ onBook }) {
   const cms = (typeof useCmsContent === "function") ? useCmsContent("courses") : (window.PawpadContentStore ? window.PawpadContentStore.get("courses") : {});
   const list = (cms.courseList && Array.isArray(cms.courseList)) ? cms.courseList : COURSE_LIST;
@@ -175,15 +187,15 @@ function CourseCards({ onBook }) {
           return React.createElement(
             "article",
             { key: c.key || i, className: "cc-card reveal", style: { transitionDelay: `${i * 50}ms` } },
-            c.img && React.createElement("div", { className: "cc-card-img-wrap", style: { marginBottom: "16px", borderRadius: "14px", overflow: "hidden" } },
+            (c.img || COURSE_DEFAULT_IMAGES[c.key]) && React.createElement("div", { className: "cc-card-img-wrap", style: { marginBottom: "16px", borderRadius: "14px", overflow: "hidden" } },
               React.createElement("img", {
-                src: c.img,
+                src: c.img || COURSE_DEFAULT_IMAGES[c.key],
                 alt: c.title,
                 style: { width: "100%", height: "160px", objectFit: "cover", display: "block" }
               })
             ),
             React.createElement("h3", { className: "cc-card-title" }, c.title),
-            React.createElement("div", { className: "cc-card-price" }, c.price),
+            React.createElement("div", { className: "cc-card-price" }, c.price, c.duration && React.createElement("span", { className: "cc-card-duration" }, " · ", c.duration)),
             React.createElement("p", { className: "cc-card-desc" }, c.desc),
             React.createElement(
               "div",
@@ -215,6 +227,7 @@ function CourseCards({ onBook }) {
       null,
       `
         .course-cards { background: var(--cream-bg); padding: 40px 0 80px; }
+        .cc-card-duration { font-size: .6em; font-family: var(--f-body); color: var(--ink-mute); font-style: normal; letter-spacing: 0; }
         .cc-head { margin-bottom: 48px; max-width: 720px; }
         .cc-grid {
           display: grid;
