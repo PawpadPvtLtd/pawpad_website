@@ -114,6 +114,30 @@ function closing_totals(array $rows, array $coursePayments): array
     ];
 }
 
+/**
+ * Admissions for the report: applications waiting for an Owner/Administrator's
+ * decision, interviews on the next day, and candidates enrolled on this day.
+ */
+function course_report_sections(string $date): array
+{
+    $next = parse_studio_date($date)->modify('+1 day')->format('Y-m-d');
+    $awaiting = db()->query("SELECT * FROM applications WHERE status = 'interview_scheduled' ORDER BY interview_date, id")->fetchAll();
+    $stmt = db()->prepare("SELECT * FROM applications WHERE status = 'interview_scheduled' AND interview_date LIKE ? ORDER BY interview_date, id");
+    $stmt->execute([$next . '%']);
+    $tomorrow = $stmt->fetchAll();
+    // enrolled_at is stored in UTC; the day is the studio's (IST) day.
+    $from = slot_start($date, '00:00')->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    $to = slot_start($next, '00:00')->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    $stmt = db()->prepare("SELECT * FROM applications WHERE status = 'enrolled' AND enrolled_at >= ? AND enrolled_at < ? ORDER BY enrolled_at");
+    $stmt->execute([$from, $to]);
+    $payments = payments_by_application();
+    $enrolled = array_map(function (array $row) use ($payments): array {
+        $list = $payments[$row['id']] ?? [];
+        return $row + ['paid_total' => array_sum(array_column($list, 'amount')), 'paid_modes' => implode(', ', array_unique(array_column($list, 'modeLabel')))];
+    }, $stmt->fetchAll());
+    return ['next' => $next, 'awaiting' => $awaiting, 'tomorrow' => $tomorrow, 'enrolled' => $enrolled];
+}
+
 function daily_report_versions(string $date): array
 {
     $stmt = db()->prepare('SELECT id, report_date, version, sent_at, sent_by, recipients, subject FROM daily_reports WHERE report_date = ? ORDER BY version');
@@ -425,6 +449,32 @@ function build_daily_report(string $date, array $sender, int $version): array
         }
         $html .= '</table>';
     }
+    // Admissions
+    $adm = course_report_sections($date);
+    $nextLabel = parse_studio_date($adm['next'])->format('l, j F');
+    $sections = [
+        ['Applications waiting for Admin approval', $adm['awaiting'], 'None.', function (array $a): string {
+            return $a['applicant_name'] . ' · ' . $a['course_name'] . ' · interview ' . friendly_interview($a['interview_date']) . ' (' . $a['id'] . ')';
+        }],
+        ['Interviews on ' . $nextLabel, $adm['tomorrow'], 'No interviews.', function (array $a): string {
+            return friendly_interview($a['interview_date']) . ' · ' . $a['applicant_name'] . ' · ' . $a['course_name'];
+        }],
+        ['Enrolled today', $adm['enrolled'], 'Nobody enrolled today.', function (array $a): string {
+            return $a['applicant_name'] . ' · ' . $a['course_name'] . ' · paid ' . format_rupees((float) $a['paid_total']) . ($a['paid_modes'] !== '' ? ' (' . $a['paid_modes'] . ')' : '');
+        }],
+    ];
+    foreach ($sections as [$title, $items, $empty, $line]) {
+        $html .= '<h3 style="margin:16px 0 6px">' . html_text($title) . '</h3>';
+        if (!$items) {
+            $html .= '<p>' . html_text($empty) . '</p>';
+        } else {
+            $html .= '<ul>';
+            foreach ($items as $item) {
+                $html .= '<li>' . html_text($line($item)) . '</li>';
+            }
+            $html .= '</ul>';
+        }
+    }
     $html .= '<p style="color:#777;font-size:12px;margin-top:20px">Sent from the Pawpad admin panel. Owners and Administrators can see every report under “Daily Reports”.</p></div>';
 
     // Plain-text version for mail apps that don't show HTML.
@@ -474,6 +524,16 @@ function build_daily_report(string $date, array $sender, int $version): array
     foreach ($payments as $p) {
         $lines[] = '- ' . $p['applicationId'] . ' · ' . ($p['candidate'] ?: '(application deleted)') . ' · ' . format_rupees($p['amount']) . ' · ' . $p['modeLabel']
             . ($p['reference'] !== '' ? ' · Ref: ' . $p['reference'] : '');
+    }
+    foreach ($sections as [$title, $items, $empty, $line]) {
+        $lines[] = '';
+        $lines[] = strtoupper($title);
+        if (!$items) {
+            $lines[] = $empty;
+        }
+        foreach ($items as $item) {
+            $lines[] = '- ' . $line($item);
+        }
     }
 
     return [

@@ -45,7 +45,9 @@
       const reason = (result && result.data && result.data.error) || "The server could not be reached.";
       console.warn(`PawpadApplicationsStore: ${what} failed`, result);
       if (result && result.status !== 401) {
-        window.alert(`Could not ${what} on the server: ${reason}`);
+        const message = `Could not ${what} on the server: ${reason}`;
+        if (window.PawpadAdminNotice) window.PawpadAdminNotice(message, "error");
+        else console.error(message);
       }
       this.refresh();
     }
@@ -588,6 +590,40 @@ Email: courses@pawpad.in`;
 
       this._save();
       return { success: true, app, emailData, web3Result };
+    }
+
+    generateDeclineEmail(app) {
+      const candidateName = app.applicant?.name || "Applicant";
+      const courseName = app.courseName || "Pawpad Grooming Certification";
+      const subject = `Your application for ${courseName} - Pawpad Academy (${app.id})`;
+      const body = `Dear ${candidateName},
+
+Thank you for your interest in the ${courseName} at Pawpad Academy, and for taking the time to speak with us.
+
+After careful consideration, we are unable to offer you a place in this batch. This was not an easy decision, and it is not a reflection of your passion for animals.
+
+You are very welcome to apply again for a future batch. If you would like to know more, please reply to this email or message our admissions desk on WhatsApp at +91 91484 43330.
+
+We wish you all the very best.
+
+Warm regards,
+Admissions Team
+Pawpad Academy
+Bengaluru, India
+Website: https://pawpad.in
+Email: courses@pawpad.in`;
+      return { subject, body, recipient: app.applicant?.email || "", recipientName: candidateName };
+    }
+
+    /** Server mode: declines, and emails the candidate politely when sendEmail is true. */
+    async declineApplication(id, sendEmail, customNote = "") {
+      const app = this.getById(id);
+      if (!app) return { success: false, error: "Application not found" };
+      if (!sendEmail) {
+        const result = await this._serverUpdate({ id, status: "rejected", note: customNote }, "decline the application");
+        return result.ok ? { success: true, app: result.data.application } : { success: false, error: (result.data && result.data.error) || "The server could not be reached." };
+      }
+      return this._serverChangeWithEmail(id, { status: "rejected", note: customNote }, this.generateDeclineEmail(app), "application_declined");
     }
 
     async approveApplicationWithEmail(id, customNote = "") {
