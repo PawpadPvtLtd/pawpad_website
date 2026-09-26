@@ -230,9 +230,20 @@ const ADD_ONS = [
   { name: "Teeth scaling (cosmetic)", price: "+ ₹350" },
   { name: "Pawpad signature pamper-pack", price: "+ ₹900" }
 ];
+/**
+ * Headline + italic accent. Older saves hold the whole headline ("Stress-free grooming") and
+ * no accent, so the last word becomes the accent instead of being shown twice.
+ */
+function splitGroomingTitle(cms) {
+  const title = cms.title === undefined ? "Stress-free " : String(cms.title);
+  if (cms.titleAccent !== undefined) return { main: title, accent: String(cms.titleAccent) };
+  const m = title.match(/^(.*\S)\s+(\S+)\s*$/);
+  return m ? { main: m[1] + " ", accent: m[2] } : { main: title, accent: title.trim() ? "" : "grooming" };
+}
 function GroomingHero({ onBook }) {
   const cms = (typeof useCmsContent === "function") ? useCmsContent("grooming") : (window.PawpadContentStore ? window.PawpadContentStore.get("grooming") : {});
-  return /* @__PURE__ */ React.createElement("section", { className: "g-hero" }, /* @__PURE__ */ React.createElement("div", { className: "container g-hero-grid" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow reveal in" }, cms.eyebrow || "Grooming services"), /* @__PURE__ */ React.createElement("h1", { className: "h-display reveal in", style: { marginTop: 24 } }, cms.title || "Stress-free ", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "grooming")), /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 24, maxWidth: "54ch" } }, cms.lead || "Conscious pet grooming in Bangalore — built around coat health, hygiene, gentle handling, and emotional wellbeing. Every session is paced around your pet's comfort."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 32 } }, /* @__PURE__ */ React.createElement("a", {
+  const heroTitle = splitGroomingTitle(cms);
+  return /* @__PURE__ */ React.createElement("section", { className: "g-hero" }, /* @__PURE__ */ React.createElement("div", { className: "container g-hero-grid" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("p", { className: "eyebrow reveal in" }, cms.eyebrow || "Grooming services"), /* @__PURE__ */ React.createElement("h1", { className: "h-display reveal in", style: { marginTop: 24 } }, heroTitle.main, heroTitle.accent && /* @__PURE__ */ React.createElement("br", null), heroTitle.accent && /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, heroTitle.accent)), /* @__PURE__ */ React.createElement("p", { className: "lead reveal in", style: { marginTop: 24, maxWidth: "54ch" } }, cms.lead || "Conscious pet grooming in Bangalore — built around coat health, hygiene, gentle handling, and emotional wellbeing. Every session is paced around your pet's comfort."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 32 } }, /* @__PURE__ */ React.createElement("a", {
     href: "#packages", className: "btn btn-ghost", onClick: (e) => {
       var _a;
       e.preventDefault();
@@ -260,6 +271,7 @@ function getGroomingPackageSortScore(pkg) {
   const petType = String(pkg.petType || "").toLowerCase().trim();
   const isDog = pkg.isDogOnly === true || petType === "dog";
   const isCat = pkg.isCatOnly === true || petType === "cat";
+  const forBoth = pkg.allowPetTypeSelection === true || petType === "both";
 
   // Section 3: Care, Add-ons & Bath packages (exact live website order)
   // 3.1 Hygiene Clip
@@ -286,6 +298,11 @@ function getGroomingPackageSortScore(pkg) {
   if (key === "bath-brush-subscription" || (title.includes("bath") && title.includes("brush") && (title.includes("subscription") || title.includes("package")))) {
     return 306;
   }
+
+  // The pet chosen in the admin panel decides the section (a cat service stays with cats,
+  // whatever its category).
+  if (isCat && !isDog) return 200;
+  if (forBoth) return (cat === "care" || cat === "wellness") ? 307 : 400;
 
   // Section 1: Dog related services
   if (
@@ -522,7 +539,9 @@ function AddOnsSection() {
       `));
 }
 function GroomingNotes() {
-  const notes = [
+  const cms = (typeof useCmsContent === "function") ? useCmsContent("grooming") : {};
+  const head = cms.notesHead || {};
+  const defaultNotes = [
     { t: "Arrive 10 minutes early", d: "Your pet gets time to sniff the studio and meet the team before anything starts." },
     { t: "A calm, safe environment", d: "Cats should arrive in a secure carrier, while dogs remain on a leash. We carefully manage every arrival and keep pets separate at all times to ensure a relaxed, stress-free experience." },
     { t: "Skip food right before", d: "Light meals 2 hours before help avoid grooming-time tummy upset." },
@@ -530,7 +549,8 @@ function GroomingNotes() {
     { t: "Mats need time", d: "Severe matting may need to be clipped down. Coats grow back; pain doesn't." },
     { t: "Cancellation", d: "Give us 24 hours where possible \u2014 we hold spots so other anxious pets get the long slots they need." }
   ];
-  return /* @__PURE__ */ React.createElement("section", { className: "g-notes" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "g-notes-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Before you book"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "20ch" } }, "A few small things that ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "help a lot"))), /* @__PURE__ */ React.createElement("div", { className: "g-notes-grid" }, notes.map((n, i) => /* @__PURE__ */ React.createElement("div", { key: n.t, className: "g-note-card reveal", style: { transitionDelay: `${i * 70}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "g-note-no" }, "0", i + 1), /* @__PURE__ */ React.createElement("h4", { className: "h-3" }, n.t), /* @__PURE__ */ React.createElement("p", null, n.d))))), /* @__PURE__ */ React.createElement("style", null, `
+  const notes = Array.isArray(cms.notes) && cms.notes.length ? cms.notes.filter((n) => n && (n.t || n.d)) : defaultNotes;
+  return /* @__PURE__ */ React.createElement("section", { className: "g-notes" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "g-notes-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, head.eyebrow || "Before you book"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "20ch" } }, head.title || "A few small things that ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, head.titleAccent || "help a lot"))), /* @__PURE__ */ React.createElement("div", { className: "g-notes-grid" }, notes.map((n, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "g-note-card reveal", style: { transitionDelay: `${i * 70}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "g-note-no" }, String(i + 1).padStart(2, "0")), /* @__PURE__ */ React.createElement("h4", { className: "h-3" }, n.t), /* @__PURE__ */ React.createElement("p", null, n.d))))), /* @__PURE__ */ React.createElement("style", null, `
         .g-notes { background: var(--cream-bg); padding-top: 24px; padding-bottom: 20px; }
         .g-notes-head { max-width: 720px; margin-bottom: 48px; }
         .g-notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -556,6 +576,8 @@ function GroomingNotes() {
 }
 function GroomingPage({ onBook, onAddToCart }) {
   useReveal();
-  return /* @__PURE__ */ React.createElement("div", { className: "page-enter" }, /* @__PURE__ */ React.createElement(GroomingHero, { onBook }), /* @__PURE__ */ React.createElement(GroomingPackages, { onBook, onAddToCart }), /* @__PURE__ */ React.createElement(GroomingNotes, null));
+  const cms = (typeof useCmsContent === "function") ? useCmsContent("grooming") : {};
+  // The add-ons list only appears when it is switched on in the admin panel.
+  return /* @__PURE__ */ React.createElement("div", { className: "page-enter" }, /* @__PURE__ */ React.createElement(GroomingHero, { onBook }), /* @__PURE__ */ React.createElement(GroomingPackages, { onBook, onAddToCart }), cms.showAddOns === true && /* @__PURE__ */ React.createElement(AddOnsSection, null), /* @__PURE__ */ React.createElement(GroomingNotes, null));
 }
 Object.assign(window, { GroomingPage, sortGroomingPackages, GROOM_PACKAGES });

@@ -145,13 +145,16 @@ function Philosophy() {
     "For us, successful grooming is not just about how a pet looks when they leave. It is about how they feel, and whether they leave more comfortable, more confident, and more willing to return the next time."
   ];
   const paragraphs = Array.isArray(phil.paragraphs) && phil.paragraphs.length > 0 ? phil.paragraphs : defaultParagraphs;
-  const gallery = Array.isArray(phil.gallery) && phil.gallery.length > 0 ? phil.gallery : [
+  const allPhotos = (Array.isArray(phil.gallery) && phil.gallery.length > 0 ? phil.gallery : [
     "assets/img/pawpad/about-our-philosophy-collage.webp",
     "assets/img/pawpad/about-our-philosophy-collage-2.webp",
     "assets/img/pawpad/about-our-philosophy-collage-3.webp",
     "assets/img/pawpad/about-our-philosophy-collage-4.webp",
-    "assets/img/pawpad/about-our-philosophy-collage-5.webp"
-  ];
+    "assets/img/pawpad/about-our-philosophy-collage-5.webp",
+    "assets/img/pawpad/about-our-philosophy-collage-3-1.webp"
+  ]).filter((img) => String(img || "").trim());
+  // Two per row: show 4 or 6 photos so the grid never has an empty gap.
+  const gallery = allPhotos.length >= 6 ? allPhotos.slice(0, 6) : allPhotos.length >= 4 ? allPhotos.slice(0, 4) : allPhotos.slice(0, allPhotos.length - (allPhotos.length % 2) || allPhotos.length);
 
   return /* @__PURE__ */ React.createElement("section", { className: "philosophy" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "philosophy-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, phil.eyebrow || "Our philosophy"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "18ch" } }, phil.title || "Our Philosophy")), /* @__PURE__ */ React.createElement("div", { className: "phil-grid" }, /* @__PURE__ */ React.createElement("div", { className: "phil-text reveal" }, /* @__PURE__ */ React.createElement("p", { className: "lead" }, phil.lead || paragraphs[0]), paragraphs.slice(1).map((p, idx) => /* @__PURE__ */ React.createElement("p", { key: idx }, p))), /* @__PURE__ */ React.createElement("div", { className: "phil-gallery reveal" }, gallery.map((img, gidx) => /* @__PURE__ */ React.createElement("div", { key: gidx, className: "phil-tile" }, /* @__PURE__ */ React.createElement("img", { src: aboutImageSrc(img), alt: "Pawpad philosophy", loading: "lazy", decoding: "async", onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/about-our-philosophy-collage.webp"); } })))))), /* @__PURE__ */ React.createElement("style", null, `
         .philosophy { background: var(--cream-bg); padding-top: 48px; padding-bottom: 48px; }
@@ -186,7 +189,7 @@ function StudioStrip() {
   return /* @__PURE__ */ React.createElement("section", { className: "studio" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "studio-head reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, studio.eyebrow || "The studio"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "18ch" } }, (studio.title || "A cozy space ") + " ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, studio.titleAccent || "Oodles of patience")), /* @__PURE__ */ React.createElement("p", { className: "lead", style: { marginTop: 24, maxWidth: "56ch" } }, studio.lead || "Tucked into Kalyan Nagar, our studio is intentionally quiet — soft lighting, low chatter, no waiting-room crowds. Pets get time to settle before anything begins.")), /* @__PURE__ */ React.createElement("div", { className: "studio-strip reveal" }, items.map((item, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "studio-cell", style: { transitionDelay: `${i * 100}ms` } }, /* @__PURE__ */ React.createElement("img", { src: aboutImageSrc(item.img), alt: `Pawpad studio ${i + 1}` }), /* @__PURE__ */ React.createElement("span", { className: "studio-caption" }, item.caption))))), /* @__PURE__ */ React.createElement("style", null, `
         .studio { background: var(--cream-bg); }
         .studio-head { max-width: 720px; margin-bottom: 56px; }
-        .studio-strip { display: grid; grid-template-columns: 1.2fr .9fr .9fr 1fr; gap: 14px; height: clamp(320px, 40vw, 480px); }
+        .studio-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; height: clamp(320px, 40vw, 480px); }
         .studio-cell {
           position: relative; overflow: hidden; border-radius: 18px;
           background: var(--eagle); transition: flex var(--t-med) var(--ease);

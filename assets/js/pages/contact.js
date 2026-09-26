@@ -12,7 +12,22 @@
     d: "M12 0L14.7 9.3L24 12L14.7 14.7L12 24L9.3 14.7L0 12L9.3 9.3L12 0Z"
   }));
 
-  function ContactPage({ onBook }) {
+  // The map can be set in the admin panel as an address, a Google Maps link, or Google's
+// "Embed a map" code (<iframe src="...">).
+function contactMapSrc(value) {
+  const fallback = "Pawpad, 426, 5th Main Rd, HRBR Layout 2nd Block, Kalyan Nagar, Bengaluru, Karnataka 560043";
+  const text = String(value || "").trim() || fallback;
+  const iframe = text.match(/src=["']([^"']+)["']/i);
+  if (iframe) return iframe[1];
+  if (/^https:\/\/(www\.)?google\.[a-z.]+\/maps\/embed/i.test(text) || /output=embed/.test(text)) return text;
+  let query = text;
+  if (/^https?:\/\//i.test(text)) {
+    const place = text.match(/\/place\/([^/@?]+)/) || text.match(/[?&]q=([^&]+)/);
+    query = place ? decodeURIComponent(place[1].replace(/\+/g, " ")) : fallback;
+  }
+  return "https://maps.google.com/maps?q=" + encodeURIComponent(query) + "&t=&z=16&ie=UTF8&iwloc=&output=embed";
+}
+function ContactPage({ onBook }) {
     if (typeof useReveal === "function") {
       useReveal();
     }
@@ -196,14 +211,14 @@
       /* @__PURE__ */ React.createElement("section", { className: "contact-map-section" },
         /* @__PURE__ */ React.createElement("div", { className: "container" },
           /* @__PURE__ */ React.createElement("div", { className: "map-head reveal" },
-            /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, "Find us"),
-            /* @__PURE__ */ React.createElement("h2", { className: "h-1 map-section-title" }, "Come visit.")
+            /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, cms.mapEyebrow || "Find us"),
+            /* @__PURE__ */ React.createElement("h2", { className: "h-1 map-section-title" }, cms.mapTitle || "Come visit.")
           ),
           /* @__PURE__ */ React.createElement("div", { className: "contact-map-wrapper reveal" },
             /* @__PURE__ */ React.createElement("iframe", {
               title: "Pawpad Studio Kalyan Nagar Bangalore Location",
               className: "contact-map-iframe",
-              src: "https://maps.google.com/maps?q=Pawpad%2C%20426%2C%205th%20Main%20Rd%2C%20HRBR%20Layout%202nd%20Block%2C%20Kalyan%20Nagar%2C%20Bengaluru%2C%20Karnataka%20560043&t=&z=16&ie=UTF8&iwloc=&output=embed",
+              src: contactMapSrc(cms.map),
               loading: "lazy",
               allowFullScreen: true,
               referrerPolicy: "no-referrer-when-downgrade"

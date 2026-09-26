@@ -165,3 +165,26 @@ whom, and whether it was a correction. Click **View** to read it.
 | "The report could not be emailed…" | Check the health page: `"bookingEmail":true` means the info@ password in config.php is right |
 | A closure doesn't show in the phone calendar | Pull down to refresh the calendar app; the slots are closed on the website either way |
 | Anything else | Send me a screenshot of the message, but **never** of `config.php` |
+
+---
+
+## Boarding Requests (Owner, Administrator and Manager)
+
+Every boarding stay ordered at the website checkout is saved under **Boarding
+Requests**, and the customer (with a copy to info@) gets an email with the
+reference, e.g. **BRD-0001**. Nothing is booked until you confirm it.
+
+1. Click **Boarding Requests**. New requests are at the top.
+2. Contact the customer, then choose a status: **Confirmed**, **Declined**,
+   **Completed** or **Cancelled**, add a short note if useful, and click **Save**.
+   Every change is written in the request's history with your email.
+
+In **Website Content CMS → Boarding**, tick **"Needs a trial day first"** on any
+stay that requires a trial day. Customers who haven't done one are charged the
+Trial Day package's price, per dog.
+
+## Footer (all pages)
+
+**Website Content CMS → Footer (all pages)** changes the dark footer on every
+page at once: headline, text, button, hours, address, phone, email, social
+links, logo and the copyright line.

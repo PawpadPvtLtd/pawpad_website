@@ -1,5 +1,9 @@
 const { useState: useStateS, useEffect: useEffectS } = React;
 
+// Section headings, editable in Website Content CMS → Studio Setup.
+function studioHead(cms, key, fallback) {
+  return { ...fallback, ...((cms && cms.headings && cms.headings[key]) || {}) };
+}
 function StudioSetupHero({ onBook }) {
   const cms = (typeof useCmsContent === "function")
     ? useCmsContent("studioSetup")
@@ -73,10 +77,10 @@ function StudioSetupHero({ onBook }) {
             decoding: "async",
             onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/studio-setup-overview.webp"); }
           }),
-          React.createElement(
+          (cms.heroCaption === undefined || cms.heroCaption) && React.createElement(
             "span",
             { className: "ss-hero-caption" },
-            "Practical Setup · Real Experience"
+            cms.heroCaption === undefined ? "Practical Setup · Real Experience" : cms.heroCaption
           )
         )
       )
@@ -179,6 +183,8 @@ function StudioAudienceAndValue() {
     }
   ];
 
+  const who = studioHead(cms, "audience", { eyebrow: "AUDIENCE & FIT", title: "Who this is for" });
+  const what = studioHead(cms, "value", { eyebrow: "DELIVERABLES & VALUE", title: "What you get" });
   return React.createElement(
     "section",
     { className: "ss-value-section" },
@@ -192,8 +198,8 @@ function StudioAudienceAndValue() {
         React.createElement(
           "div",
           { className: "ss-value-card reveal" },
-          React.createElement("p", { className: "eyebrow" }, "AUDIENCE & FIT"),
-          React.createElement("h2", { className: "h-2", style: { marginTop: 12, marginBottom: 20 } }, "Who this is for"),
+          React.createElement("p", { className: "eyebrow" }, who.eyebrow),
+          React.createElement("h2", { className: "h-2", style: { marginTop: 12, marginBottom: 20 } }, who.title),
           React.createElement(
             "ul",
             { className: "ss-bullet-list" },
@@ -217,8 +223,8 @@ function StudioAudienceAndValue() {
         React.createElement(
           "div",
           { className: "ss-value-card reveal", style: { transitionDelay: "100ms" } },
-          React.createElement("p", { className: "eyebrow" }, "DELIVERABLES & VALUE"),
-          React.createElement("h2", { className: "h-2", style: { marginTop: 12, marginBottom: 20 } }, "What you get"),
+          React.createElement("p", { className: "eyebrow" }, what.eyebrow),
+          React.createElement("h2", { className: "h-2", style: { marginTop: 12, marginBottom: 20 } }, what.title),
           React.createElement(
             "div",
             { className: "ss-get-list" },
@@ -228,7 +234,7 @@ function StudioAudienceAndValue() {
               React.createElement(
                 "div",
                 { className: "ss-get-icon" },
-                "0" + (idx + 1)
+                String(idx + 1).padStart(2, "0")
               ),
               React.createElement(
                 "div",
@@ -358,6 +364,7 @@ function StudioPackages({ onBook, onAddToCart }) {
     }
   };
 
+  const head = studioHead(cms, "packages", { eyebrow: "CONSULTATION FORMATS", title: "Two ways to ", titleAccent: "work together", lead: "Choose remote video consultations or an intensive on-site studio visit based on your stage and location." });
   return React.createElement(
     "section",
     { id: "packages", className: "ss-packages-section" },
@@ -367,17 +374,17 @@ function StudioPackages({ onBook, onAddToCart }) {
       React.createElement(
         "div",
         { className: "ss-packages-header reveal" },
-        React.createElement("p", { className: "eyebrow" }, "CONSULTATION FORMATS"),
+        React.createElement("p", { className: "eyebrow" }, head.eyebrow),
         React.createElement(
           "h2",
           { className: "h-1", style: { marginTop: 16 } },
-          "Two ways to ",
-          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "work together")
+          head.title,
+          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, head.titleAccent)
         ),
-        React.createElement(
+        head.lead && React.createElement(
           "p",
           { className: "lead", style: { marginTop: 14, maxWidth: "60ch" } },
-          "Choose remote video consultations or an intensive on-site studio visit based on your stage and location."
+          head.lead
         )
       ),
       React.createElement(
@@ -425,7 +432,8 @@ function StudioPackages({ onBook, onAddToCart }) {
                 pkg.ctaText || "Book Now ",
                 React.createElement("span", { style: { marginLeft: 4 } }, "→")
               ),
-              React.createElement(
+              // One way to book: the consultation form (it asks everything we need to prepare).
+              cms.showAddToCart === true && React.createElement(
                 "button",
                 {
                   type: "button",
@@ -541,6 +549,7 @@ function StudioGallery() {
     }
   ];
 
+  const ghead = studioHead(cms, "gallery", { eyebrow: "STUDIO INFRASTRUCTURE", title: "Designed for ", titleAccent: "calm, ergonomic care", lead: "From non-slip flooring and hydraulic lift tables to specialized stainless steel bathing stations, every detail is engineered for safety and ease." });
   return React.createElement(
     "section",
     { className: "ss-gallery-section" },
@@ -550,17 +559,17 @@ function StudioGallery() {
       React.createElement(
         "div",
         { className: "ss-gallery-header reveal" },
-        React.createElement("p", { className: "eyebrow" }, "STUDIO INFRASTRUCTURE"),
+        React.createElement("p", { className: "eyebrow" }, ghead.eyebrow),
         React.createElement(
           "h2",
           { className: "h-1", style: { marginTop: 14 } },
-          "Designed for ",
-          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "calm, ergonomic care")
+          ghead.title,
+          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, ghead.titleAccent)
         ),
-        React.createElement(
+        ghead.lead && React.createElement(
           "p",
           { className: "lead", style: { marginTop: 14, maxWidth: "58ch" } },
-          "From non-slip flooring and hydraulic lift tables to specialized stainless steel bathing stations, every detail is engineered for safety and ease."
+          ghead.lead
         )
       ),
       React.createElement(
@@ -653,6 +662,7 @@ function StudioRoadmap() {
     }
   ];
 
+  const rhead = studioHead(cms, "roadmap", { eyebrow: "HOW TO GET STARTED", title: "Simple 3-step ", titleAccent: "process", buttonText: "Get in Touch & Book" });
   return React.createElement(
     "section",
     { className: "ss-roadmap-section" },
@@ -662,12 +672,12 @@ function StudioRoadmap() {
       React.createElement(
         "div",
         { className: "ss-roadmap-header reveal" },
-        React.createElement("p", { className: "eyebrow" }, "HOW TO GET STARTED"),
+        React.createElement("p", { className: "eyebrow" }, rhead.eyebrow),
         React.createElement(
           "h2",
           { className: "h-1", style: { marginTop: 14 } },
-          "Simple 3-step ",
-          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "process")
+          rhead.title,
+          React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, rhead.titleAccent)
         )
       ),
       React.createElement(
@@ -676,7 +686,7 @@ function StudioRoadmap() {
         steps.map((s, idx) => React.createElement(
           "div",
           { key: idx, className: "ss-step-card reveal", style: { transitionDelay: `${idx * 100}ms` } },
-          React.createElement("div", { className: "ss-step-num" }, s.step || (idx + 1)),
+          React.createElement("div", { className: "ss-step-num" }, idx + 1),
           React.createElement("h3", { className: "ss-step-title" }, s.title),
           React.createElement("p", { className: "ss-step-desc" }, s.desc)
         ))
@@ -687,7 +697,7 @@ function StudioRoadmap() {
         React.createElement(
           "a",
           { href: "course_forms/pawpad-application-consulting-gssc.html", className: "btn btn-primary" },
-          "Get in Touch & Book ",
+          rhead.buttonText + " ",
           React.createElement("span", { style: { marginLeft: 4 } }, "→")
         )
       )

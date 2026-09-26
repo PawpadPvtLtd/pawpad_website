@@ -21,7 +21,8 @@ function BoardingPage({ onBook, onAddToCart }) {
       desc: pkg.desc || (isTrial ? "Mandatory assessment trial day for small dogs before overnight stays" : "Calm, supervised overnight stay for small dogs"),
       requiresPetInfo: true,
       isDogOnly: true,
-      requiresTrialDayCheck: !isTrial,
+      // Set per package in the admin panel ("Needs a trial day first"); overnight stays need one by default.
+      requiresTrialDayCheck: isTrial ? false : (pkg.requiresTrialDay !== undefined ? !!pkg.requiresTrialDay : pkg.key === "overnight"),
       img: pkg.img || "assets/img/pawpad/boarding-sleeping-puppy-toy.webp"
     };
     if (typeof onAddToCart === "function") onAddToCart(item);
@@ -223,7 +224,7 @@ function BoardingPage({ onBook, onAddToCart }) {
         /* @__PURE__ */ React.createElement("div", { className: "section-head reveal", style: { textAlign: "center", maxWidth: "680px", margin: "0 auto 48px" } },
           /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, cms.faqEyebrow || "Got Questions?"),
           /* @__PURE__ */ React.createElement("h2", { className: "h-1" }, cms.faqTitle || "Frequently Asked Questions"),
-          /* @__PURE__ */ React.createElement("p", { className: "section-sub" }, cms.faqSub || "Everything you need to know about our boarding guidelines, routines, and policies.")
+          /* @__PURE__ */ React.createElement("p", { className: "section-sub", style: { marginLeft: "auto", marginRight: "auto", textAlign: "center" } }, cms.faqSub || "Everything you need to know about our boarding guidelines, routines, and policies.")
         ),
 
         /* @__PURE__ */ React.createElement("div", { className: "faq-list" },
@@ -850,6 +851,9 @@ function MyotherapyPage({ onBook }) {
         /* @__PURE__ */ React.createElement("p", { className: "editorial-eyebrow reveal in" }, cms.eyebrow || "PAWPAD · MYOTHERAPY"),
         /* @__PURE__ */ React.createElement("h1", { className: "editorial-title reveal in" }, cms.title || "Myotherapy – Coming Soon"),
         /* @__PURE__ */ React.createElement("hr", { className: "editorial-divider reveal in" }),
+        // Banner photo from the admin panel (Myotherapy → Banner Cover Image).
+        cms.heroImage && /* @__PURE__ */ React.createElement("figure", { className: "myo-hero-figure reveal in" },
+          /* @__PURE__ */ React.createElement("img", { src: cms.heroImage, alt: "Canine myotherapy at Pawpad", decoding: "async" })),
         /* @__PURE__ */ React.createElement("div", { className: "editorial-content reveal in" },
           /* @__PURE__ */ React.createElement("p", { className: "editorial-lead" },
             cms.lead || "Ever noticed a subtle change in how your dog moves — a slight shift in gait, a new hesitation before jumping onto the couch or into the car, needing a boost for stairs they used to take without a second thought? A calm, quiet dog isn't always a relaxed one, either. Sometimes it's a dog who's learned to move less, because moving hurts — and it's easy to miss, especially in a dog you already think of as \"chilled\" or \"lazy.\""
@@ -1034,6 +1038,8 @@ function MyotherapyPage({ onBook }) {
         color: var(--ink);
         margin: 0 0 16px;
       }
+      .myo-hero-figure { margin: 0 0 36px; border-radius: 22px; overflow: hidden; background: var(--eagle); }
+      .myo-hero-figure img { display: block; width: 100%; max-height: 460px; object-fit: cover; }
       .editorial-divider {
         border: none;
         border-top: 1px solid color-mix(in oklab, var(--ink), transparent 86%);

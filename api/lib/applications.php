@@ -216,6 +216,9 @@ function submit_application(array $input): array
 
     $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($input['courseCode'] ?? '')));
     $prefix = substr($prefix, 0, 12) ?: 'APP';
+    if (course_applications_closed($prefix, (string) ($input['courseKey'] ?? ''))) {
+        json_error('Sorry, we are not accepting new course applications right now. Please WhatsApp us on +91 91484 43330 to hear when the next batch opens.', 403);
+    }
 
     $responses = [];
     if (is_array($input['responses'] ?? null)) {
@@ -281,6 +284,21 @@ function submit_application(array $input): array
             json_error('Could not save your application. Please try again.', 500);
         }
     }
+}
+
+/**
+ * "Accept New Candidate Applications Online" (Website Content CMS → Courses) is off.
+ * Studio setup consulting (GSSC) has its own form and is not affected.
+ */
+function course_applications_closed(string $prefix, string $courseKey): bool
+{
+    $stmt = db()->prepare("SELECT data FROM site_content WHERE page_key = 'courses'");
+    $stmt->execute();
+    $courses = json_decode((string) $stmt->fetchColumn(), true);
+    if (!is_array($courses) || !array_key_exists('allowSubmissions', $courses) || $courses['allowSubmissions'] !== false) {
+        return false;
+    }
+    return $prefix !== 'GSSC' && stripos($courseKey, 'gssc') === false && stripos($courseKey, 'consult') === false;
 }
 
 function list_applications(): array
