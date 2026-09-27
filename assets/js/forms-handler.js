@@ -66,6 +66,15 @@
           if (fm) courseFee = /\/\s*day/i.test(chosenFormat.value) ? `${fm[0]} / day` : fm[0];
         }
 
+        // The fee is taken from Website Content CMS (what the page shows), so a price typed
+        // as "32,000" or "Rs 32,000" in the admin panel is still saved correctly.
+        const store = window.PawpadContentStore;
+        if (store && typeof store.feeForApplication === "function") {
+          const format = chosenFormat ? (/person|visit/i.test(chosenFormat.id + " " + chosenFormat.value) ? "in-person" : "online") : "";
+          const cmsFee = store.feeForApplication(window.location.pathname, format);
+          if (cmsFee) courseFee = cmsFee;
+        }
+
         const formData = new FormData(form);
         const acks = {};
         const responses = {};

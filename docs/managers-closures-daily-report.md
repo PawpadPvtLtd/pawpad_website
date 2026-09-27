@@ -204,6 +204,8 @@ text: change the title, intro, sections and bullet points there. Write
 - **Student Testimonials** and **Course Enquiry Form (bottom of the page)**
   are further down the same screen.
 
-Prices changed under **Studio Setup** now also reach the consulting booking
-form, so new applications show the new price. Applications sent before the
-change keep the price the customer saw.
+Prices changed under **Studio Setup** or **Courses** are saved with every new
+application, and a price typed as `32,000` or `Rs 32000` is shown as `₹32,000`.
+An application keeps the price the candidate saw when applying. If the price
+has changed since, the application also shows **"Website price now: …"** next
+to it.

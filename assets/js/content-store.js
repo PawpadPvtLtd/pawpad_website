@@ -1704,6 +1704,33 @@
       return target;
     }
 
+    /** "32,000", "Rs 32,000" or "₹ 32000" → "₹32,000". Anything else (e.g. "On request") stays as typed. */
+    formatPrice(text) {
+      const s = String(text == null ? "" : text).trim();
+      const m = s.match(/^(?:₹|rs\.?|inr)?\s*(\d[\d,]*(?:\.\d+)?)(.*)$/i);
+      if (!m) return s;
+      const n = Number(m[1].replace(/,/g, ""));
+      return isNaN(n) ? s : "₹" + n.toLocaleString("en-IN") + m[2];
+    }
+
+    /**
+     * The fee an application form stands for, from Website Content CMS: the course whose
+     * application page this is, or the Studio Setup format ("online" / "in-person") chosen.
+     */
+    feeForApplication(pageFile, format) {
+      const base = (u) => String(u || "").split("/").pop().split("?")[0].toLowerCase();
+      const file = base(pageFile);
+      if (!file) return "";
+      const course = (this.get("courses").courseList || []).find((c) => c && base(c.enrollUrl) === file);
+      if (course && course.price) return this.formatPrice(course.price);
+      const packages = (this.get("studioSetup").packages || []).filter((p) => p && base(p.applyUrl) === file);
+      const wanted = String(format || "").toLowerCase();
+      const pkg = packages.find((p) => wanted && String(p.applyUrl || "").toLowerCase().indexOf("format=" + wanted) !== -1)
+        || (packages.length === 1 ? packages[0] : null);
+      if (!pkg || !pkg.price) return "";
+      return this.formatPrice(pkg.price) + (/day/i.test(pkg.priceUnit || "") && !/day/i.test(pkg.price) ? " / day" : "");
+    }
+
     /** The built-in content of a page, before any admin changes (a copy). */
     getDefault(pageKey) {
       return JSON.parse(JSON.stringify(pageKey ? (DEFAULT_CONTENT[pageKey] || {}) : DEFAULT_CONTENT));
