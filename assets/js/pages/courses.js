@@ -148,6 +148,14 @@ function CoursesHero() {
   );
 }
 
+/** The course title with its current code, e.g. "… Certificate (PCGEC)" → "… (PCGEX)" after the code changes. */
+function courseTitleWithCode(c) {
+  const title = String((c && c.title) || "");
+  const code = c && c.code ? String(c.code).trim() : "";
+  if (!code) return title;
+  return /\(([A-Z0-9]{2,12})\)\s*$/.test(title) ? title.replace(/\(([A-Z0-9]{2,12})\)\s*$/, "(" + code + ")") : title;
+}
+window.courseTitleWithCode = courseTitleWithCode;
 // Photo for a course card when none has been uploaded in the admin panel.
 const COURSE_DEFAULT_IMAGES = {
   pcgec: "assets/img/pawpad/course-dog-grooming.webp",
@@ -181,7 +189,8 @@ function CourseCards({ onBook }) {
         "div",
         { className: "cc-grid" },
         list.map((c, i) => {
-          const knowMoreUrl = c.knowMoreUrl || (c.key === "pacgc" || (c.title && c.title.includes("Applied Canine")) ? "course_forms/pawpad-foundations-page.html" : "");
+          // Courses added in the admin panel use the shared course page, built from their Know More section.
+          const knowMoreUrl = c.knowMoreUrl || (c.key === "pacgc" || (c.title && c.title.includes("Applied Canine")) ? "course_forms/pawpad-foundations-page.html" : (c.key ? "course_forms/course.html?key=" + encodeURIComponent(c.key) : ""));
           const enrollText = (c.enrollText && c.enrollText.includes("/")) ? "Book Now" : (c.enrollText || "Enroll Now");
 
           return React.createElement(
@@ -194,7 +203,7 @@ function CourseCards({ onBook }) {
                 style: { width: "100%", height: "160px", objectFit: "cover", display: "block" }
               })
             ),
-            React.createElement("h3", { className: "cc-card-title" }, c.title),
+            React.createElement("h3", { className: "cc-card-title" }, courseTitleWithCode(c)),
             React.createElement("div", { className: "cc-card-price" }, c.price, c.duration && React.createElement("span", { className: "cc-card-duration" }, " · ", c.duration)),
             React.createElement("p", { className: "cc-card-desc" }, c.desc),
             React.createElement(
@@ -426,7 +435,9 @@ function CredibilityStrip() {
 }
 
 function StudentTestimonials() {
-  const testimonials = [
+  const cms = (typeof useCmsContent === "function") ? useCmsContent("courses") : {};
+  const head = { eyebrow: "Student Testimonials", title: "What students carry forward", ...(cms.studentTestimonialsHead || {}) };
+  const defaultTestimonials = [
     {
       name: "Bhavya Srinivas",
       studio: "Woof Magic Spa",
@@ -453,15 +464,18 @@ function StudentTestimonials() {
       quote: "Magic happened here and my life changed forever. Pawpad is highly recommended for anyone interested in starting their career as a groomer."
     }
   ];
+  // Editable in Website Content CMS → Courses → Student Testimonials.
+  const testimonials = Array.isArray(cms.studentTestimonials) ? cms.studentTestimonials.filter((t) => t && t.quote) : defaultTestimonials;
+  if (!testimonials.length) return null;
   return React.createElement("section", { className: "student-testimonials" },
     React.createElement("div", { className: "container" },
       React.createElement("div", { className: "st-head reveal" },
-        React.createElement("p", { className: "eyebrow" }, "Student Testimonials"),
-        React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "18ch" } }, "What students carry forward")
+        React.createElement("p", { className: "eyebrow" }, head.eyebrow),
+        React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "18ch" } }, head.title)
       ),
       React.createElement("div", { className: "st-grid" },
         testimonials.map((item, i) =>
-          React.createElement("article", { key: item.name, className: "st-card reveal", style: { transitionDelay: `${i * 60}ms` } },
+          React.createElement("article", { key: i, className: "st-card reveal", style: { transitionDelay: `${i * 60}ms` } },
             React.createElement("p", null, item.quote),
             React.createElement("div", null,
               React.createElement("strong", null, item.name),
@@ -586,9 +600,9 @@ function CourseCTA({ onBook }) {
         ),
         status === "success" ? React.createElement("div", { className: "course-form-sent" },
           React.createElement(window.PawIcon, { size: 44, color: "var(--driftwood)" }),
-          React.createElement("h3", { className: "h-2", style: { margin: "16px 0 8px" } }, "We'll be in touch soon"),
+          React.createElement("h3", { className: "h-2", style: { margin: "16px 0 8px" } }, cms.ctaSuccessTitle || "We'll be in touch soon"),
           React.createElement("p", { style: { margin: "0 0 16px", color: "var(--ink-mute)", fontSize: 15, lineHeight: 1.6 } },
-            "Thank you, " + (form.name || "friend") + "! We have received your interest in " + (form.course || "our courses") + ". The Pawpad team will reach out with upcoming dates and batch availability."
+            "Thank you, " + (form.name || "friend") + "! We have received your interest in " + (form.course || "our courses") + ". " + (cms.ctaSuccessText || "The Pawpad team will reach out with upcoming dates and batch availability.")
           ),
           React.createElement("button", {
             className: "btn btn-outline btn-sm",
@@ -607,7 +621,7 @@ function CourseCTA({ onBook }) {
             },
               React.createElement("option", { value: "All Courses / General Enquiry" }, "All Courses / General Enquiry"),
               courseList.map((c, idx) =>
-                React.createElement("option", { key: c.key || idx, value: c.title }, c.title)
+                React.createElement("option", { key: c.key || idx, value: courseTitleWithCode(c) }, courseTitleWithCode(c))
               )
             )
           ),
@@ -631,7 +645,7 @@ function CourseCTA({ onBook }) {
             type: "submit",
             disabled: status === "submitting"
           },
-            status === "submitting" ? "Registering interest..." : "Register interest ",
+            status === "submitting" ? "Registering interest..." : (cms.ctaButtonText || "Register interest") + " ",
             status !== "submitting" && React.createElement(window.Arrow, null)
           )
         )

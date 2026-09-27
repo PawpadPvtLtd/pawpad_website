@@ -608,6 +608,75 @@
         {
           key: "pcgec",
           code: "PCGEC",
+          // The course's "Know More" page, edited in Website Content CMS → Courses.
+          knowMore: {
+            "eyebrow": "Programmes · Grooming Essentials · Dogs",
+            "heading": "Pawpad Canine Grooming Essentials Certificate",
+            "breadcrumb": "Programmes · Pawpad · PCGEC · 1-Week Introduction",
+            "lede": "A fast, hands-on introduction to professional dog grooming for complete beginners.",
+            "intro": [
+              "Over five days, you work hands-on with a live dog from day one under close supervision, building real bathing, drying, brushing, and coat-care skills, while observing how the more technical parts of grooming — clipper and nail work — are done safely by an experienced groomer."
+            ],
+            "sections": [
+              {
+                "heading": "Who it's for",
+                "text": "No industry experience required. No dog of your own required.",
+                "items": [
+                  "Anyone testing the waters before committing to a longer grooming programme",
+                  "Aspiring groomers who want a fast, practical first taste of the work",
+                  "Career-changers deciding whether grooming is the right direction for them"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "What you study",
+                "text": "",
+                "items": [
+                  "**Reading the Dog** — behaviour and anatomy basics, body language, and the ethics of no-restraint handling.",
+                  "**Bathing & Drying** — hands-on with a live dog from your first attempt, closely supervised.",
+                  "**Brushing & De-matting** — hands-on, live-dog practice.",
+                  "**Ear Cleaning** — hands-on, live-dog practice.",
+                  "**Hygiene Clip & Nail Trimming** — instructor demonstration. You watch these performed safely; you don't practice them at this level.",
+                  "**Full Groom, Observed** — a full day watching a complete groom, start to finish, performed by your instructor."
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How you learn",
+                "text": "In-person, small-cohort, and hands-on from day one. This tier is intentionally immersive rather than gradual — you're working with a live dog on your very first bathing and brushing attempt, under direct supervision throughout. Clipper and nail work stay at demonstration level here; live practice on those skills starts at the Practitioner (3-week) tier.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "What you earn",
+                "text": "The **Pawpad Canine Grooming Essentials Certificate (PCGEC)** — proof of entry-level, bather-scope competence. Graduates can optionally sit an internationally recognised bather-level safety certification exam at their own additional cost, billed at actuals — this tier's skill set matches that exam's scope. Students who want to go further can progress to the Practitioner or PACGC programmes.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "Commitment & fees",
+                "text": "",
+                "items": [
+                  "5 days, Monday–Friday, 11am–5pm (30 hours total)",
+                  "**₹30,000** per student",
+                  "₹7,500 non-refundable deposit due upon acceptance to hold your seat; balance of ₹22,500 due before Day 1"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How to apply",
+                "text": "",
+                "items": [
+                  "Complete the application form.",
+                  "Have a short conversation with us about fit and expectations.",
+                  "Meet us in person for a hands-on comfort and safety check.",
+                  "If accepted, you're invited to pay fees and join the next cohort."
+                ],
+                "numbered": true
+              }
+            ],
+            "note": "This page describes an entry-level, live-dog-from-day-one format. It intentionally does not promise a model-practice step before live handling — that's specific to the Practitioner and PACGC tiers."
+          },
           img: "assets/img/pawpad/course-dog-grooming.webp",
           cat: "Essentials",
           title: "Pawpad Canine Grooming Essentials Certificate (PCGEC)",
@@ -624,6 +693,75 @@
         {
           key: "pfgec",
           code: "PFGEC",
+          // The course's "Know More" page, edited in Website Content CMS → Courses.
+          knowMore: {
+            "eyebrow": "Programmes · Grooming Essentials · Cats",
+            "heading": "Pawpad Feline Grooming Essentials Certificate",
+            "breadcrumb": "Programmes · Pawpad · PFGEC · 1-Week Introduction",
+            "lede": "A fast, hands-on introduction to professional cat grooming for complete beginners.",
+            "intro": [
+              "Over five days, you work hands-on with a live cat from day one under close supervision, building real bathing, drying, brushing, and coat-care skills, while observing how the more technical parts of grooming — clipper and nail work — are done safely by an experienced groomer. Cat handling technique differs from dog handling throughout — this course teaches the feline-specific approach, not a dog lesson with a different animal in the room."
+            ],
+            "sections": [
+              {
+                "heading": "Who it's for",
+                "text": "No industry experience required. No cat of your own required.",
+                "items": [
+                  "Anyone testing the waters before committing to a longer grooming programme",
+                  "Aspiring groomers who want a fast, practical first taste of cat-specific grooming",
+                  "Career-changers deciding whether grooming is the right direction for them"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "What you study",
+                "text": "",
+                "items": [
+                  "**Reading the Cat** — feline behaviour and anatomy basics, body language and stress signals specific to cats, and the ethics of no-restraint handling.",
+                  "**Bathing & Drying** — hands-on with a live cat from your first attempt, closely supervised.",
+                  "**Brushing & De-matting** — hands-on, live-cat practice.",
+                  "**Ear Cleaning** — hands-on, live-cat practice.",
+                  "**Hygiene Clip & Nail Trimming** — instructor demonstration only. Cat skin is thinner and less elastic than dog skin, so clipper work near sensitive areas is shown, not practiced, at this level.",
+                  "**Full Groom, Observed** — a full day watching a complete groom, start to finish, performed by your instructor."
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How you learn",
+                "text": "In-person, small-cohort, and hands-on from day one. This tier is intentionally immersive rather than gradual — you're working with a live cat on your very first bathing and brushing attempt, under direct supervision throughout. Clipper and nail work stay at demonstration level here regardless of tier progress, given how easily cat skin can be nicked.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "What you earn",
+                "text": "The **Pawpad Feline Grooming Essentials Certificate (PFGEC)** — proof of entry-level, bather-scope competence with cats. Graduates can optionally sit an internationally recognised bather-level safety certification exam for cat grooming at their own additional cost, billed at actuals — this tier's skill set matches that exam's scope. Students who want to go further can progress to the Practitioner or PACGC programmes.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "Commitment & fees",
+                "text": "",
+                "items": [
+                  "5 days, Monday–Friday, 11am–5pm (30 hours total)",
+                  "**₹30,000** per student",
+                  "₹7,500 non-refundable deposit due upon acceptance to hold your seat; balance of ₹22,500 due before Day 1"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How to apply",
+                "text": "",
+                "items": [
+                  "Complete the application form.",
+                  "Have a short conversation with us about fit and expectations.",
+                  "Meet us in person for a hands-on comfort and safety check.",
+                  "If accepted, you're invited to pay fees and join the next cohort."
+                ],
+                "numbered": true
+              }
+            ],
+            "note": "This page describes an entry-level, live-cat-from-day-one format for bathing, drying, brushing, de-matting, and ear cleaning. It intentionally does not promise a model-practice step before live handling for those skills — clipper and nail work stay demonstration-only throughout this tier."
+          },
           img: "assets/img/pawpad/course-cat-grooming.webp",
           cat: "Essentials",
           title: "Pawpad Feline Grooming Essentials Certificate (PFGEC)",
@@ -640,6 +778,74 @@
         {
           key: "pcgpc",
           code: "PCGPC",
+          // The course's "Know More" page, edited in Website Content CMS → Courses.
+          knowMore: {
+            "eyebrow": "Programmes · Grooming Practitioner · Dogs",
+            "heading": "Pawpad Canine Grooming Practitioner Certificate",
+            "breadcrumb": "Programmes · Pawpad · PCGPC · 3-Week Programme",
+            "lede": "A practitioner-level step up from Essentials, for dogs.",
+            "intro": [
+              "Three weeks of hands-on grooming practice, building from bathing and coat care into live nail trimming and hygiene clipping, with a full haircut introduced on a model. Every new technique follows the same sequence: watch it demonstrated, practice on a model, then work with a live dog under close supervision."
+            ],
+            "sections": [
+              {
+                "heading": "Who it's for",
+                "text": "No industry experience required. No dog of your own required.",
+                "items": [
+                  "Aspiring professional groomers who want real technical grounding, not just an introduction",
+                  "Essentials-tier graduates ready to build on hands-on bathing and coat-care skills",
+                  "Career-changers who want practical clipper and nail-trim experience before committing to the full programme"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "What you study",
+                "text": "",
+                "items": [
+                  "**Bathing, Drying, Brushing & De-matting** — continued hands-on practice, building speed and consistency.",
+                  "**Ear Cleaning** — hands-on, live-dog practice.",
+                  "**Nail Trimming & Hygiene Clip** — no model or dummy can replicate either skill closely enough to teach it. You'll watch these performed on a live dog several times, then practice on a live dog yourself later in the programme, once your instructor has seen enough of your hold and control to trust it.",
+                  "**Full Haircut** — demo and model practice only at this tier; not yet attempted on a live dog.",
+                  "**Capstone Groom** — a full groom on a live dog (bath through hygiene clip), with the haircut portion completed on the model."
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How you learn",
+                "text": "In-person, small-cohort, across 3 weeks. Bathing, brushing, and full haircuts follow demo → model practice → live-dog practice. Nail trimming and hygiene clip don't have a model option — no substitute replicates a real nail or the feel of live skin closely enough — so those two follow repeated live demonstration, then live practice later in the programme. Full haircuts stay at model level here; live haircut work begins at the PACGC (7-week) tier.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "What you earn",
+                "text": "The **Pawpad Canine Grooming Practitioner Certificate (PCGPC)** — proof of live nail-trim and hygiene-clip competency, with haircut exposure at model level. A real step above Essentials, a real step below the full PACGC programme. Grooming skill develops at different paces for different people — our advice, regardless of pace, is to gain supervised experience before working independently, and Pawpad offers placement support into a supervised role for graduates who want it. Graduates can optionally sit an internationally recognised bather-level safety certification exam at their own additional cost, billed at actuals — the full groomer-level exam still requires a live clippered trim, which stays reserved for PACGC graduates.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "Commitment & fees",
+                "text": "",
+                "items": [
+                  "15 days, Monday–Friday, 11am–5pm, across 3 weeks (90 hours total)",
+                  "**₹50,000** per student",
+                  "₹12,500 non-refundable deposit due upon acceptance to hold your seat; balance of ₹37,500 due before Day 1"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How to apply",
+                "text": "",
+                "items": [
+                  "Complete the application form.",
+                  "Have a short conversation with us about fit and expectations.",
+                  "Meet us in person for a hands-on comfort and safety check.",
+                  "If accepted, you're invited to pay fees and join the next cohort."
+                ],
+                "numbered": true
+              }
+            ],
+            "note": ""
+          },
           img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
           cat: "Practitioner",
           title: "Pawpad Canine Grooming Practitioner Certificate (PCGPC)",
@@ -656,6 +862,74 @@
         {
           key: "pfgpc",
           code: "PFGPC",
+          // The course's "Know More" page, edited in Website Content CMS → Courses.
+          knowMore: {
+            "eyebrow": "Programmes · Grooming Practitioner · Cats",
+            "heading": "Pawpad Feline Grooming Practitioner Certificate",
+            "breadcrumb": "Programmes · Pawpad · PFGPC · 3-Week Programme",
+            "lede": "A practitioner-level step up from Essentials, for cats.",
+            "intro": [
+              "Three weeks of hands-on grooming practice, building from bathing and coat care into live nail trimming, hygiene clipping, and a full haircut — all performed on a live cat by the end of the programme. Cat skin is thinner and less elastic than dog skin, so bathing, brushing, and de-matting still follow demo → model → live practice where a model option exists; nail trimming, hygiene clip, and the full haircut don't have a viable model substitute, so those go straight from repeated live demonstration to live practice later in the course."
+            ],
+            "sections": [
+              {
+                "heading": "Who it's for",
+                "text": "No industry experience required. No cat of your own required.",
+                "items": [
+                  "Aspiring professional groomers who want real technical grounding, not just an introduction",
+                  "Essentials-tier graduates ready to build on hands-on bathing and coat-care skills",
+                  "Career-changers who want practical grooming experience with cats before committing to the full programme"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "What you study",
+                "text": "",
+                "items": [
+                  "**Bathing, Drying, Brushing & De-matting** — continued hands-on practice, building speed and consistency.",
+                  "**Ear Cleaning** — hands-on, live-cat practice.",
+                  "**Nail Trimming & Hygiene Clip** — no model or dummy can replicate either skill closely enough to teach it. You'll watch these performed on a live cat several times, then practice on a live cat yourself later in the programme, once your instructor has seen enough of your hold and control to trust it.",
+                  "**Full Haircut** — there's no cat-grooming mannequin on the market the way there is for dogs, so this is demonstrated repeatedly, then performed on a live cat by you, towards the end of the course.",
+                  "**Capstone Groom** — a full groom on a live cat: bath, brush, nail trim, ear clean, hygiene clip, and a complete haircut."
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How you learn",
+                "text": "In-person, small-cohort, across 3 weeks. Bathing, brushing, and de-matting follow demo → model → live-cat practice. Nail trimming and hygiene clip skip the model step for both species — no fake nail or paw replicates the real thing closely enough to teach it. The full haircut skips it too, but for a different reason: there's no cat-grooming mannequin available on the market the way there is for dogs, so it goes straight from repeated live demonstration to live practice later in the programme. This means the cat course reaches live full-haircut competency that the dog version of this same tier doesn't — a difference in what's available to practice on, not in how seriously either species is taught.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "What you earn",
+                "text": "The **Pawpad Feline Grooming Practitioner Certificate (PFGPC)** — proof of live nail-trim, hygiene-clip, and full-haircut competency on a real cat. Grooming skill develops at different paces for different people — our advice, regardless of pace, is to gain supervised experience before working independently, and Pawpad offers placement support into a supervised role for graduates who want it. Graduates can optionally sit an internationally recognised cat grooming certification exam at their own additional cost, billed at actuals — this tier's live full-haircut competency matches the full exam scope, not just the bather-level track.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "Commitment & fees",
+                "text": "",
+                "items": [
+                  "15 days, Monday–Friday, 11am–5pm, across 3 weeks (90 hours total)",
+                  "**₹50,000** per student",
+                  "₹12,500 non-refundable deposit due upon acceptance to hold your seat; balance of ₹37,500 due before Day 1"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How to apply",
+                "text": "",
+                "items": [
+                  "Complete the application form.",
+                  "Have a short conversation with us about fit and expectations.",
+                  "Meet us in person for a hands-on comfort and safety check.",
+                  "If accepted, you're invited to pay fees and join the next cohort."
+                ],
+                "numbered": true
+              }
+            ],
+            "note": ""
+          },
           img: "assets/img/pawpad/cat-hair-cut.webp",
           cat: "Practitioner",
           title: "Pawpad Feline Grooming Practitioner Certificate (PFGPC)",
@@ -672,6 +946,75 @@
         {
           key: "pacgc",
           code: "PACGC",
+          // The course's "Know More" page, edited in Website Content CMS → Courses.
+          knowMore: {
+            "eyebrow": "Programmes · Comprehensive Certification",
+            "heading": "Pawpad Applied Canine & Feline Grooming Certification (PACGC)",
+            "breadcrumb": "Programmes · Pawpad",
+            "lede": "Pawpad Applied Canine & Feline Grooming Certification (PACGC) — a comprehensive 7-week grooming certification for beginners and aspiring professionals building toward a career in pet grooming, with both dogs and cats.",
+            "intro": [
+              "The course is built around reading an animal before touching it, consent-based technique, and a real working understanding of canine and feline anatomy and physiology. It is for those ready to move past “hold them down and get it done” — and it explicitly rejects restraint and forced compliance in favour of observation, comfort, consent, and skill built the safe way."
+            ],
+            "sections": [
+              {
+                "heading": "Who it's for",
+                "text": "No industry experience required. No dog or cat of your own required.",
+                "items": [
+                  "Aspiring professional groomers, starting from zero",
+                  "Career-changers looking for a hands-on, practical path into the pet industry",
+                  "Anyone who wants to groom dogs and cats — including anxious or reactive ones — without restraint or force"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "What you study",
+                "text": "",
+                "items": [
+                  "**Reading the Animal** — body language and stress signals for dogs and cats, and the ethics of handling without restraint.",
+                  "**Body Basics, Both Species** — skeletal and muscular structure, coat and skin biology, and how discomfort shows up as behaviour, for dogs and cats.",
+                  "**Consent-Based Handling** — positioning, cooperative care, and knowing when to stop, practiced hands-on with dogs and cats from Week 2 onward.",
+                  "**Grooming Technique** — bathing and drying, brushing and de-matting, nail trimming, ear cleaning, and the basics of clipping and trimming, for both dogs and cats. Most skills: demo, then model practice, then live animal. Nail trimming is the exception — no model replicates a real nail closely enough, so it's demo then live practice directly.",
+                  "**Integrated Practice** — a full groom on a dog and on a cat, start to finish, supervised throughout: the course capstone."
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How you learn",
+                "text": "In-person, small-cohort, and heavily practical. Students move through live demonstrations, supervised model practice, and hands-on work with real dogs and cats under direct instructor supervision — theory in the first three weeks, technique in the last four. Nobody's first attempt at bathing, brushing, ear cleaning, or clipping happens on a live animal; nail trimming is taught through repeated live demonstration before you practice it yourself.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "What you earn",
+                "text": "On successful completion: the **Pawpad Applied Canine & Feline Grooming Certification (PACGC)**, recognising comprehensive competence with both dogs and cats, taught at full depth for each. Grooming is a skill that develops at different paces for different people — Pawpad's advice, regardless of pace, is to gain supervised experience before working independently, and Pawpad offers placement support into a supervised role for graduates who want it. Graduates may also choose to sit an internationally recognised certification exam at their own additional cost, billed at actuals — a species-specific track for dogs, and a separate one for cats.",
+                "items": [],
+                "numbered": false
+              },
+              {
+                "heading": "Commitment & fees",
+                "text": "",
+                "items": [
+                  "7 weeks, Monday–Friday, 11am–5pm (210 hours total, split across both species)",
+                  "Cohort of 3 students per run",
+                  "**₹95,000** per student",
+                  "₹23,750 non-refundable deposit due upon acceptance to hold your seat; balance of ₹71,250 due before Day 1"
+                ],
+                "numbered": false
+              },
+              {
+                "heading": "How to apply",
+                "text": "",
+                "items": [
+                  "Complete the application form.",
+                  "Have a short conversation with us about fit and expectations.",
+                  "Meet us in person for a hands-on temperament and safety check.",
+                  "If accepted, you're invited to pay fees and join the next cohort."
+                ],
+                "numbered": true
+              }
+            ],
+            "note": "Deposit and balance structure above reflects a 25%-at-acceptance policy — confirm this is the final structure before publishing."
+          },
           img: "assets/img/pawpad/courses-collage-images.webp",
           cat: "Comprehensive Certification",
           title: "Pawpad Applied Canine & Feline Grooming Certification (PACGC)",
@@ -685,7 +1028,24 @@
           includes: ["Live dog and cat handling", "Force-free coat styling & scissoring", "Skin & dermatology fundamentals", "Salon ergonomics & safety", "Business launch mentorship"],
           note: "Flagship practitioner certification for individuals looking to launch their own salon or lead conscious grooming practices."
         }
-      ]
+      ],
+      // Student Testimonials and the Course Enquiry form at the bottom of the Courses page.
+      studentTestimonialsHead: { eyebrow: "Student Testimonials", title: "What students carry forward" },
+      studentTestimonials: [
+        { name: "Bhavya Srinivas", studio: "Woof Magic Spa", quote: "Thank you so much Leena for the great experience you gave me on my new journey. I feel very confident in the fundamental work and I learned so much about handling pets with different temperaments, especially cats." },
+        { name: "Clare Pachuau", studio: "A Tiny Groomer", quote: "I highly recommend the Pawpad Grooming Studio Academy to all prospective groomers. The instructor's knowledge, skills, experience, and expertise gave me a curriculum that exceeded my expectations." },
+        { name: "Deeksha Shetty", studio: "The Purple Pawlor", quote: "Leena's approach to pet grooming is always comfort and well-being first. Working with Pawpad helped me understand animal body language and shaped the way I care for every pet in my own business." },
+        { name: "Sanchari Mukherjee", studio: "The Bubble Bath", quote: "Training under Leena was a transformative experience. She taught grooming techniques while always stressing the comfort and well-being of the pets under our care." },
+        { name: "Renjitha", studio: "Earthy Paws", quote: "Magic happened here and my life changed forever. Pawpad is highly recommended for anyone interested in starting their career as a groomer." }
+      ],
+      ctaEyebrow: "Course Enquiry",
+      ctaTitle: "Ready to Start Your Grooming Journey?",
+      ctaLead: "Courses run on a rolling basis throughout the year. Leave your details and we'll help you find the right start date for your training.",
+      ctaButtonText: "Register interest",
+      ctaSuccessTitle: "We'll be in touch soon",
+      ctaSuccessText: "The Pawpad team will reach out with upcoming dates and batch availability.",
+      courseEnquiryEmail: "courses@pawpad.in",
+      courseEnquirySubject: "Course Enquiry - Pawpad Academy"
     },
     boarding: {
       eyebrow: "PAWPAD · BOARDING",
