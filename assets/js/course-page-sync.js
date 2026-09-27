@@ -1,14 +1,16 @@
 /**
  * Course and studio-setup detail pages (course_forms/*.html) are written by hand, so this keeps
- * them in step with the admin panel: the fee, deposit, balance, duration, title and code shown on
- * the page follow what is saved in Website Content CMS, an "At a glance" box shows the CMS
- * overview when it has been changed, and application forms close when applications are off.
+ * them in step with the admin panel: each course's "Know More" page is built from its Know More
+ * section in Website Content CMS → Courses; the fee, deposit, balance, duration, title and code
+ * follow the CMS; and application forms close when applications are off.
  */
 (function () {
   const store = window.PawpadContentStore;
   if (!store) return;
   const file = decodeURIComponent(window.location.pathname.split("/").pop() || "").toLowerCase();
   const isApplication = file.indexOf("application") !== -1;
+  // course.html?key=… shows a course added in the admin panel (no page of its own).
+  const pageKey = file === "course.html" ? String(new URLSearchParams(window.location.search).get("key") || "").toLowerCase() : "";
   const base = (url) => String(url || "").split("/").pop().split("?")[0].toLowerCase();
   const money = (text) => {
     const n = parseFloat(String(text || "").replace(/[^0-9.]/g, ""));
@@ -21,41 +23,81 @@
   // Every item (course or consultation package) whose page is this one.
   function findItems(listKey, content) {
     const list = content && Array.isArray(content[listKey]) ? content[listKey] : [];
+    if (pageKey) return list.filter((c) => c && String(c.key || "").toLowerCase() === pageKey);
     return list.filter((c) => c && [c.knowMoreUrl, c.enrollUrl, c.bookUrl, c.applyUrl].some((u) => u && base(u) === file));
   }
 
   function replaceInPage(pairs) {
     const useful = pairs.filter(([from, to]) => from && to !== undefined && to !== null && String(from) !== String(to));
     if (!useful.length) return;
-    // Longest first, so "Pawpad … Certificate (PCGEC)" is replaced before "PCGEC".
+    // Longest first, so "Pawpad … Certificate (PCGEC)" is replaced before "PCGEC". One pass, so
+    // swapping two prices (₹20,000 → ₹35,000 and ₹35,000 → ₹40,000) never chains.
     useful.sort((a, b) => String(b[0]).length - String(a[0]).length);
+    const map = new Map(useful.map(([from, to]) => [String(from), String(to)]));
+    const pattern = new RegExp(Array.from(map.keys()).map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+    const swap = (text) => String(text).replace(pattern, (m) => map.get(m));
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach((node) => {
       if (node.parentNode && /^(SCRIPT|STYLE|TEXTAREA)$/.test(node.parentNode.nodeName)) return;
-      let text = node.nodeValue;
-      useful.forEach(([from, to]) => { text = text.split(String(from)).join(String(to)); });
+      const text = swap(node.nodeValue);
       if (text !== node.nodeValue) node.nodeValue = text;
     });
-    useful.forEach(([from, to]) => { document.title = document.title.split(String(from)).join(String(to)); });
+    // Choices such as "Online Consultation (₹20,000)" are saved with the application, so their
+    // values must carry the current price too.
+    document.querySelectorAll('input[type="radio"], input[type="checkbox"], input[type="hidden"], option').forEach((el) => {
+      if (el.name && /^_/.test(el.name)) return;
+      const value = el.getAttribute("value");
+      if (value && swap(value) !== value) el.setAttribute("value", swap(value));
+    });
+    document.title = swap(document.title);
   }
 
-  function glanceBox(item, def) {
-    const includes = Array.isArray(item.includes) ? item.includes.filter(Boolean) : [];
-    const changed = (item.desc || "") !== (def.desc || "") || JSON.stringify(includes) !== JSON.stringify(def.includes || []);
-    if (!changed || document.getElementById("pawpad-glance")) return;
-    const h1 = document.querySelector("h1");
-    if (!h1) return;
-    const box = document.createElement("div");
-    box.id = "pawpad-glance";
-    box.setAttribute("style", "margin:24px 0;padding:20px 22px;border-radius:16px;background:#f7f1e6;border:1px solid #e6dcc8;font-size:15px;line-height:1.6;color:#2e2e2e");
-    const facts = [item.duration, item.price, item.deposit ? "Deposit " + item.deposit : ""].filter(Boolean).map(escapeHtml).join(" · ");
-    box.innerHTML = '<p style="margin:0 0 8px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#9a7b4f;font-weight:700">At a glance</p>'
-      + (facts ? '<p style="margin:0 0 8px;font-weight:700">' + facts + "</p>" : "")
-      + (item.desc ? '<p style="margin:0 0 8px">' + escapeHtml(item.desc) + "</p>" : "")
-      + (includes.length ? '<ul style="margin:0;padding-left:20px">' + includes.map((i) => "<li>" + escapeHtml(i) + "</li>").join("") + "</ul>" : "");
-    h1.insertAdjacentElement("afterend", box);
+  // "**bold**" in the admin panel becomes bold text; everything else is shown as typed.
+  const rich = (text) => escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const paragraphs = (text) => String(text || "").split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
+
+  /** Builds the Know More page from the course's CMS content (or a basic one from the card). */
+  function renderKnowMore(item, def) {
+    const box = document.getElementById("course-content");
+    if (!box) return;
+    const km = item.knowMore || def.knowMore || {
+      heading: stripCode(item.title),
+      lede: item.desc || "",
+      sections: [
+        (item.includes || []).length ? { heading: "What you study", items: item.includes } : null,
+        { heading: "Commitment & fees", items: [item.duration, item.price ? "**" + item.price + "** per student" : "", item.deposit ? item.deposit + " deposit due upon acceptance to hold your seat" : ""].filter(Boolean) },
+        item.note ? { heading: "Who it's for", text: item.note } : null
+      ].filter(Boolean)
+    };
+    const apply = String(item.enrollUrl || def.enrollUrl || "").replace(/^\/?course_forms\//, "");
+    const applyHref = /^(https?:)?\/\//.test(apply) || !apply ? apply : (file === "course.html" || window.location.pathname.indexOf("/course_forms/") !== -1 ? apply : "course_forms/" + apply);
+    let out = "";
+    if (km.eyebrow) out += '<div class="eyebrow">' + escapeHtml(km.eyebrow) + "</div>";
+    out += "<h1>" + escapeHtml(km.heading || stripCode(item.title)) + "</h1>";
+    if (km.breadcrumb) out += '<div class="breadcrumb">' + escapeHtml(km.breadcrumb) + "</div>";
+    out += "<hr>";
+    if (km.lede) out += '<p class="lede">' + rich(km.lede) + "</p>";
+    (km.intro || []).forEach((t) => { out += "<p>" + rich(t) + "</p>"; });
+    const sections = (km.sections || []).filter((sec) => sec && (sec.heading || sec.text || (sec.items || []).length));
+    sections.forEach((sec, i) => {
+      out += "<section>";
+      if (sec.heading) out += "<h2>" + escapeHtml(sec.heading) + "</h2>";
+      paragraphs(sec.text).forEach((t) => { out += "<p>" + rich(t) + "</p>"; });
+      const items = (sec.items || []).filter((x) => String(x || "").trim());
+      if (items.length) {
+        const tag = sec.numbered ? "ol" : "ul";
+        out += "<" + tag + ">" + items.map((x) => "<li>" + rich(x) + "</li>").join("") + "</" + tag + ">";
+      }
+      // Apply Now always goes to this course's own application form (not editable in the CMS).
+      if (i === sections.length - 1 && applyHref) out += '<a href="' + escapeHtml(applyHref) + '" class="cta">Apply Now</a>';
+      out += "</section>";
+    });
+    if (!sections.length && applyHref) out += '<a href="' + escapeHtml(applyHref) + '" class="cta">Apply Now</a>';
+    if (km.note) out += '<div class="note">' + rich(km.note) + "</div>";
+    box.innerHTML = out;
+    document.title = (km.heading || stripCode(item.title)) + (item.code ? " (" + item.code + ")" : "") + " · Pawpad Academy";
   }
 
   function closeApplications(message) {
@@ -83,10 +125,12 @@
         const def = defaults.find((d) => d && d.key === item.key) || {};
         pairs.push(...itemPairs(item, def));
       });
-      replaceInPage(pairs);
-      if (!isApplication && items.length === 1) {
-        glanceBox(items[0], defaults.find((d) => d && d.key === items[0].key) || {});
+      // Know More pages are built for courses only (the studio consulting page stays as written).
+      // Built first, so the fee and code swaps below also reach its text.
+      if (!isApplication && listKey === "courseList" && items.length === 1) {
+        renderKnowMore(items[0], defaults.find((d) => d && d.key === items[0].key) || {});
       }
+      replaceInPage(pairs);
       if (isApplication && pageKey === "courses" && content.allowSubmissions === false) {
         closeApplications(content.closedMessage || "We are not taking new applications for this course at the moment.");
       }

@@ -1050,8 +1050,9 @@ function MyotherapyPage({ onBook }) {
         border-top: 1px solid color-mix(in oklab, var(--ink), transparent 88%);
         margin: 48px 0 24px;
       }
+      /* Same font as the paragraphs after it (the owner asked for one consistent style). */
       .editorial-lead {
-        font-style: italic;
+        font-style: normal;
         font-size: 16px;
         line-height: 1.8;
         color: var(--ink-soft);

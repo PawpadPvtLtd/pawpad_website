@@ -188,3 +188,22 @@ Trial Day package's price, per dog.
 **Website Content CMS → Footer (all pages)** changes the dark footer on every
 page at once: headline, text, button, hours, address, phone, email, social
 links, logo and the copyright line.
+
+## Courses: Know More pages, testimonials and the enquiry form
+
+In **Website Content CMS → Courses & Academy**, each course card has a
+**Know More page (click to edit)** box. It already holds the page's current
+text: change the title, intro, sections and bullet points there. Write
+`**words**` between two stars to make them bold. No file upload is needed.
+
+- The **Apply Now** button on the Know More page always opens that course's own
+  application form. It can't be changed in the CMS.
+- Changing a course's **code** also changes it in the course title, on the
+  Know More page and on the application form.
+- A course added with **+ Add** gets its own Know More page automatically.
+- **Student Testimonials** and **Course Enquiry Form (bottom of the page)**
+  are further down the same screen.
+
+Prices changed under **Studio Setup** now also reach the consulting booking
+form, so new applications show the new price. Applications sent before the
+change keep the price the customer saw.

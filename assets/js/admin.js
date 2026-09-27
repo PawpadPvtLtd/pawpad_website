@@ -1994,6 +1994,13 @@
     if (kind === "image") {
       return React.createElement(ImageUploadWidget, { label, currentUrl: value || "", onSelectUrl: onChange });
     }
+    if (kind === "lines") {
+      // One item per line (e.g. bullet points); empty lines are dropped.
+      return React.createElement("div", null, labelEl,
+        React.createElement(ListTextarea, { id, separator: "\n", className: "input-field", rows: rows || 4, placeholder,
+          value: Array.isArray(value) ? value.join("\n") : (value || ""),
+          onChange: (e) => onChange(e.target.value.split("\n").map((l) => l.trim()).filter(Boolean)) }));
+    }
     if (kind === "checkbox") {
       return React.createElement("label", { style: { display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600 } },
         React.createElement("input", { type: "checkbox", checked: Boolean(value), onChange: (e) => onChange(e.target.checked) }), label);
@@ -2044,6 +2051,49 @@
             React.createElement("input", { className: "input-field", "aria-label": `${itemLabel || "Line"} ${i + 1}`, value: item || "", onChange: (e) => set(i, e.target.value) }), controls(i))),
       React.createElement("div", null,
         React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: () => onChange([...list, newItem !== undefined ? JSON.parse(JSON.stringify(newItem)) : (fields ? {} : "")]) }, addLabel || "+ Add"))
+    );
+  }
+
+  /**
+   * A course's "Know More" page: title lines, intro, and sections (heading, text, bullet list).
+   * Starts from the page's current text, so nothing has to be typed again.
+   */
+  function KnowMoreEditor({ course, onChange }) {
+    const defaults = window.PawpadContentStore ? (window.PawpadContentStore.getDefault("courses").courseList || []) : [];
+    const def = defaults.find((d) => d && d.key === course.key) || {};
+    const km = course.knowMore || def.knowMore || { heading: String(course.title || "").replace(/\s*\([A-Z0-9]{2,12}\)\s*$/, ""), lede: course.desc || "", intro: [], sections: [], note: "" };
+    const set = (patch) => onChange({ ...km, ...patch });
+    const page = course.knowMoreUrl ? String(course.knowMoreUrl).replace(/^\/?/, "") : `course_forms/course.html?key=${encodeURIComponent(course.key || "")}`;
+    return React.createElement(
+      "details",
+      { "data-knowmore": course.key, style: { background: "var(--admin-bg)", padding: "14px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)" } },
+      React.createElement("summary", { style: { cursor: "pointer", fontWeight: 600, fontSize: "13px", color: "var(--admin-gold-light)" } }, "Know More page (click to edit)"),
+      React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" } },
+        React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)", margin: 0 } },
+          "This is the page customers see when they click Know More. Write **words** between two stars to make them bold. ",
+          React.createElement("a", { href: page, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--admin-gold)" } }, "Open the live page ↗")),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+          React.createElement(CmsField, { label: "Small line above the title", value: km.eyebrow, onChange: (v) => set({ eyebrow: v }) }),
+          React.createElement(CmsField, { label: "Line under the title", value: km.breadcrumb, onChange: (v) => set({ breadcrumb: v }) })),
+        React.createElement(CmsField, { label: "Page title", value: km.heading, onChange: (v) => set({ heading: v }) }),
+        React.createElement(CmsField, { label: "Opening sentence (larger text)", kind: "textarea", rows: 2, value: km.lede, onChange: (v) => set({ lede: v }) }),
+        React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Intro paragraphs"),
+        React.createElement(CmsList, { items: km.intro, itemLabel: "Paragraph", addLabel: "+ Add paragraph", onChange: (list) => set({ intro: list }) }),
+        React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Sections"),
+        React.createElement(CmsList, {
+          items: km.sections, itemLabel: "Section", addLabel: "+ Add section", columns: "1fr",
+          newItem: { heading: "New section", text: "", items: [], numbered: false },
+          fields: [
+            { key: "heading", label: "Heading" },
+            { key: "text", label: "Text (leave a blank line between paragraphs)", kind: "textarea" },
+            { key: "items", label: "Bullet points (one per line)", kind: "lines", wide: true },
+            { key: "numbered", label: "Number the points (1, 2, 3…)", kind: "checkbox" }
+          ],
+          onChange: (list) => set({ sections: list })
+        }),
+        React.createElement(CmsField, { label: "Note at the bottom (optional)", kind: "textarea", rows: 2, value: km.note, onChange: (v) => set({ note: v }) }),
+        React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)", margin: 0 } }, "The Apply Now button is added at the end automatically and always opens this course's application form.")
+      )
     );
   }
 
@@ -2533,7 +2583,7 @@
                 "div",
                 null,
                 React.createElement("h4", { style: { color: "var(--admin-gold-light)", fontSize: "17px", fontFamily: "var(--font-display)" } }, "Academy Programs & Courses (", (formData.courseList || []).length, ")"),
-                React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Configure curriculum tracks, course fees, deposit requirements, syllabus links, and application forms.")
+                React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Configure curriculum tracks, course fees, deposit requirements, and each course's Know More page.")
               ),
               React.createElement(
                 "button",
@@ -2544,7 +2594,8 @@
                   onClick: () => {
                     const list = formData.courseList && Array.isArray(formData.courseList) ? [...formData.courseList] : [];
                     list.unshift({
-                      key: "NAC",
+                      key: "course-" + Date.now(),
+                      code: "NAC",
                       cat: "Certification",
                       title: "New Academy Course",
                       price: "₹35,000",
@@ -2642,7 +2693,10 @@
                       value: course.code !== undefined ? course.code : String(course.key || "").toUpperCase(),
                       onChange: (e) => {
                         const list = [...formData.courseList];
-                        list[idx] = { ...list[idx], code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) };
+                        const code = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+                        // Keep the "(CODE)" at the end of the course name in step with the code.
+                        const title = String(list[idx].title || "");
+                        list[idx] = { ...list[idx], code, title: code && /\([A-Z0-9]{1,12}\)\s*$/.test(title) ? title.replace(/\([A-Z0-9]{1,12}\)\s*$/, "(" + code + ")") : title };
                         updateField("courseList", list);
                       }
                     })
@@ -2734,27 +2788,19 @@
                       updateField("courseList", list);
                     }
                   }),
-                  React.createElement(CourseDocUploadWidget, {
-                    label: "Syllabus Details Document (Know More)",
-                    currentUrl: course.knowMoreUrl || "",
-                    acceptTypes: ".pdf",
-                    onSelectUrl: (newUrl) => {
-                      const list = [...formData.courseList];
-                      list[idx].knowMoreUrl = newUrl;
-                      updateField("courseList", list);
-                    }
-                  }),
-                  React.createElement(CourseDocUploadWidget, {
-                    label: "Course Application Form Document (Apply Now)",
-                    currentUrl: course.enrollUrl || "",
-                    allowUpload: false,
-                    onSelectUrl: (newUrl) => {
-                      const list = [...formData.courseList];
-                      list[idx].enrollUrl = newUrl;
-                      updateField("courseList", list);
-                    }
-                  })
+                  React.createElement("div", { style: { gridColumn: "span 2", fontSize: "12px", color: "var(--admin-text-muted)", background: "var(--admin-bg)", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)" } },
+                    React.createElement("strong", { style: { color: "var(--admin-gold-light)" } }, "Apply Now / Enroll Now"),
+                    React.createElement("div", { style: { marginTop: "4px" } }, "Opens this course's application form: ", React.createElement("code", null, String(course.enrollUrl || "course_forms/pawpad-application-pacgc.html").replace(/^course_forms\//, "")), ". This link is fixed and can't be changed here."))
                 ),
+
+                React.createElement(KnowMoreEditor, {
+                  course,
+                  onChange: (km) => {
+                    const list = [...formData.courseList];
+                    list[idx] = { ...list[idx], knowMore: km };
+                    updateField("courseList", list);
+                  }
+                }),
 
                 // Description, Included Modules, Guidelines
                 React.createElement(
@@ -2812,6 +2858,28 @@
               )
             )
           )
+          ,
+          React.createElement(CmsSection, { title: "Student Testimonials", hint: "The quotes from past students on the Courses page. Remove them all to hide the section." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Small line above the title", value: (formData.studentTestimonialsHead || {}).eyebrow, onChange: (v) => updateField("studentTestimonialsHead", { ...(formData.studentTestimonialsHead || {}), eyebrow: v }) }),
+              React.createElement(CmsField, { label: "Section title", value: (formData.studentTestimonialsHead || {}).title, onChange: (v) => updateField("studentTestimonialsHead", { ...(formData.studentTestimonialsHead || {}), title: v }) })),
+            React.createElement(CmsList, {
+              items: formData.studentTestimonials, onChange: (v) => updateField("studentTestimonials", v),
+              itemLabel: "Testimonial", addLabel: "+ Add testimonial", columns: "1fr 1fr", newItem: { name: "", studio: "", quote: "" },
+              fields: [{ key: "name", label: "Student name" }, { key: "studio", label: "Their studio / business" }, { key: "quote", label: "What they said", kind: "textarea" }]
+            })),
+          React.createElement(CmsSection, { title: "Course Enquiry Form (bottom of the page)", hint: "The text next to the enquiry form, the button, and the message shown after sending." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Small line above the title", value: formData.ctaEyebrow, onChange: (v) => updateField("ctaEyebrow", v) }),
+              React.createElement(CmsField, { label: "Title", value: formData.ctaTitle, onChange: (v) => updateField("ctaTitle", v) })),
+            React.createElement(CmsField, { label: "Text under the title", kind: "textarea", value: formData.ctaLead, onChange: (v) => updateField("ctaLead", v) }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Button text", value: formData.ctaButtonText, onChange: (v) => updateField("ctaButtonText", v) }),
+              React.createElement(CmsField, { label: "Title after sending", value: formData.ctaSuccessTitle, onChange: (v) => updateField("ctaSuccessTitle", v) })),
+            React.createElement(CmsField, { label: "Message after sending", kind: "textarea", rows: 2, value: formData.ctaSuccessText, onChange: (v) => updateField("ctaSuccessText", v) }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Enquiries are sent to (email)", value: formData.courseEnquiryEmail, onChange: (v) => updateField("courseEnquiryEmail", v) }),
+              React.createElement(CmsField, { label: "Email subject", value: formData.courseEnquirySubject, onChange: (v) => updateField("courseEnquirySubject", v) })))
         ),
 
         selectedPage === "grooming" &&
