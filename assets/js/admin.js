@@ -392,6 +392,23 @@
    * Status names. After the interview is scheduled, a Manager sees "Pending Admin Approval":
    * only an Owner or Administrator can approve or decline.
    */
+  /**
+   * The course's price on the website today (Website Content CMS). An application keeps the
+   * price the candidate saw when applying; this shows the admin when the price has changed since.
+   */
+  function currentWebsiteFee(app) {
+    const store = window.PawpadContentStore;
+    if (!store || typeof store.feeForApplication !== "function" || !app) return "";
+    const key = String(app.courseKey || "").toLowerCase();
+    const code = String(app.courseCode || "").toUpperCase();
+    if (/gssc|consult/.test(key) || code === "GSSC" || code === "STUDIO") {
+      const format = String((app.responses || {}).consultation_format || "");
+      return store.feeForApplication("pawpad-application-consulting-gssc.html", /person|visit/i.test(format) ? "in-person" : "online");
+    }
+    const course = (store.get("courses").courseList || []).find((c) => c && ((key && String(c.key || "").toLowerCase() === key) || (code && String(c.code || "").toUpperCase() === code)));
+    return course && course.price ? store.formatPrice(course.price) : "";
+  }
+
   function applicationStatusLabel(status, canAdmin) {
     if (status === "interview_scheduled") return canAdmin ? "Interview Scheduled" : "Pending Admin Approval";
     return { pending_review: "Pending Review", approved: "Approved", rejected: "Declined", enrolled: "Enrolled" }[status] || status;
@@ -1010,7 +1027,14 @@
                   applicationStatusLabel(selectedApp.status, canAdmin)
                 )
               ),
-              React.createElement("div", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginTop: "4px" } }, selectedApp.courseName, " (", selectedApp.courseFee, ")")
+              React.createElement("div", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginTop: "4px" } }, selectedApp.courseName, " (", selectedApp.courseFee, ")",
+                (() => {
+                  const now = currentWebsiteFee(selectedApp);
+                  const norm = (t) => String(t || "").replace(/\s+/g, "");
+                  return now && norm(now) !== norm(selectedApp.courseFee)
+                    ? React.createElement("span", { "data-current-fee": now, style: { marginLeft: "8px", color: "var(--admin-gold-light)" } }, "· Website price now: ", now, " (applied at ", selectedApp.courseFee || "—", ")")
+                    : null;
+                })())
             ),
             React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { padding: "8px" }, onClick: () => setSelectedApp(null) }, React.createElement(Icons.Close, null))
           ),

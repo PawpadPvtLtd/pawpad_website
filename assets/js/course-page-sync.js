@@ -17,6 +17,8 @@
     return isNaN(n) ? null : n;
   };
   const rupees = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
+  // "32,000" typed in the admin panel is shown as "₹32,000".
+  const price = (text) => (text && typeof store.formatPrice === "function" ? store.formatPrice(text) : text);
   const stripCode = (title) => String(title || "").replace(/\s*\([A-Z0-9]{2,12}\)\s*$/, "").trim();
   const escapeHtml = (t) => String(t || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -67,7 +69,7 @@
       lede: item.desc || "",
       sections: [
         (item.includes || []).length ? { heading: "What you study", items: item.includes } : null,
-        { heading: "Commitment & fees", items: [item.duration, item.price ? "**" + item.price + "** per student" : "", item.deposit ? item.deposit + " deposit due upon acceptance to hold your seat" : ""].filter(Boolean) },
+        { heading: "Commitment & fees", items: [item.duration, item.price ? "**" + price(item.price) + "** per student" : "", item.deposit ? price(item.deposit) + " deposit due upon acceptance to hold your seat" : ""].filter(Boolean) },
         item.note ? { heading: "Who it's for", text: item.note } : null
       ].filter(Boolean)
     };
@@ -142,8 +144,8 @@
       const pairs = [
         [def.title, item.title],
         [stripCode(def.title), stripCode(item.title)],
-        [def.price, item.price],
-        [def.deposit, item.deposit],
+        [def.price, price(item.price)],
+        [def.deposit, price(item.deposit)],
         [def.duration, item.duration]
       ];
       const oldBalance = money(def.price) !== null && money(def.deposit) !== null ? money(def.price) - money(def.deposit) : null;

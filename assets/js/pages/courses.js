@@ -204,7 +204,7 @@ function CourseCards({ onBook }) {
               })
             ),
             React.createElement("h3", { className: "cc-card-title" }, courseTitleWithCode(c)),
-            React.createElement("div", { className: "cc-card-price" }, c.price, c.duration && React.createElement("span", { className: "cc-card-duration" }, " · ", c.duration)),
+            React.createElement("div", { className: "cc-card-price" }, (window.PawpadContentStore && window.PawpadContentStore.formatPrice ? window.PawpadContentStore.formatPrice(c.price) : c.price), c.duration && React.createElement("span", { className: "cc-card-duration" }, " · ", c.duration)),
             React.createElement("p", { className: "cc-card-desc" }, c.desc),
             React.createElement(
               "div",

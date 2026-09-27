@@ -352,7 +352,7 @@ function StudioPackages({ onBook, onAddToCart }) {
       title: pkg.title,
       category: "Studio Setup Consulting",
       price: parseFloat(String(pkg.price || "").replace(/[^0-9.]/g, "")) || pkg.priceNum || 20000,
-      priceDisplay: pkg.price + (pkg.priceUnit ? ` / ${pkg.priceUnit}` : ""),
+      priceDisplay: (window.PawpadContentStore && window.PawpadContentStore.formatPrice ? window.PawpadContentStore.formatPrice(pkg.price) : pkg.price) + (pkg.priceUnit ? ` / ${pkg.priceUnit}` : ""),
       desc: pkg.desc,
       img: "assets/img/pawpad/studio-setup-overview.webp",
       requiresPetInfo: false
@@ -403,7 +403,7 @@ function StudioPackages({ onBook, onAddToCart }) {
             React.createElement(
               "div",
               { className: "ss-pkg-price-row" },
-              React.createElement("span", { className: "ss-pkg-price" }, pkg.price),
+              React.createElement("span", { className: "ss-pkg-price" }, (window.PawpadContentStore && window.PawpadContentStore.formatPrice ? window.PawpadContentStore.formatPrice(pkg.price) : pkg.price)),
               pkg.priceUnit && React.createElement("span", { className: "ss-pkg-unit" }, `/ ${pkg.priceUnit.replace(/^\/\s*/, "")}`),
               pkg.duration && React.createElement("span", { className: "ss-pkg-duration" }, ` · ${pkg.duration}`)
             ),
