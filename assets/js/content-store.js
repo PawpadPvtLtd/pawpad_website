@@ -675,7 +675,7 @@
                 "numbered": true
               }
             ],
-            "note": "This page describes an entry-level, live-dog-from-day-one format. It intentionally does not promise a model-practice step before live handling — that's specific to the Practitioner and PACGC tiers."
+            "note": ""
           },
           img: "assets/img/pawpad/course-dog-grooming.webp",
           cat: "Essentials",
@@ -760,7 +760,7 @@
                 "numbered": true
               }
             ],
-            "note": "This page describes an entry-level, live-cat-from-day-one format for bathing, drying, brushing, de-matting, and ear cleaning. It intentionally does not promise a model-practice step before live handling for those skills — clipper and nail work stay demonstration-only throughout this tier."
+            "note": ""
           },
           img: "assets/img/pawpad/course-cat-grooming.webp",
           cat: "Essentials",
@@ -1020,10 +1020,10 @@
           price: "₹95,000",
           priceNum: 95000,
           deposit: "₹23,750",
-          duration: "7 weeks · 3 students max",
+          duration: "7 weeks",
           knowMoreUrl: "course_forms/pawpad-foundations-page.html",
           enrollUrl: "course_forms/pawpad-application-pacgc.html",
-          desc: "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru. Small cohort of 3 students learning consent-based handling, anatomy, coat care, scissoring, and clipping without restraint.",
+          desc: "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru, covering consent-based handling, anatomy, coat care, scissoring, and clipping without restraint.",
           includes: ["Live dog and cat handling", "Force-free coat styling & scissoring", "Skin & dermatology fundamentals", "Salon ergonomics & safety", "Business launch mentorship"],
           note: "Flagship practitioner certification for individuals looking to launch their own salon or lead conscious grooming practices."
         }
@@ -1319,7 +1319,7 @@
           a: "For in-person visits, travel and accommodation are billed separately, at actuals, in addition to the ₹35,000/day consulting fee."
         }
       ],
-      disclaimer: "Pricing shown is a starting point being tested, not a fixed rate card. Deliverables are equipment/budget guidance and space recommendations — this does not include a full architectural floor plan design."
+      disclaimer: "Prices shown are a guide and may vary with your space and requirements; we'll confirm the final price with you before booking. Deliverables are equipment/budget guidance and space recommendations — this does not include a full architectural floor plan design."
     },
     forms: {
       depositNotice: "A non-refundable deposit is required upon acceptance to secure your slot in the cohort.",
@@ -1533,8 +1533,17 @@
           (km.sections || []).forEach((sec) => {
             if (sec && Array.isArray(sec.items)) sec.items = sec.items.filter((t) => !/^\s*cohort of \d+ students per run\s*$/i.test(String(t)));
           });
-          if (/before publishing/i.test(String(km.note || ""))) km.note = "";
+          if (/before publishing|it intentionally does not promise/i.test(String(km.note || ""))) km.note = "";
         });
+        // The cohort size is no longer shown on the course cards.
+        parsed.courses.courseList.forEach((c) => {
+          if (!c) return;
+          if (c.desc === "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru. Small cohort of 3 students learning consent-based handling, anatomy, coat care, scissoring, and clipping without restraint.") c.desc = "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru, covering consent-based handling, anatomy, coat care, scissoring, and clipping without restraint.";
+          if (c.duration === "7 weeks · 3 students max") c.duration = "7 weeks";
+        });
+      }
+      if (parsed && parsed.studioSetup && parsed.studioSetup.disclaimer === "Pricing shown is a starting point being tested, not a fixed rate card. Deliverables are equipment/budget guidance and space recommendations — this does not include a full architectural floor plan design.") {
+        parsed.studioSetup.disclaimer = DEFAULT_CONTENT.studioSetup.disclaimer;
       }
 
       // Old studio numbers saved earlier: everything now uses +91 91484 43330.

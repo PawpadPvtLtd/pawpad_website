@@ -144,7 +144,7 @@
           /* @__PURE__ */ React.createElement("h3", null, "3. Academy & Certificate Programmes"),
           /* @__PURE__ */ React.createElement("div", { className: "policy-box" },
             /* @__PURE__ */ React.createElement("strong", null, "Non-Refundable Seat Deposit: "),
-            "Upon acceptance into any Pawpad certificate course (PCGEC, PFGEC, PCGPC, PFGPC, PCGFC), an admission deposit is due to lock your seat in our small cohort. This deposit is non-refundable."
+            "Upon acceptance into any Pawpad certificate course (PCGEC, PFGEC, PCGPC, PFGPC, PACGC), an admission deposit is due to lock your seat in our small cohort. This deposit is non-refundable."
           ),
           /* @__PURE__ */ React.createElement("ul", null,
             /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Course Balance: "), "The remaining course balance is due before Day 1 of the cohort."),
@@ -160,7 +160,7 @@
         /* @__PURE__ */ React.createElement("div", { className: "note" },
           /* @__PURE__ */ React.createElement("strong", null, "Have questions? "),
           "If you have any queries regarding our privacy practices, terms of service, or cancellation terms, please reach out to us at ",
-          /* @__PURE__ */ React.createElement("a", { href: "mailto:care@pawpad.in" }, "care@pawpad.in"),
+          /* @__PURE__ */ React.createElement("a", { href: "mailto:info@pawpad.in" }, "info@pawpad.in"),
           ", call us at ",
           /* @__PURE__ */ React.createElement("a", { href: "tel:+919148443330" }, "+91 91484 43330"),
           ", or visit us at #426, 5th Main Road, HRBR 2nd Block, Kalyan Nagar, Bengaluru - 560043."
