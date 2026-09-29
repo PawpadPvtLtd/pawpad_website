@@ -50,7 +50,7 @@ const COURSE_LIST = [
     duration: "7 weeks",
     knowMoreUrl: "course_forms/pawpad-foundations-page.html",
     enrollUrl: "course_forms/pawpad-application-pacgc.html",
-    desc: "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru. Small cohort of 3 students learning consent-based handling, anatomy, coat care, scissoring, and clipping without restraint."
+    desc: "A 7-week comprehensive programme in conscious canine and feline grooming in Bengaluru, covering consent-based handling, anatomy, coat care, scissoring, and clipping without restraint."
   }
 ];
 
