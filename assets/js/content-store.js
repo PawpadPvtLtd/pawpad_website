@@ -995,7 +995,6 @@
                 "text": "",
                 "items": [
                   "7 weeks, Monday–Friday, 11am–5pm (210 hours total, split across both species)",
-                  "Cohort of 3 students per run",
                   "**₹95,000** per student",
                   "₹23,750 non-refundable deposit due upon acceptance to hold your seat; balance of ₹71,250 due before Day 1"
                 ],
@@ -1013,7 +1012,7 @@
                 "numbered": true
               }
             ],
-            "note": "Deposit and balance structure above reflects a 25%-at-acceptance policy — confirm this is the final structure before publishing."
+            "note": ""
           },
           img: "assets/img/pawpad/courses-collage-images.webp",
           cat: "Comprehensive Certification",
@@ -1524,6 +1523,18 @@
         if (parsed.boarding.title === "Boarding, Reimagined" || parsed.boarding.title === "Boarding, Reimagined ") {
           parsed.boarding.title = "Boarding, ";
         }
+      }
+
+      // Draft lines that must never show on the Know More pages, even in content saved earlier.
+      if (parsed && parsed.courses && Array.isArray(parsed.courses.courseList)) {
+        parsed.courses.courseList.forEach((c) => {
+          const km = c && c.knowMore;
+          if (!km) return;
+          (km.sections || []).forEach((sec) => {
+            if (sec && Array.isArray(sec.items)) sec.items = sec.items.filter((t) => !/^\s*cohort of \d+ students per run\s*$/i.test(String(t)));
+          });
+          if (/before publishing/i.test(String(km.note || ""))) km.note = "";
+        });
       }
 
       // Old studio numbers saved earlier: everything now uses +91 91484 43330.
