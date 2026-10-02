@@ -128,9 +128,10 @@ The times become bookable again and the calendar event is deleted.
    - optionally a **Reference** and a short **Note**.
 
    Everything saves by itself ("Saved ✓" appears on the right).
-3. **Walk-in or phone booking**: click **+ Add walk-in / phone booking**, fill
-   in the time, name, phone, pet, service, amount and payment mode, then
-   **Add booking**. If that time is free, it is taken on the website and added to
+3. **Walk-in or phone booking**: click **+ Add walk-in / phone booking**. The
+   day's studio slots are shown with their state (Free, Booked, Blocked…); tap
+   a free one, or type another time. Fill in the name, phone, pet, service,
+   amount and payment mode, then **Add booking**. If that time is free, it is taken on the website and added to
    the info@ calendar. If it isn't free, the booking is only recorded.
 4. Course payments recorded that day (under Course Applications) are listed at
    the bottom and included in the report.
