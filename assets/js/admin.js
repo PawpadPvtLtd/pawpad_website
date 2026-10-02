@@ -4807,9 +4807,13 @@
 
     const serverError = (result) => (result.data && result.data.error) || "The Pawpad server could not be reached.";
 
+    // Only the newest request counts, so an older, slower answer never replaces the day just chosen.
+    const latestLoad = React.useRef(0);
     const load = async (target) => {
+      const ticket = ++latestLoad.current;
       setLoading(true);
       const result = await window.PawpadApi.call("list_bookings", { date: target || date });
+      if (ticket !== latestLoad.current) return;
       setLoading(false);
       if (result.ok) {
         setDay(result.data);
@@ -5241,8 +5245,11 @@
       setSaveState({});
     };
 
+    const latestLoad = React.useRef(0); // ignore an older day's answer arriving late
     const load = async (target) => {
+      const ticket = ++latestLoad.current;
       const result = await window.PawpadApi.call("closing_day", { date: target || date });
+      if (ticket !== latestLoad.current) return;
       if (result.ok) applyDay(result.data);
       else setNotice("⚠️ " + serverError(result));
     };
@@ -5408,7 +5415,17 @@
     const [f, setF] = useState({ time: "", customerName: "", phone: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "" });
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [slots, setSlots] = useState(null);
     const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+
+    // The day's studio slots, so a free one can be picked with one tap.
+    useEffect(() => {
+      let live = true;
+      setSlots(null);
+      window.PawpadApi.call("list_bookings", { date }).then((r) => { if (live) setSlots(r.ok ? (r.data.slots || []) : []); });
+      return () => { live = false; };
+    }, [date]);
+    const SLOT_STATE_LABEL = { free: "Free", booked: "Booked", blocked: "Blocked", closed: "Closed", calendar: "Busy in calendar", unknown: "Calendar not readable" };
 
     const pickService = (key) => {
       const pkg = packages.find((p) => p.key === key);
@@ -5436,6 +5453,20 @@
       { className: "card", onSubmit: submit, "data-section": "walkin", style: { display: "flex", flexDirection: "column", gap: "12px" } },
       React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--admin-gold)" } }, "Add a walk-in or phone booking"),
       React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "If the time is free, the slot is taken (so nobody can book it online) and an event is added to the info@ calendar."),
+      slots && slots.length > 0 && React.createElement("div", { "data-section": "walkin-slots" },
+        React.createElement("p", { style: { ...label, marginBottom: "6px" } }, "Studio slots on this day (tap a free one)"),
+        React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap" } },
+          slots.map((sl) => {
+            const free = sl.state === "free";
+            return React.createElement("button", {
+              type: "button", key: sl.time, "data-walkin-slot": sl.time, disabled: !free,
+              title: SLOT_STATE_LABEL[sl.state] || sl.state,
+              className: "btn-admin " + (f.time === sl.time ? "btn-admin-primary" : "btn-admin-secondary"),
+              style: { padding: "5px 10px", fontSize: "12px", opacity: free ? 1 : 0.55 },
+              onClick: () => set({ time: sl.time })
+            }, `${formatSlotTime(sl.time)} · ${SLOT_STATE_LABEL[sl.state] || sl.state}`);
+          }))),
+      slots && slots.length === 0 && React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "The studio has no slots on this day (closed). The booking will only be recorded."),
       React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
         field("time", "Time *", { type: "time", required: true }),
         field("customerName", "Customer name *", { required: true }),

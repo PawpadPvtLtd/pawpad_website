@@ -812,6 +812,14 @@ const FLEXIBLE_PET_TYPE_SERVICES = [
   "bath-brush-subscription"
 ];
 
+// Boarding can be requested up to about 3 months ahead; other enquiries up to 14 days.
+const BOARDING_DAYS_AHEAD = 92;
+
+/** "2026-12-24" (local date, as a date box gives it) for a Date. */
+function localDateValue(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function generateCheckoutDates() {
   const days = [];
   const today = new Date();
@@ -976,6 +984,11 @@ function CheckoutModal({ open, onClose }) {
   const hasSlotPets = slotPetIndexes.length > 0;
   // Boarding and course/consulting items are still enquiries with a preferred date.
   const hasEnquiryItems = items.some((i) => typeof PawpadSlots === "undefined" || !PawpadSlots.takesSlot(i));
+  const hasBoardingItems = items.some((i) => i.category === "Boarding");
+  // The preferred enquiry / boarding date, e.g. "Thu, 24 Dec 2026".
+  const enquiryDateLabel = customerData.date
+    ? new Date(customerData.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : "To be scheduled";
   const updSlot = (idx, choice) => {
     setBookingError("");
     setSlotChoices((prev) => {
@@ -1127,6 +1140,7 @@ function CheckoutModal({ open, onClose }) {
       return pets.length > 0 && pets.every((p, idx) => isPetValid(p, idx));
     }
     if (step === scheduleStepIndex) {
+      if (hasBoardingItems && customerData.date && new Date(customerData.date).getDay() === 4) return false; // closed on Thursdays
       return slotPetIndexes.every((idx) => slotChoices[idx] && slotChoices[idx].date && slotChoices[idx].time);
     }
     return true;
@@ -1202,7 +1216,7 @@ function CheckoutModal({ open, onClose }) {
       pets: resolvedPets,
       pet: resolvedPets.length > 0 ? resolvedPets[0] : null,
       appointment: {
-        date: customerData.date ? new Date(customerData.date).toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" }) : "To be scheduled",
+        date: enquiryDateLabel,
         time: customerData.time || "Flexible",
         notes: customerData.notes
       },
@@ -1255,8 +1269,8 @@ function CheckoutModal({ open, onClose }) {
       setPlacing(true);
       const boarding = await window.PawpadApi.call("create_boarding_request", {
         customer: orderPayload.customer,
-        stayDate: orderPayload.appointment.date,
-        stayTime: orderPayload.appointment.time,
+        stayDate: enquiryDateLabel,
+        stayTime: customerData.time || "Flexible",
         notes: customerData.notes || "",
         items: boardingItems.map((i) => ({ title: i.title, quantity: i.quantity || 1, priceDisplay: i.priceDisplay || `₹${formatInr(i.price)}` })),
         pets: resolvedPets.filter((p, idx) => petSlots[idx] && String(petSlots[idx].serviceId || "").startsWith("boarding")),
@@ -1947,8 +1961,30 @@ function CheckoutModal({ open, onClose }) {
               (!hasSlotPets || hasEnquiryItems) && React.createElement(
                 "div",
                 { className: "date-picker-wrap" },
-                React.createElement("label", { className: "sub-label" }, "Select Date (Next 14 Days)"),
-                React.createElement(
+                React.createElement("label", { className: "sub-label", htmlFor: hasBoardingItems ? "boarding-date" : undefined },
+                  hasBoardingItems ? "Select Date (up to 3 months ahead)" : "Select Date (Next 14 Days)"),
+                // Boarding: a date box covering the next 3 months (too many days for buttons).
+                hasBoardingItems && (() => {
+                  const min = new Date(); min.setDate(min.getDate() + 1);
+                  const max = new Date(); max.setDate(max.getDate() + BOARDING_DAYS_AHEAD);
+                  const value = customerData.date ? localDateValue(new Date(customerData.date)) : "";
+                  const thursday = value && PawpadSlots.toDate(value).getDay() === 4;
+                  return React.createElement("div", null,
+                    React.createElement("input", {
+                      id: "boarding-date", type: "date", className: "boarding-date-input",
+                      min: localDateValue(min), max: localDateValue(max), value,
+                      onChange: (e) => {
+                        const v = e.target.value;
+                        if (!v) return updCustomer("date", "");
+                        if (v < localDateValue(min) || v > localDateValue(max)) return;
+                        updCustomer("date", PawpadSlots.toDate(v).toISOString());
+                      },
+                      style: { padding: "12px 14px", borderRadius: 12, border: "1px solid var(--line, #ddd)", fontSize: 16, minWidth: 220 }
+                    }),
+                    React.createElement("p", { className: "lead-sm", role: thursday ? "alert" : undefined, style: { marginTop: 8, fontSize: 13, color: thursday ? "var(--danger, #b3261e)" : undefined } },
+                      thursday ? "The studio is closed on Thursdays. Please choose another day." : "From tomorrow up to 3 months ahead. We'll confirm the dates with you."));
+                })(),
+                !hasBoardingItems && React.createElement(
                   "div",
                   { className: "date-chip-grid" },
                   generateCheckoutDates().map((d, i) => {
