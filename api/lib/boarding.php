@@ -12,7 +12,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 const BOARDING_STATUSES = ['new' => 'New', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
-// Requests can be made from tomorrow up to this many days ahead; a stay is at most this many nights.
+// Requests can be made from today up to this many days ahead; a stay is at most this many nights.
 const BOARDING_DAYS_AHEAD = 92;
 const BOARDING_MAX_NIGHTS = 60;
 
@@ -183,7 +183,7 @@ function create_boarding_request(array $input): array
         $out = parse_studio_date((string) ($input['checkOut'] ?? ''));
         $today = studio_today();
         if (!$in || !$out || $in < $today || $in > $today->modify('+' . BOARDING_DAYS_AHEAD . ' days')) {
-            json_error('Please choose a check-in date from tomorrow up to 3 months ahead.');
+            json_error('Please choose a check-in date from today up to 3 months ahead.');
         }
         if ($out <= $in || $out > $in->modify('+' . BOARDING_MAX_NIGHTS . ' days')) {
             json_error('The check-out date must be after the check-in date (up to ' . BOARDING_MAX_NIGHTS . ' nights).');
