@@ -5595,7 +5595,9 @@
     const [drafts, setDrafts] = useState({});
     const [saving, setSaving] = useState(null);
 
+    const [nightInfo, setNightInfo] = useState(null);
     const load = async () => {
+      window.PawpadApi.call("boarding_availability", {}).then((r) => { if (r.ok) setNightInfo(r.data); });
       const result = await window.PawpadApi.call("list_boarding_requests", {});
       if (result.ok) {
         setRequests(result.data.requests || []);
@@ -5616,16 +5618,23 @@
       setSaving(null);
       if (!result.ok) return showNotice("Could not save: " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
       setRequests((prev) => prev.map((x) => (x.id === r.id ? result.data.request : x)));
+      window.PawpadApi.call("boarding_availability", {}).then((x) => { if (x.ok) setNightInfo(x.data); });
       setDrafts((prev) => ({ ...prev, [r.id]: {} }));
       showNotice(`✓ ${r.ref} saved.`);
     };
 
     const shown = (requests || []).filter((r) => filter === "all" || (filter === "open" ? (r.status === "new" || r.status === "confirmed") : r.status === filter));
     const count = (st) => (requests || []).filter((r) => r.status === st).length;
+    const fullNights = nightInfo ? (nightInfo.nights || []).filter((n) => n.left === 0) : [];
 
     return React.createElement(
       "div",
       { style: { display: "flex", flexDirection: "column", gap: "16px" } },
+      nightInfo && React.createElement("div", { className: "card", "data-section": "boarding-capacity", style: { fontSize: "13px" } },
+        React.createElement("strong", null, `Up to ${nightInfo.dogsPerNight} dogs per night`), " (only Confirmed stays count). ",
+        fullNights.length
+          ? `Full nights: ${fullNights.slice(0, 8).map((n) => new Date(n.date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })).join(", ")}${fullNights.length > 8 ? ` and ${fullNights.length - 8} more` : ""}. Customers can't request these nights, and a stay that would go over can't be confirmed.`
+          : "No night is full yet. A stay that would put more dogs on a night can't be confirmed."),
       React.createElement(
         "div",
         { className: "card", style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } },
@@ -5645,9 +5654,15 @@
                 React.createElement("strong", { style: { fontSize: "16px" } }, `${r.ref} · ${r.customer.name}`),
                 React.createElement("span", { className: "badge " + (r.status === "new" ? "badge-pending" : r.status === "confirmed" || r.status === "completed" ? "badge-approved" : "badge-rejected") }, r.statusLabel)),
               React.createElement("div", { style: { fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
-                React.createElement("span", null, "Requested: ", React.createElement("strong", null, r.stayDate || "—"), r.stayTime ? ` · ${r.stayTime}` : "", ` · sent ${new Date(r.createdAt).toLocaleString("en-IN")}`),
+                r.stayEnd
+                  ? React.createElement("span", { "data-stay": r.ref }, "Stay: ", React.createElement("strong", null, `${r.stayDate} → ${r.stayEnd}`),
+                      ` · ${r.nights} night${r.nights === 1 ? "" : "s"}`, r.dogs ? ` · ${r.dogs} dog${r.dogs === 1 ? "" : "s"}` : "",
+                      r.stayTime && r.stayTime !== "Flexible" ? ` · drop-off ${r.stayTime}` : "", ` · sent ${new Date(r.createdAt).toLocaleString("en-IN")}`)
+                  : React.createElement("span", null, "Requested: ", React.createElement("strong", null, r.stayDate || "—"), r.stayTime ? ` · ${r.stayTime}` : "", ` · sent ${new Date(r.createdAt).toLocaleString("en-IN")}`),
                 React.createElement("span", null, React.createElement("a", { href: `tel:${r.customer.phone}` }, r.customer.phone), r.customer.email ? ` · ${r.customer.email}` : "", r.customer.contactMethod ? ` · prefers ${r.customer.contactMethod}` : ""),
-                r.items.map((i, k) => React.createElement("span", { key: "i" + k }, `• ${i.title}${i.quantity > 1 ? ` × ${i.quantity}` : ""}${i.price ? ` — ${i.price}` : ""}`)),
+                r.items.map((i, k) => React.createElement("span", { key: "i" + k }, i.nights > 0
+                  ? `• ${i.title} — ${i.quantity} dog${i.quantity === 1 ? "" : "s"} × ${i.nights} night${i.nights === 1 ? "" : "s"}${i.price ? ` — ${i.price}` : ""}${i.lineTotal ? ` (${i.lineTotal})` : ""}`
+                  : `• ${i.title}${i.quantity > 1 ? ` × ${i.quantity}` : ""}${i.price ? ` — ${i.price}` : ""}`)),
                 r.pets.map((p, k) => React.createElement("span", { key: "p" + k, style: { color: "var(--admin-text-muted)" } },
                   `🐶 ${p.name || "Dog"}${p.breed ? ` (${p.breed})` : ""}${p.size ? ` · ${p.size}` : ""}${p.temperament ? ` · ${p.temperament}` : ""}${p.trialDone === "no" ? " · first stay — trial day needed" : p.trialDone === "yes" ? " · trial day done" : ""}${p.healthNotes ? ` · ${p.healthNotes}` : ""}`)),
                 (r.total || r.trialFee) && React.createElement("span", null, r.trialFee ? `Trial day fee ${r.trialFee} · ` : "", r.total ? `Estimated total ${r.total}` : ""),
