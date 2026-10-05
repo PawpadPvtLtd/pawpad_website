@@ -182,7 +182,7 @@ reference, e.g. **BRD-0001**. Nothing is booked until you confirm it.
 
 **Overnight stays** are priced per dog, per night. In the cart, the quantity is
 the number of **dogs**. At checkout the customer picks a **check-in** and a
-**check-out** date (up to 3 months ahead, never on a Thursday). Each dog is
+**check-out** date (from today up to 3 months ahead, never on a Thursday). Each dog is
 listed once, and the email and the request show both dates and the number of
 nights.
 
@@ -195,7 +195,9 @@ Boarding Requests lists the full nights. To change the limit, set
 
 In **Website Content CMS → Boarding**, tick **"Needs a trial day first"** on any
 stay that requires a trial day. Customers who haven't done one are charged the
-Trial Day package's price, per dog.
+Trial Day package's price, per dog. **Untick it** (and click Save Live Changes)
+to stop asking about a trial day and stop adding the fee. Also update the
+Boarding page texts that say a trial day is mandatory.
 
 ## Footer (all pages)
 

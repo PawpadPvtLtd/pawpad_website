@@ -2053,11 +2053,11 @@ function CheckoutModal({ open, onClose }) {
               (!hasSlotPets || hasEnquiryItems) && React.createElement(
                 "div",
                 { className: "date-picker-wrap" },
-                React.createElement("label", { className: "sub-label", htmlFor: hasBoardingItems ? "boarding-date" : undefined },
-                  hasStayItems ? "Check-in date" : hasBoardingItems ? "Select Date (up to 3 months ahead)" : "Select Date (Next 14 Days)"),
+                !hasStayItems && React.createElement("label", { className: "sub-label", htmlFor: hasBoardingItems ? "boarding-date" : undefined },
+                  hasBoardingItems ? "Select Date (up to 3 months ahead)" : "Select Date (Next 14 Days)"),
                 // Boarding: date boxes (check-in, and check-out for overnight stays) covering the next 3 months.
                 hasBoardingItems && (() => {
-                  const min = new Date(); min.setDate(min.getDate() + 1);
+                  const min = new Date(); // boarding can start today
                   const max = new Date(); max.setDate(max.getDate() + BOARDING_DAYS_AHEAD);
                   const value = customerData.date ? localDateValue(new Date(customerData.date)) : "";
                   const endValue = customerData.endDate ? localDateValue(new Date(customerData.endDate)) : "";
@@ -2076,9 +2076,11 @@ function CheckoutModal({ open, onClose }) {
                         : "";
                   const info = hasStayItems
                     ? (stayLabel ? `${nights} night${nights === 1 ? "" : "s"} · ${stayDogs} dog${stayDogs === 1 ? "" : "s"}. We'll confirm the dates with you.` : "Choose the day you drop your dog off and the day you pick them up.")
-                    : "From tomorrow up to 3 months ahead. We'll confirm the dates with you.";
+                    : "From today up to 3 months ahead. We'll confirm the dates with you.";
                   return React.createElement("div", null,
-                    React.createElement("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" } },
+                    React.createElement("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" } },
+                      React.createElement("div", null,
+                      hasStayItems && React.createElement("label", { className: "sub-label", htmlFor: "boarding-date", style: { display: "block" } }, "Check-in date"),
                       React.createElement("input", {
                         id: "boarding-date", type: "date", className: "boarding-date-input", "aria-label": hasStayItems ? "Check-in date" : "Date",
                         min: localDateValue(min), max: localDateValue(max), value,
@@ -2094,7 +2096,7 @@ function CheckoutModal({ open, onClose }) {
                           });
                         },
                         style: boxStyle
-                      }),
+                      })),
                       hasStayItems && React.createElement("div", null,
                         React.createElement("label", { className: "sub-label", htmlFor: "boarding-end-date", style: { display: "block" } }, "Check-out date"),
                         React.createElement("input", {
