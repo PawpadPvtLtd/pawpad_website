@@ -4,7 +4,6 @@ const pages = [
   { path: "/", titleContains: "Pawpad" },
   { path: "/index.html", titleContains: "Pawpad" },
   { path: "/about.html", titleContains: "Our Story" },
-  { path: "/experience.html", titleContains: "Experience" },
   { path: "/grooming.html", titleContains: "Grooming" },
   { path: "/courses.html", titleContains: "Courses" },
   { path: "/studio-setup.html", titleContains: "Studio Setup" },
@@ -70,11 +69,11 @@ test.describe("Pawpad Complete Site Integrity & Render Tests", () => {
 });
 
 test.describe("Interactive Features & User Flows", () => {
-  test("TopNav contains all 9 main navigation links and opens Studio Setup", async ({ page }) => {
+  test("TopNav contains all 8 main navigation links and opens Studio Setup", async ({ page }) => {
     await page.goto("/index.html");
     const navLinks = page.locator(".nav-links.desktop-only .nav-link");
     // Pages wait briefly for published content before drawing, so wait for the links.
-    await expect(navLinks).toHaveCount(9); // Home, About, Experience, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Contact
+    await expect(navLinks).toHaveCount(8); // Home, About, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Contact
 
     const studioSetupLink = page.locator('.nav-links.desktop-only a[href="studio-setup.html"]');
     await expect(studioSetupLink).toBeVisible();
@@ -218,3 +217,9 @@ test.describe("Interactive Features & User Flows", () => {
   });
 });
 
+test("the retired Experience page forwards to the handling philosophy on About", async ({ page }) => {
+  await page.goto("/experience.html");
+  await expect(page).toHaveURL(/about\.html#handling$/);
+  await expect(page.locator("#handling")).toContainText("your pet's pace");
+  await expect(page.locator('nav a:has-text("Experience")')).toHaveCount(0);
+});

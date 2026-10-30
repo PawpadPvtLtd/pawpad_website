@@ -1997,7 +1997,7 @@
   // SMALL CMS BUILDING BLOCKS (sections, fields, editable lists)
   // -------------------------------------------------------------
   const CMS_PAGE_OPTIONS = [
-    ["home", "Home"], ["about", "About"], ["experience", "Experience"], ["grooming", "Grooming"], ["courses", "Courses"],
+    ["home", "Home"], ["about", "About"], ["grooming", "Grooming"], ["courses", "Courses"],
     ["studioSetup", "Studio Setup"], ["boarding", "Boarding"], ["myotherapy", "Myotherapy"], ["contact", "Contact"]
   ];
 
@@ -2133,7 +2133,6 @@
     const pages = [
       { id: "home", label: "Home Page" },
       { id: "about", label: "About Page" },
-      { id: "experience", label: "Experience Page" },
       { id: "grooming", label: "Grooming Service" },
       { id: "courses", label: "Courses & Academy" },
       { id: "studioSetup", label: "Studio Setup & Consulting" },
@@ -2425,48 +2424,6 @@
               columns: "1fr 1fr",
               fields: [{ key: "quote", label: "What they said", kind: "textarea" }, { key: "name", label: "Name" }, { key: "pet", label: "Pet / detail (e.g. Maggie)" }],
               onChange: (list) => updateField("testimonials", list)
-            })
-          )
-        ),
-
-        selectedPage === "experience" &&
-        React.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: "24px" } },
-          React.createElement(CmsSection, { title: "Page Header" },
-            React.createElement(CmsField, { label: "Eyebrow", value: formData.eyebrow, onChange: (v) => updateField("eyebrow", v) }),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
-              React.createElement(CmsField, { label: "Title start", value: formData.title, onChange: (v) => updateField("title", v) }),
-              React.createElement(CmsField, { label: "Title accent (italics)", value: formData.titleAccent, onChange: (v) => updateField("titleAccent", v) }),
-              React.createElement(CmsField, { label: "Title end", value: formData.titleEnd, onChange: (v) => updateField("titleEnd", v) })),
-            React.createElement(CmsField, { label: "Lead paragraph", kind: "textarea", value: formData.lead, onChange: (v) => updateField("lead", v) })
-          ),
-          React.createElement(CmsSection, { title: "The Visit, Step by Step", hint: "Each step has its own photo. Numbers (01, 02…) are added automatically." },
-            React.createElement(CmsList, {
-              items: formData.steps, itemLabel: "Step", addLabel: "+ Add step", columns: "1fr",
-              fields: [{ key: "title", label: "Title" }, { key: "body", label: "Text", kind: "textarea" }, { key: "img", label: "Photo (WebP Auto-Converted)", kind: "image" }],
-              onChange: (list) => updateField("steps", list)
-            })
-          ),
-          React.createElement(CmsSection, { title: "Handling Philosophy (two photos + text)" },
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
-              ["eyebrow", "title", "titleAccent"].map((k) => React.createElement(CmsField, { key: k, label: { eyebrow: "Eyebrow", title: "Title", titleAccent: "Title accent (italics)" }[k], value: (formData.handling || {})[k], onChange: (v) => updateField("handling", { ...(formData.handling || {}), [k]: v }) }))),
-            React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Paragraphs"),
-            React.createElement(CmsList, { items: (formData.handling || {}).paragraphs, itemLabel: "Paragraph", addLabel: "+ Add paragraph", onChange: (list) => updateField("handling", { ...(formData.handling || {}), paragraphs: list }) }),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
-              React.createElement(CmsField, { label: "Photo 1", kind: "image", value: (formData.handling || {}).img1, onChange: (v) => updateField("handling", { ...(formData.handling || {}), img1: v }) }),
-              React.createElement(CmsField, { label: "Photo 2", kind: "image", value: (formData.handling || {}).img2, onChange: (v) => updateField("handling", { ...(formData.handling || {}), img2: v }) }),
-              React.createElement(CmsField, { label: "Badge title", value: (formData.handling || {}).badgeTitle, onChange: (v) => updateField("handling", { ...(formData.handling || {}), badgeTitle: v }) }),
-              React.createElement(CmsField, { label: "Badge text", value: (formData.handling || {}).badgeText, onChange: (v) => updateField("handling", { ...(formData.handling || {}), badgeText: v }) }))
-          ),
-          React.createElement(CmsSection, { title: "Products We Use" },
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px" } },
-              ["eyebrow", "title", "titleAccent", "titleEnd"].map((k) => React.createElement(CmsField, { key: k, label: { eyebrow: "Eyebrow", title: "Title start", titleAccent: "Title accent (italics)", titleEnd: "Title end" }[k], value: (formData.products || {})[k], onChange: (v) => updateField("products", { ...(formData.products || {}), [k]: v }) }))),
-            React.createElement(CmsField, { label: "Lead paragraph", kind: "textarea", value: (formData.products || {}).lead, onChange: (v) => updateField("products", { ...(formData.products || {}), lead: v }) }),
-            React.createElement(CmsList, {
-              items: (formData.products || {}).items, itemLabel: "Card", addLabel: "+ Add card", columns: "1fr",
-              fields: [{ key: "name", label: "Title" }, { key: "note", label: "Text", kind: "textarea" }],
-              onChange: (list) => updateField("products", { ...(formData.products || {}), items: list })
             })
           )
         ),
@@ -3782,6 +3739,17 @@
         React.createElement(
           "div",
           { style: { display: "flex", flexDirection: "column", gap: "24px" } },
+          React.createElement(CmsSection, { title: "Handling Philosophy (moved from the old Experience page)", hint: "Shown on the About page as \"Grooming at your pet's pace\": two photos, a badge and the text." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
+              ["eyebrow", "title", "titleAccent"].map((k) => React.createElement(CmsField, { key: k, label: { eyebrow: "Eyebrow", title: "Title", titleAccent: "Title accent (italics)" }[k], value: (formData.handling || {})[k], onChange: (v) => updateField("handling", { ...(formData.handling || {}), [k]: v }) }))),
+            React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Paragraphs"),
+            React.createElement(CmsList, { items: (formData.handling || {}).paragraphs, itemLabel: "Paragraph", addLabel: "+ Add paragraph", onChange: (list) => updateField("handling", { ...(formData.handling || {}), paragraphs: list }) }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Photo 1", kind: "image", value: (formData.handling || {}).img1, onChange: (v) => updateField("handling", { ...(formData.handling || {}), img1: v }) }),
+              React.createElement(CmsField, { label: "Photo 2", kind: "image", value: (formData.handling || {}).img2, onChange: (v) => updateField("handling", { ...(formData.handling || {}), img2: v }) }),
+              React.createElement(CmsField, { label: "Badge title", value: (formData.handling || {}).badgeTitle, onChange: (v) => updateField("handling", { ...(formData.handling || {}), badgeTitle: v }) }),
+              React.createElement(CmsField, { label: "Badge text", value: (formData.handling || {}).badgeText, onChange: (v) => updateField("handling", { ...(formData.handling || {}), badgeText: v }) }))
+          ),
 
           // 1. Hero & Studio Meta
           React.createElement(
