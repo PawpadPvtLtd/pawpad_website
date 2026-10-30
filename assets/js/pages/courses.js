@@ -127,7 +127,7 @@ function CoursesHero() {
       React.createElement("div", { className: "c-hero-image reveal in" },
         React.createElement("img", {
           src: (cms.heroImage && !cms.heroImage.includes("courses-snapshot") && !cms.heroImage.includes("courses-cover-image")) ? cms.heroImage : "assets/img/pawpad/courses-cover-new.webp",
-          alt: "Pawpad grooming course",
+          alt: "A student learning hands-on dog grooming at Pawpad Academy, Bengaluru",
           fetchpriority: "high",
           decoding: "async",
           onError: (e) => { if (window.handleImgError) window.handleImgError(e, "assets/img/pawpad/courses-cover-new.webp"); }

@@ -99,7 +99,24 @@
     if (!sections.length && applyHref) out += '<a href="' + escapeHtml(applyHref) + '" class="cta">Apply Now</a>';
     if (km.note) out += '<div class="note">' + rich(km.note) + "</div>";
     box.innerHTML = out;
-    document.title = (km.heading || stripCode(item.title)) + (item.code ? " (" + item.code + ")" : "") + " · Pawpad Academy";
+    document.title = stripCode(km.heading || item.title) + (item.code ? " (" + item.code + ")" : "") + " | Pawpad Bengaluru";
+    updateCourseData(item);
+  }
+
+  /** Keeps the course details for Google (name, code, price) in step with Website Content CMS. */
+  function updateCourseData(item) {
+    const tag = document.querySelector('script[type="application/ld+json"]');
+    if (!tag) return;
+    try {
+      const data = JSON.parse(tag.textContent);
+      if (data["@type"] !== "Course") return;
+      const code = item.code || data.courseCode;
+      data.name = stripCode(item.title) + (code ? " (" + code + ")" : "");
+      data.courseCode = code;
+      const fee = money(item.price);
+      if (fee !== null && data.offers) data.offers.price = String(fee);
+      tag.textContent = JSON.stringify(data);
+    } catch (e) { /* leave the page's own data as it is */ }
   }
 
   function closeApplications(message) {
