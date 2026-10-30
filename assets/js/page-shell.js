@@ -63,10 +63,27 @@ function PawpadShell({ route, page: PageComponent }) {
     )
   );
 }
+/**
+ * A link like about.html#handling: the page is built after the browser looks for
+ * #handling, so jump to it once it exists (tries for up to 3 seconds).
+ */
+function scrollToHash() {
+  const id = decodeURIComponent(String(window.location.hash || "").slice(1));
+  if (!id || !/^[A-Za-z][\w-]*$/.test(id)) return;
+  let tries = 0;
+  const look = () => {
+    const el = document.getElementById(id);
+    if (el) return el.scrollIntoView({ block: "start" });
+    if (++tries < 30) setTimeout(look, 100);
+  };
+  setTimeout(look, 50);
+}
+
 function mountPage(route, PageComponent) {
   const render = () => {
     const root = ReactDOM.createRoot(document.getElementById("app"));
     root.render(/* @__PURE__ */ React.createElement(PawpadShell, { route, page: PageComponent }));
+    scrollToHash();
   };
   // Wait briefly for the latest published content so visitors don't see old text flash first.
   // If the server is slow, show the page anyway; it updates itself when the content arrives.

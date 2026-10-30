@@ -175,6 +175,45 @@ function Philosophy() {
       `));
 }
 
+/** "Grooming at your pet's pace" (moved here from the retired Experience page). Website Content CMS → About. */
+function HandlingPhilosophy() {
+  const cms = (typeof useCmsContent === "function") ? useCmsContent("about") : (window.PawpadContentStore ? window.PawpadContentStore.get("about") : {});
+  const h = cms.handling || {};
+  const paragraphs = Array.isArray(h.paragraphs) && h.paragraphs.length ? h.paragraphs : [
+    "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive.",
+    "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity.",
+    "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process.",
+    "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating.",
+    "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet."
+  ];
+  return /* @__PURE__ */ React.createElement("section", { className: "handling", id: "handling" }, /* @__PURE__ */ React.createElement("div", { className: "container" }, /* @__PURE__ */ React.createElement("div", { className: "handling-grid" }, /* @__PURE__ */ React.createElement("div", { className: "handling-images reveal" }, /* @__PURE__ */ React.createElement("div", { className: "h-img-1 blob-2" }, /* @__PURE__ */ React.createElement("img", { src: h.img1 || "assets/img/pawpad/grooming-snapshot.webp", alt: "Gentle grooming at Pawpad" })), /* @__PURE__ */ React.createElement("div", { className: "h-img-2 blob-1" }, /* @__PURE__ */ React.createElement("img", { src: h.img2 || "assets/img/pawpad/grooming-page-grooming-massage.webp", alt: "A dog calmly relaxing during a gentle massage" })), /* @__PURE__ */ React.createElement("div", { className: "handling-badge" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 20, color: "var(--driftwood)" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, h.badgeTitle || "Calm"), /* @__PURE__ */ React.createElement("span", null, h.badgeText || "appointment-only care with room to pause")))), /* @__PURE__ */ React.createElement("div", { className: "handling-text reveal" }, /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, h.eyebrow || "Our handling philosophy"), /* @__PURE__ */ React.createElement("h2", { className: "h-1", style: { marginTop: 18, maxWidth: "15ch" } }, h.title || "Grooming at ", /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, h.titleAccent || "your pet's pace")), paragraphs.map((text, i) => /* @__PURE__ */ React.createElement("p", { key: i, style: i === 0 ? { marginTop: 28, maxWidth: "54ch" } : { maxWidth: "54ch" } }, text))))), /* @__PURE__ */ React.createElement("style", null, `
+        .handling { background: var(--champagne-soft); scroll-margin-top: 90px; }
+        .handling-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+        .handling-images { position: relative; aspect-ratio: 1/1.1; }
+        .h-img-1, .h-img-2 { position: absolute; overflow: hidden; }
+        .h-img-1 img, .h-img-2 img { width: 100%; height: 100%; object-fit: cover; }
+        .h-img-1 { left: 0; top: 0; width: 64%; height: 60%; background: var(--driftwood); }
+        .h-img-2 { right: 0; bottom: 0; width: 60%; height: 56%; background: var(--eagle); box-shadow: -20px 30px 60px -30px color-mix(in oklab, var(--ink), transparent 60%); }
+        .handling-badge {
+          position: absolute; left: 8%; bottom: 8%;
+          background: var(--white);
+          padding: 16px 22px;
+          border-radius: 18px;
+          display: flex; align-items: center; gap: 14px;
+          z-index: 3;
+          box-shadow: 0 24px 40px -20px color-mix(in oklab, var(--ink), transparent 60%);
+        }
+        body[data-palette="dark"] .handling-badge { background: color-mix(in oklab, var(--champagne), black 5%); }
+        .handling-badge strong { display: block; font-family: var(--f-display); font-size: 26px; color: var(--driftwood); line-height: 1; }
+        .handling-badge span { font-size: 12px; color: var(--ink-mute); }
+        .handling-text p { margin-top: 18px; font-size: 16px; line-height: 1.7; }
+        @media (max-width: 900px) {
+          .handling-grid { grid-template-columns: 1fr; gap: 36px; }
+          .handling-images { aspect-ratio: 1.1/1; }
+        }
+      `));
+}
+
 function StudioStrip() {
   const cms = (typeof useCmsContent === "function") ? useCmsContent("about") : (window.PawpadContentStore ? window.PawpadContentStore.get("about") : {});
   const studio = cms.studio || {};
@@ -263,7 +302,7 @@ function Certifications() {
 
 function AboutPage({ onBook }) {
   useReveal();
-  return /* @__PURE__ */ React.createElement("div", { className: "page-enter" }, /* @__PURE__ */ React.createElement(AboutHero, null), /* @__PURE__ */ React.createElement(FounderStory, null), /* @__PURE__ */ React.createElement(Philosophy, null), /* @__PURE__ */ React.createElement(StudioStrip, null), /* @__PURE__ */ React.createElement(Certifications, null));
+  return /* @__PURE__ */ React.createElement("div", { className: "page-enter" }, /* @__PURE__ */ React.createElement(AboutHero, null), /* @__PURE__ */ React.createElement(FounderStory, null), /* @__PURE__ */ React.createElement(Philosophy, null), /* @__PURE__ */ React.createElement(HandlingPhilosophy, null), /* @__PURE__ */ React.createElement(StudioStrip, null), /* @__PURE__ */ React.createElement(Certifications, null));
 }
 
 Object.assign(window, { AboutPage });

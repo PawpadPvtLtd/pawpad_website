@@ -15,7 +15,7 @@ The original site loaded React/ReactDOM/Babel from a CDN and compiled every page
 live in the visitor's browser, all seven pages at once, on a single hash-routed
 (`#/about`) `index.html`. This version:
 
-- Is a real multi-page site — `index.html`, `about.html`, `experience.html`,
+- Is a real multi-page site — `index.html`, `about.html`,
   `grooming.html`, `courses.html`, `boarding.html`, `myotherapy.html` — each a genuine
   URL with its own `<title>`/description/Open Graph tags, loading only its own JS.
 - **Has no build step and no JSX anywhere.** Every file under `assets/js/` is plain
@@ -34,7 +34,7 @@ live in the visitor's browser, all seven pages at once, on a single hash-routed
 ```
 index.html            — Home
 about.html
-experience.html
+experience.html       — retired; forwards to about.html#handling
 grooming.html
 courses.html
 boarding.html
@@ -56,7 +56,6 @@ assets/
     pages/
       home.js
       about.js
-      experience.js
       grooming.js
       services-pages.js  — still defines Courses/Boarding/Myotherapy together, same as
                             the original vendor file

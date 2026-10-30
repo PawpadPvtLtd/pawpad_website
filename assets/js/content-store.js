@@ -151,95 +151,6 @@
         }
       ]
     },
-    experience: {
-      "eyebrow": "The Pawpad experience",
-      "title": "What it actually ",
-      "titleAccent": "feels like",
-      "titleEnd": " to bring your pet here",
-      "lead": "At Pawpad, appointments are intentionally spaced out to ensure that grooming is never rushed. We work at a pace that allows pets to settle, adjust, and feel comfortable throughout the grooming process.",
-      "steps": [
-        {
-          "title": "A Little Hello",
-          "body": "Tell us about your pet — their personality, preferences, and anything you'd like us to know.",
-          "img": "assets/img/pawpad/experience-a-little-hello.webp",
-          "pos": "right center"
-        },
-        {
-          "title": "A Calm Welcome",
-          "body": "Your pet arrives in a quiet, appointment-only space designed to help them settle in comfortably.",
-          "img": "assets/img/pawpad/experience-a-calm-welcome-snapshot.webp"
-        },
-        {
-          "title": "Getting to Know Them",
-          "body": "We take a moment to assess their coat, comfort levels, and individual needs before we begin.",
-          "img": "assets/img/pawpad/experience-getting-to-know-them-snapshot.webp"
-        },
-        {
-          "title": "Care at Their Pace",
-          "body": "Grooming is tailored to your pet, with plenty of patience, breaks, and gentle handling along the way.",
-          "img": "assets/img/pawpad/experience-care-at-their-pace-snapshot.webp"
-        },
-        {
-          "title": "One-on-One Attention",
-          "body": "No cages. No rushing. Just dedicated care focused entirely on your pet's wellbeing.",
-          "img": "assets/img/pawpad/grooming-page-grooming-hair-cut.webp"
-        },
-        {
-          "title": "Ready to Head Home",
-          "body": "A fresh coat, a comfortable pet, and personalised recommendations for care between visits.",
-          "img": "assets/img/pawpad/experience-ready-to-head-home-snapshot.webp"
-        }
-      ],
-      "handling": {
-        "eyebrow": "The Pawpad experience",
-        "title": "Grooming at ",
-        "titleAccent": "your pet's pace",
-        "paragraphs": [
-          "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive.",
-          "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity.",
-          "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process.",
-          "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating.",
-          "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet."
-        ],
-        "img1": "assets/img/pawpad/grooming-snapshot.webp",
-        "img2": "assets/img/pawpad/grooming-page-grooming-massage.webp",
-        "badgeTitle": "Calm",
-        "badgeText": "appointment-only care with room to pause"
-      },
-      "products": {
-        "eyebrow": "Products we use",
-        "title": "What we put ",
-        "titleAccent": "on them",
-        "titleEnd": ", matters",
-        "lead": "We use professional-grade grooming products selected according to each pet's individual coat type, skin condition, sensitivities, and grooming requirements.",
-        "items": [
-          {
-            "name": "Coat-specific care",
-            "note": "Products are selected according to each pet's coat type, skin condition, sensitivities, and grooming requirements."
-          },
-          {
-            "name": "Healthy skin",
-            "note": "Shampoos, conditioners, treatments, and coat care products are chosen to support skin and coat maintenance."
-          },
-          {
-            "name": "Sensitive pets",
-            "note": "Particular care is taken when working with pets who have sensitive skin, allergies, coat concerns, or specific grooming needs."
-          },
-          {
-            "name": "Gentle formulas",
-            "note": "We prioritise products that are gentle, safe, and effective without unnecessarily harsh ingredients or overpowering fragrances."
-          },
-          {
-            "name": "Individual plans",
-            "note": "Rather than taking a one-product-fits-all approach, each product choice is tailored to the individual animal."
-          },
-          {
-            "name": "Long-term comfort",
-            "note": "Every product used should contribute positively to your pet's comfort, wellbeing, and long-term coat health."
-          }
-        ]
-      }
-    },
     // Shown at the bottom of every page (edited once in the admin panel).
     footer: {
       eyebrow: "Ready when you are",
@@ -263,6 +174,23 @@
       copyright: "\u00A9 2017 Pawpad. All rights reserved."
     },
     about: {
+      // "Grooming at your pet's pace", moved here from the retired Experience page.
+      "handling": {
+        "eyebrow": "Our handling philosophy",
+        "title": "Grooming at ",
+        "titleAccent": "your pet's pace",
+        "paragraphs": [
+          "Every session is guided by the individual animal. We pay close attention to body language, comfort levels, and stress signals, adapting our approach as needed. If a pet requires more time, more breaks, or a slower introduction to a particular part of grooming, that is exactly what they receive.",
+          "The grooming environment has been designed to minimise unnecessary stress and overstimulation. Appointments are staggered to avoid crowded spaces, excessive noise, and overwhelming activity.",
+          "Every pet receives dedicated attention throughout their appointment. We take the time to understand their individual needs, preferences, sensitivities, and comfort levels before and during the grooming process.",
+          "Our approach to animal handling has been shaped by years of working with rescue animals, community animals, and pets with a wide range of personalities and experiences. Trust cannot be forced. It is built through patience, consistency, and respect for what an animal is communicating.",
+          "For anxious or reactive pets, we assess each pet individually and adapt our handling and grooming approach to suit their comfort levels. We also offer guidance to help owners maintain coat care and hygiene in ways that are appropriate for their individual pet."
+        ],
+        "img1": "assets/img/pawpad/grooming-snapshot.webp",
+        "img2": "assets/img/pawpad/grooming-page-grooming-massage.webp",
+        "badgeTitle": "Calm",
+        "badgeText": "appointment-only care with room to pause"
+      },
       hero: {
         eyebrow: "About Pawpad",
         title: "Our story",
@@ -1544,6 +1472,14 @@
       }
       if (parsed && parsed.studioSetup && parsed.studioSetup.disclaimer === "Pricing shown is a starting point being tested, not a fixed rate card. Deliverables are equipment/budget guidance and space recommendations — this does not include a full architectural floor plan design.") {
         parsed.studioSetup.disclaimer = DEFAULT_CONTENT.studioSetup.disclaimer;
+      }
+
+      // The Experience page is retired: its handling philosophy now lives on About.
+      // Edits saved for it earlier carry over until About's own copy is saved.
+      if (parsed && parsed.experience && parsed.experience.handling && !(parsed.about && parsed.about.handling)) {
+        const moved = { ...parsed.experience.handling };
+        if (moved.eyebrow === "The Pawpad experience") delete moved.eyebrow;
+        parsed.about = { ...(parsed.about || {}), handling: moved };
       }
 
       // Old studio numbers saved earlier: everything now uses +91 91484 43330.
