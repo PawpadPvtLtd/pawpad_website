@@ -10,7 +10,7 @@ const pages = [
   { path: "/boarding.html", titleContains: "Boarding" },
   { path: "/myotherapy.html", titleContains: "Myotherapy" },
   { path: "/contact.html", titleContains: "Contact" },
-  { path: "/policies.html", titleContains: "Policies" },
+  { path: "/policies.html", titleContains: "Refund Policy" },
   { path: "/admin.html", titleContains: "Admin" },
   { path: "/course_forms/pawpad-foundations-page.html", titleContains: "Certification" },
   { path: "/course_forms/pawpad-essentials-dog-page.html", titleContains: "Essential" },

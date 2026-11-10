@@ -118,7 +118,8 @@ function BoardingPage({ onBook, onAddToCart }) {
       /* @__PURE__ */ React.createElement("div", { className: "container" },
         /* @__PURE__ */ React.createElement("div", { className: "section-head reveal in" },
           /* @__PURE__ */ React.createElement("p", { className: "eyebrow" }, cms.eyebrow || "PAWPAD · BOARDING"),
-          /* @__PURE__ */ React.createElement("h2", { className: "h-1" },
+          // The page's main heading (h1); it looks the same as before.
+          /* @__PURE__ */ React.createElement("h1", { className: "h-1" },
             cms.title || "Boarding, ",
             /* @__PURE__ */ React.createElement("em", { className: "italic", style: { color: "var(--driftwood)" } }, "Reimagined")
           ),
