@@ -10,7 +10,8 @@ const ROUTE_HREF = {
   studioSetup: "studio-setup.html",
   boarding: "boarding.html",
   myotherapy: "myotherapy.html",
-  contact: "contact.html"
+  contact: "contact.html",
+  blog: "blog.html"
 };
 // Accepts "studioSetup", "studio-setup", "Studio Setup", "studio-setup.html"… (typed in the admin panel).
 function hrefFor(key) {
@@ -56,8 +57,17 @@ const NAV_ITEMS = [
   { key: "studioSetup", label: "Studio Setup" },
   { key: "boarding", label: "Boarding" },
   { key: "myotherapy", label: "Myotherapy" },
+  // Shown only once the Blog is switched on (Website Content CMS → Blog & Vlogs).
+  { key: "blog", label: "Blog", onlyWhen: "blog" },
   { key: "contact", label: "Contact" }
 ];
+/** The menu as visitors see it right now. */
+function visibleNavItems() {
+  const blogOn = (() => {
+    try { return Boolean(window.PawpadContentStore && window.PawpadContentStore.get("blog").enabled); } catch (e) { return false; }
+  })();
+  return NAV_ITEMS.filter((i) => i.onlyWhen !== "blog" || blogOn);
+}
 function TopNav({ route, onBook, onOpenCart }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -86,7 +96,7 @@ function TopNav({ route, onBook, onOpenCart }) {
     else if (window.openCart) window.openCart();
   };
 
-  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("header", { className: "nav " + (scrolled ? "scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "container nav-inner" }, /* @__PURE__ */ React.createElement("a", { href: hrefFor("home"), className: "nav-brand", "aria-label": "Pawpad home" }, /* @__PURE__ */ React.createElement("img", { src: "assets/img/logo-pawpad-new-transparent.webp", alt: "Pawpad" })), /* @__PURE__ */ React.createElement("nav", { className: "nav-links desktop-only", "aria-label": "Primary" }, NAV_ITEMS.map((item) => /* @__PURE__ */ React.createElement("a", { key: item.key, href: hrefFor(item.key), className: "nav-link " + (route === item.key ? "active" : "") }, item.label))), /* @__PURE__ */ React.createElement("div", { className: "nav-cta desktop-only" }, /* @__PURE__ */ React.createElement("button", { className: "nav-cart-btn", onClick: handleOpenCart, "aria-label": `Shopping cart with ${cartCount} items` }, /* @__PURE__ */ React.createElement(CartIcon, { size: 18 }), cartCount > 0 && /* @__PURE__ */ React.createElement("span", { className: "nav-cart-badge" }, cartCount))), /* @__PURE__ */ React.createElement("div", { className: "mobile-nav-actions mobile-only" }, /* @__PURE__ */ React.createElement("button", { className: "nav-cart-btn mobile-cart-btn", onClick: handleOpenCart, "aria-label": `Shopping cart with ${cartCount} items` }, /* @__PURE__ */ React.createElement(CartIcon, { size: 18 }), cartCount > 0 && /* @__PURE__ */ React.createElement("span", { className: "nav-cart-badge" }, cartCount)), /* @__PURE__ */ React.createElement("button", { className: "hamburger", onClick: () => setOpen(true), "aria-label": "Open menu" }, /* @__PURE__ */ React.createElement("span", null), /* @__PURE__ */ React.createElement("span", null), /* @__PURE__ */ React.createElement("span", null))))), open && /* @__PURE__ */ React.createElement("div", { className: "mobile-menu", onClick: () => setOpen(false) }, /* @__PURE__ */ React.createElement("div", { className: "mobile-menu-inner", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "close", onClick: () => setOpen(false), "aria-label": "Close menu" }, "\xD7"), /* @__PURE__ */ React.createElement("div", { className: "mobile-links" }, NAV_ITEMS.map((item) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("header", { className: "nav " + (scrolled ? "scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "container nav-inner" }, /* @__PURE__ */ React.createElement("a", { href: hrefFor("home"), className: "nav-brand", "aria-label": "Pawpad home" }, /* @__PURE__ */ React.createElement("img", { src: "assets/img/logo-pawpad-new-transparent.webp", alt: "Pawpad" })), /* @__PURE__ */ React.createElement("nav", { className: "nav-links desktop-only", "aria-label": "Primary" }, visibleNavItems().map((item) => /* @__PURE__ */ React.createElement("a", { key: item.key, href: hrefFor(item.key), className: "nav-link " + (route === item.key ? "active" : "") }, item.label))), /* @__PURE__ */ React.createElement("div", { className: "nav-cta desktop-only" }, /* @__PURE__ */ React.createElement("button", { className: "nav-cart-btn", onClick: handleOpenCart, "aria-label": `Shopping cart with ${cartCount} items` }, /* @__PURE__ */ React.createElement(CartIcon, { size: 18 }), cartCount > 0 && /* @__PURE__ */ React.createElement("span", { className: "nav-cart-badge" }, cartCount))), /* @__PURE__ */ React.createElement("div", { className: "mobile-nav-actions mobile-only" }, /* @__PURE__ */ React.createElement("button", { className: "nav-cart-btn mobile-cart-btn", onClick: handleOpenCart, "aria-label": `Shopping cart with ${cartCount} items` }, /* @__PURE__ */ React.createElement(CartIcon, { size: 18 }), cartCount > 0 && /* @__PURE__ */ React.createElement("span", { className: "nav-cart-badge" }, cartCount)), /* @__PURE__ */ React.createElement("button", { className: "hamburger", onClick: () => setOpen(true), "aria-label": "Open menu" }, /* @__PURE__ */ React.createElement("span", null), /* @__PURE__ */ React.createElement("span", null), /* @__PURE__ */ React.createElement("span", null))))), open && /* @__PURE__ */ React.createElement("div", { className: "mobile-menu", onClick: () => setOpen(false) }, /* @__PURE__ */ React.createElement("div", { className: "mobile-menu-inner", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "close", onClick: () => setOpen(false), "aria-label": "Close menu" }, "\xD7"), /* @__PURE__ */ React.createElement("div", { className: "mobile-links" }, visibleNavItems().map((item) => /* @__PURE__ */ React.createElement(
     "a",
     {
       key: item.key,
@@ -290,7 +300,7 @@ function Footer({ onBook }) {
           /* @__PURE__ */ React.createElement("div", null,
             /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, f.exploreTitle),
             /* @__PURE__ */ React.createElement("ul", null,
-              NAV_ITEMS.filter((i) => i.key !== "home").map((i) =>
+              visibleNavItems().filter((i) => i.key !== "home").map((i) =>
                 /* @__PURE__ */ React.createElement("li", { key: i.key },
                   /* @__PURE__ */ React.createElement("a", { href: hrefFor(i.key) }, i.label)
                 )
@@ -564,6 +574,7 @@ Object.assign(window, {
   Testimonials,
   Marquee,
   NAV_ITEMS,
+  visibleNavItems,
   WhatsAppFloat
 });
 

@@ -151,6 +151,17 @@
         }
       ]
     },
+    // Blog & Vlogs page (posts themselves are saved on the server, one by one).
+    blog: {
+      enabled: false,
+      eyebrow: "Blog & Vlogs",
+      title: "Notes from ",
+      titleAccent: "the studio",
+      lead: "Grooming tips, behaviour notes and short videos from the Pawpad team, written for pet parents who want their dogs and cats calm, comfortable and cared for.",
+      ctaTitle: "Book a calm grooming session",
+      ctaText: "Appointment-only care in Kalyan Nagar, Bengaluru, at your pet's pace.",
+      ctaButton: "See grooming packages"
+    },
     // Shown at the bottom of every page (edited once in the admin panel).
     footer: {
       eyebrow: "Ready when you are",

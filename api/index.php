@@ -3,7 +3,8 @@
  * Pawpad API — https://api.pawpad.in/index.php?action=<name>
  *
  * Public:  health (GET), get_content (GET or POST), submit_application,
- *          booking_availability (GET or POST), create_booking, boarding_availability, create_boarding_request
+ *          booking_availability (GET or POST), create_booking, boarding_availability, create_boarding_request,
+ *          list_posts, get_post (Blog & Vlogs; GET or POST)
  * Staff (Owner, Administrator and Manager):
  *          login, logout, me, change_password,
  *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking,
@@ -15,6 +16,7 @@
  *          closure_preview, create_closure, list_closures, delete_closure,
  *          delete_applications, delete_payment, list_daily_reports, get_daily_report,
  *          save_content, upload_file, list_uploads, delete_upload, convert_uploads,
+ *          admin_list_posts, save_post, delete_post,
  *          list_admins, add_admin, remove_admin (owner only: add/remove)
  * Staff actions need the X-Pawpad-Token header returned by "login". The role
  * is checked here on the server, so a hidden button can't be worked around.
@@ -37,6 +39,7 @@ require __DIR__ . '/lib/bookings.php';
 require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
 require __DIR__ . '/lib/boarding.php';
+require __DIR__ . '/lib/blog.php';
 
 apply_security_headers();
 apply_cors();
@@ -61,7 +64,7 @@ if ($action === 'health') {
     ]);
 }
 // Public reads may use a plain GET (no CORS preflight for visitors).
-$publicGet = ['get_content', 'booking_availability'];
+$publicGet = ['get_content', 'booking_availability', 'list_posts', 'get_post'];
 if ($method !== 'POST' && !($method === 'GET' && in_array($action, $publicGet, true))) {
     json_error('Use POST.', 405);
 }
@@ -89,6 +92,12 @@ try {
             break;
         case 'create_boarding_request':
             send_json(['ok' => true] + create_boarding_request($input), 201);
+            break;
+        case 'list_posts':
+            send_json(['ok' => true] + list_posts($method === 'GET' ? $_GET : $input));
+            break;
+        case 'get_post':
+            send_json(['ok' => true] + get_post($method === 'GET' ? $_GET : $input));
             break;
         case 'login':
             send_json(['ok' => true] + login($input));
@@ -196,6 +205,17 @@ try {
             break;
         case 'save_content':
             send_json(['ok' => true] + save_content(require_role(ADMIN_ROLES), $input));
+            break;
+        case 'admin_list_posts':
+            require_role(ADMIN_ROLES);
+            send_json(['ok' => true] + admin_list_posts());
+            break;
+        case 'save_post':
+            send_json(['ok' => true] + save_post(require_role(ADMIN_ROLES), $input));
+            break;
+        case 'delete_post':
+            require_role(ADMIN_ROLES);
+            send_json(['ok' => true] + delete_post($input));
             break;
         case 'upload_file':
             send_json(['ok' => true] + upload_file(require_role(ADMIN_ROLES), $input), 201);

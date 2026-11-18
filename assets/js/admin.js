@@ -2122,6 +2122,184 @@
   }
 
   // -------------------------------------------------------------
+  // BLOG & VLOGS (Website Content CMS → Blog & Vlogs)
+  // Posts are saved one by one on the server (not with "Save Live Changes").
+  // -------------------------------------------------------------
+  const BLOG_EMPTY_POST = { id: 0, kind: "article", status: "draft", title: "", slug: "", summary: "", body: "", cover: "", coverAlt: "", videoUrl: "", keywords: "", seoTitle: "", seoDescription: "", author: "" };
+
+  /** Uploads a photo chosen in the editor and returns its address on the Pawpad server. */
+  async function uploadBlogImage(fileOrDataUrl, name) {
+    let dataUrl = fileOrDataUrl;
+    if (typeof fileOrDataUrl !== "string") {
+      const opt = window.PawpadImageOptimizer;
+      dataUrl = opt ? (await opt.convertToWebP(fileOrDataUrl, 0.85, 1600)).dataUrl : await new Promise((resolve) => {
+        const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(fileOrDataUrl);
+      });
+    }
+    if (!/^data:/.test(dataUrl)) return { ok: true, url: dataUrl };
+    return window.PawpadApi.uploadFile("image", (name || "blog-photo").replace(/\.[a-z0-9]+$/i, "") + ".webp", dataUrl);
+  }
+
+  function BlogPostEditor({ initial, onSaved, onCancel }) {
+    const [post, setPost] = useState({ ...BLOG_EMPTY_POST, ...initial });
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState("");
+    const [showPreview, setShowPreview] = useState(false);
+    const [photoBusy, setPhotoBusy] = useState(false);
+    const bodyRef = React.useRef(null);
+    const photoRef = React.useRef(null);
+    const set = (patch) => setPost((p) => ({ ...p, ...patch }));
+    const F = window.PawpadBlogFormat;
+    const isVideo = post.kind === "video";
+    const video = isVideo && F ? F.video(post.videoUrl) : null;
+    const label = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" };
+
+    const insertAtCursor = (text) => {
+      const el = bodyRef.current;
+      const body = post.body || "";
+      const at = el && typeof el.selectionStart === "number" ? el.selectionStart : body.length;
+      const before = body.slice(0, at);
+      const after = body.slice(at);
+      const pad = before && !before.endsWith("\n\n") ? (before.endsWith("\n") ? "\n" : "\n\n") : "";
+      set({ body: before + pad + text + "\n\n" + after.replace(/^\n+/, "") });
+    };
+
+    const addPhoto = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      setPhotoBusy(true);
+      setMessage("Uploading the photo…");
+      const result = await uploadBlogImage(file, file.name);
+      setPhotoBusy(false);
+      if (!result.ok) return setMessage("⚠️ " + result.error);
+      insertAtCursor(`![Describe the photo here](${result.url})`);
+      setMessage("✓ Photo added to the text. Replace \"Describe the photo here\" with a short description.");
+    };
+
+    const save = async (status) => {
+      if (!post.title.trim()) return setMessage("⚠️ Please give the post a title.");
+      setSaving(true);
+      setMessage(status === "published" ? "Publishing…" : "Saving…");
+      let cover = post.cover;
+      if (/^data:/.test(cover || "")) {
+        const up = await uploadBlogImage(cover, "blog-cover");
+        if (!up.ok) { setSaving(false); return setMessage("⚠️ " + up.error); }
+        cover = up.url;
+      }
+      const result = await window.PawpadApi.call("save_post", { ...post, cover, status });
+      setSaving(false);
+      if (!result.ok) return setMessage("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
+      setPost(result.data.post);
+      onSaved(result.data.post, status === "published" ? (post.status === "published" ? "✓ Changes published." : "✓ Published.") : (post.status === "published" ? "✓ Moved back to drafts: it's no longer public." : "✓ Draft saved."));
+    };
+
+    const field = (key, text, props) => React.createElement("div", null,
+      React.createElement("label", { style: label, htmlFor: "blog-" + key }, text),
+      React.createElement(props && props.rows ? "textarea" : "input", { id: "blog-" + key, className: "input-field", value: post[key] || "", onChange: (e) => set({ [key]: e.target.value }), ...(props || {}) }));
+
+    return React.createElement("div", { className: "card", "data-section": "blog-editor", style: { display: "flex", flexDirection: "column", gap: "14px", border: "1px solid var(--admin-gold)" } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" } },
+        React.createElement("h4", { style: { color: "var(--admin-gold)", fontSize: "16px", margin: 0 } },
+          `${post.id ? "Edit" : "New"} ${isVideo ? "video" : "article"}`, post.status === "published" ? " · Published" : " · Draft"),
+        React.createElement("div", { style: { display: "flex", gap: "6px" } },
+          [["article", "Article"], ["video", "Video"]].map(([k, l]) => React.createElement("button", { key: k, type: "button", className: "btn-admin " + (post.kind === k ? "btn-admin-primary" : "btn-admin-secondary"), style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => set({ kind: k }) }, l)))),
+      field("title", "Title *", { placeholder: isVideo ? "e.g. Watch: a calm first groom for a nervous puppy" : "e.g. 5 ways to keep your dog calm before grooming" }),
+      field("summary", "Short summary (shown on the Blog page and in Google)", { rows: 2, maxLength: 400, placeholder: "One or two sentences about the post." }),
+      isVideo && React.createElement("div", null,
+        field("videoUrl", "Video link * (YouTube, Vimeo or Instagram)", { placeholder: "https://www.youtube.com/watch?v=…" }),
+        React.createElement("p", { "data-video-check": true, style: { fontSize: "12px", marginTop: "6px", color: post.videoUrl && !video ? "var(--admin-danger)" : "var(--admin-text-muted)" } },
+          !post.videoUrl ? "Upload the video to Pawpad's YouTube (or Vimeo / Instagram) first, then paste its link here."
+            : video ? (video.provider === "instagram" ? "✓ Instagram video: the page shows a \"Watch on Instagram\" button (Instagram videos can't play inside other websites)." : `✓ ${video.provider === "youtube" ? "YouTube" : "Vimeo"} video recognised: it plays on the page.`)
+            : "This doesn't look like a YouTube, Vimeo or Instagram video link.")),
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", alignItems: "end" } },
+        React.createElement(ImageUploadWidget, { label: isVideo ? "Cover photo (optional: YouTube videos use their own thumbnail)" : "Cover photo", currentUrl: post.cover || "", onSelectUrl: (url) => set({ cover: url }) }),
+        field("coverAlt", "Describe the cover photo (for Google and screen readers)", { placeholder: "e.g. A shih tzu relaxing after a bath" })),
+      React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" } },
+          React.createElement("label", { style: { ...label, marginBottom: 0 }, htmlFor: "blog-body" }, isVideo ? "Text under the video (optional)" : "Article text *"),
+          React.createElement("div", { style: { display: "flex", gap: "6px" } },
+            React.createElement("input", { ref: photoRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: addPhoto, "aria-label": "Add a photo to the text" }),
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px" }, disabled: photoBusy, onClick: () => photoRef.current && photoRef.current.click() }, photoBusy ? "Uploading…" : "+ Add a photo"),
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => setShowPreview((v) => !v) }, showPreview ? "Back to writing" : "Preview"))),
+        showPreview
+          ? React.createElement("div", { "data-blog-preview": true, className: "input-field", style: { minHeight: "220px", lineHeight: 1.7, background: "var(--admin-bg)" }, dangerouslySetInnerHTML: { __html: F ? F.render(post.body) : "" } })
+          : React.createElement("textarea", { id: "blog-body", ref: bodyRef, className: "input-field", rows: 14, value: post.body || "", onChange: (e) => set({ body: e.target.value }), style: { fontFamily: "inherit", lineHeight: 1.6 } }),
+        React.createElement("details", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginTop: "6px" } },
+          React.createElement("summary", { style: { cursor: "pointer" } }, "How to format the text"),
+          React.createElement("pre", { style: { whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "6px 0 0" } },
+            "A blank line starts a new paragraph.\n## Heading      ### Smaller heading\n**bold**   *italic*   [link text](https://pawpad.in/grooming.html)\n- bullet point      1. numbered point\n> a quote\nPhotos: use \"+ Add a photo\"; it adds a line like ![description](address)."))),
+      field("keywords", "Keywords & phrases (separated by commas, e.g. dog grooming Bengaluru, nervous dog, shih tzu haircut)", { placeholder: "What would someone type into Google to find this?" }),
+      React.createElement("details", null,
+        React.createElement("summary", { style: { cursor: "pointer", fontSize: "13px", fontWeight: 600 } }, "More options: address, Google title and description, author"),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" } },
+          field("slug", "Page address (optional; made from the title)", { placeholder: "e.g. calm-dog-grooming-tips" }),
+          React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)", margin: 0 } }, `pawpad.in/blog/${post.slug || "(made from the title)"}.html. Avoid changing it after publishing: old links would stop working.`),
+          field("seoTitle", "Title in Google (optional, up to about 60 characters)", { maxLength: 200 }),
+          field("seoDescription", "Description in Google (optional, up to about 155 characters; else the summary is used)", { rows: 2, maxLength: 300 }),
+          field("author", "Author (optional)", { placeholder: "e.g. Leena Munikempanna" }))),
+      message && React.createElement("p", { role: "status", style: { fontSize: "13px", fontWeight: 600, color: message.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-text)" } }, message),
+      React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" } },
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: onCancel, disabled: saving }, "Close"),
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: () => save("draft"), disabled: saving }, post.status === "published" ? "Unpublish (back to draft)" : "Save draft"),
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-primary", onClick: () => save("published"), disabled: saving }, post.status === "published" ? "Save & keep published" : "Publish")));
+  }
+
+  function BlogPostsManager() {
+    const [posts, setPosts] = useState(null);
+    const [editing, setEditing] = useState(null);
+    const [notice, setNotice] = useState("");
+    const [confirm, setConfirm] = useState({ isOpen: false });
+    const [filter, setFilter] = useState("all");
+    const load = async () => {
+      const r = await window.PawpadApi.call("admin_list_posts", {});
+      setPosts(r.ok ? r.data.posts || [] : []);
+      if (!r.ok) setNotice("⚠️ " + ((r.data && r.data.error) || "The posts could not be loaded."));
+    };
+    useEffect(() => { load(); }, []);
+    const flash = (t) => { setNotice(t); setTimeout(() => setNotice(""), t.startsWith("⚠️") ? 9000 : 4000); };
+    const remove = (p) => setConfirm({
+      isOpen: true, title: "Delete this post?", confirmText: "Yes, delete", confirmStyle: "btn-admin-danger",
+      message: `"${p.title}" will be removed from the website for good. This can't be undone.`,
+      onConfirm: async () => {
+        setConfirm({ isOpen: false });
+        const r = await window.PawpadApi.call("delete_post", { id: p.id });
+        if (!r.ok) return flash("⚠️ " + ((r.data && r.data.error) || "Could not delete."));
+        if (editing && editing.id === p.id) setEditing(null);
+        flash("✓ Post deleted.");
+        load();
+      }
+    });
+    const F = window.PawpadBlogFormat;
+    const shown = (posts || []).filter((p) => filter === "all" || p.kind === filter);
+    return React.createElement(CmsSection, { title: "Posts", hint: "Articles and videos. Each post is saved on its own with its own buttons; \"Save Live Changes\" below is only for the settings above." },
+      React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } },
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-primary", onClick: () => setEditing({ ...BLOG_EMPTY_POST, kind: "article" }) }, "+ New article"),
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-primary", onClick: () => setEditing({ ...BLOG_EMPTY_POST, kind: "video" }) }, "+ New video"),
+        React.createElement("div", { style: { flex: 1 } }),
+        [["all", "All"], ["article", "Articles"], ["video", "Videos"]].map(([k, l]) => React.createElement("button", { key: k, type: "button", className: "btn-admin " + (filter === k ? "btn-admin-primary" : "btn-admin-secondary"), style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => setFilter(k) }, l))),
+      notice && React.createElement("p", { role: "status", style: { fontSize: "13px", fontWeight: 600, margin: 0, color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-text)" } }, notice),
+      editing && React.createElement(BlogPostEditor, {
+        key: editing.id || "new-" + editing.kind,
+        initial: editing,
+        onCancel: () => setEditing(null),
+        onSaved: (saved, text) => { setEditing(saved); flash(text); load(); }
+      }),
+      posts === null ? React.createElement("p", { style: { fontSize: "13px" } }, "Loading posts…")
+        : shown.length === 0 ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No posts yet. Click \"+ New article\" or \"+ New video\" to write the first one.")
+        : React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+            shown.map((p) => React.createElement("div", { key: p.id, "data-admin-post": p.slug, style: { display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)", background: "var(--admin-card)" } },
+              React.createElement("span", { className: "badge " + (p.status === "published" ? "badge-approved" : "badge-pending") }, p.status === "published" ? "Published" : "Draft"),
+              React.createElement("span", { style: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--admin-gold)" } }, p.kind === "video" ? "Video" : "Article"),
+              React.createElement("strong", { style: { flex: 1, minWidth: "180px" } }, p.title),
+              React.createElement("span", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, p.publishedAt && F ? F.formatDate(p.publishedAt) : "not published"),
+              React.createElement("a", { href: "blog/post.html?slug=" + encodeURIComponent(p.slug), target: "_blank", rel: "noopener noreferrer", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px", textDecoration: "none" } }, "View ↗"),
+              React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => setEditing(p) }, "Edit"),
+              React.createElement("button", { type: "button", className: "btn-admin btn-admin-danger", style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => remove(p), "aria-label": `Delete ${p.title}` }, "Delete")))),
+      React.createElement(ConfirmModal, { ...confirm, onCancel: () => setConfirm({ isOpen: false }) }));
+  }
+
+  // -------------------------------------------------------------
   // WEBSITE CONTENT CMS EDITOR TAB
   // -------------------------------------------------------------
   function ContentEditorTab() {
@@ -2139,7 +2317,8 @@
       { id: "boarding", label: "Boarding Service" },
       { id: "myotherapy", label: "Myotherapy & Wellness" },
       { id: "contact", label: "Contact & Timings" },
-      { id: "footer", label: "Footer (all pages)" }
+      { id: "footer", label: "Footer (all pages)" },
+      { id: "blog", label: "Blog & Vlogs" }
     ];
 
     useEffect(() => {
@@ -2426,6 +2605,27 @@
               onChange: (list) => updateField("testimonials", list)
             })
           )
+        ),
+
+        selectedPage === "blog" &&
+        React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "24px" } },
+          React.createElement(CmsSection, { title: "Blog page settings", hint: "Saved with \"Save Live Changes\". While the Blog is switched off, visitors see \"coming soon\", there is no Blog link in the menu and Google is told to skip the page. You (signed in) still see a preview." },
+            React.createElement("div", { "data-blog-switch": true, style: { padding: "12px 14px", borderRadius: "8px", border: "1px solid " + (formData.enabled ? "var(--admin-gold)" : "var(--admin-border-subtle)") } },
+              React.createElement(CmsField, { kind: "checkbox", label: "Show the Blog on the website (adds \"Blog\" to the menu)", value: formData.enabled, onChange: (v) => updateField("enabled", v) }),
+              React.createElement("p", { style: { fontSize: "12px", margin: "6px 0 0", color: "var(--admin-text-muted)" } }, formData.enabled ? "On: the Blog is public once you save." : "Off: the Blog is hidden from visitors.")),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Small line above the title", value: formData.eyebrow, onChange: (v) => updateField("eyebrow", v) }),
+              React.createElement(CmsField, { label: "Title start", value: formData.title, onChange: (v) => updateField("title", v) }),
+              React.createElement(CmsField, { label: "Title accent (italics)", value: formData.titleAccent, onChange: (v) => updateField("titleAccent", v) })),
+            React.createElement(CmsField, { label: "Text under the title", kind: "textarea", value: formData.lead, onChange: (v) => updateField("lead", v) }),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Bottom box: title", value: formData.ctaTitle, onChange: (v) => updateField("ctaTitle", v) }),
+              React.createElement(CmsField, { label: "Bottom box: text", value: formData.ctaText, onChange: (v) => updateField("ctaText", v) }),
+              React.createElement(CmsField, { label: "Bottom box: button", value: formData.ctaButton, onChange: (v) => updateField("ctaButton", v) })),
+            React.createElement("a", { href: "blog.html", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--admin-gold)", fontSize: "13px" } }, "Open the Blog page ↗")),
+          React.createElement(BlogPostsManager, null)
         ),
 
         selectedPage === "footer" &&
