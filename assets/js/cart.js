@@ -198,17 +198,18 @@ const CART_CATALOG = [
     petType: "Dog",
     img: "assets/img/pawpad/grooming-page-puppy-long-hair-image.webp"
   },
+  // Matted Dogs is not sold online: the team adds it at the studio after seeing the coat.
   {
-    id: "matted-dogs",
-    title: "Matted Dogs Care",
+    id: "breed-specific-haircut",
+    title: "Breed-Specific Haircut",
     category: "Grooming",
-    price: 850,
-    priceDisplay: "₹850",
-    desc: "Careful support and assessment for tangled coats",
+    price: 3500,
+    priceDisplay: "₹3,500",
+    desc: "Your dog's classic breed look, with bath, blow-dry and finish",
     requiresPetInfo: true,
     isDogOnly: true,
     petType: "Dog",
-    img: "assets/img/pawpad/grooming-page-grooming-matted-dogs.webp"
+    img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp"
   },
   // Cat Grooming
   {
@@ -351,7 +352,7 @@ function getRecommendedAdditions(cartItems) {
       "dog-long",
       "dog-grooming-long-hair",
       "puppy-short",
-      "matted-dogs"
+      "breed-specific-haircut"
     );
   }
 
@@ -2044,7 +2045,8 @@ function CheckoutModal({ open, onClose }) {
                     serviceId: petSlots[idx].serviceId,
                     value: slotChoices[idx],
                     onChange: (choice) => updSlot(idx, choice),
-                    excluded: slotPetIndexes.filter((other) => other !== idx).map((other) => slotChoices[other]).filter((c) => c && c.date && c.time),
+                    // The pets before this one already have their times: this pet fits around them.
+                    excluded: slotPetIndexes.slice(0, slotPetIndexes.indexOf(idx)).map((other) => slotChoices[other] && { ...slotChoices[other], serviceId: petSlots[other].serviceId }).filter((c) => c && c.date && c.time),
                     onRetry: () => reloadAvailability(true)
                   })
                 )

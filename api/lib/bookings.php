@@ -1,15 +1,14 @@
 <?php
 /**
- * Grooming slot bookings.
+ * Grooming bookings.
  *
- * Rules (confirmed by the owner):
- * - Start times 11:00, 12:00, 13:00, 16:00, 17:00, 18:00, 19:00; Saturday and
- *   Sunday also 10:00. Closed on Thursdays.
- * - 19:00 is only for services without a haircut / clipping.
- * - One booking per start time; every grooming service (one pet) uses one slot.
- * - Bookings from today (times at least an hour away) up to 30 days ahead. Payment at the studio.
- * A slot is free when it isn't booked, isn't blocked by an admin, isn't in a
- * studio closure, and has no event in the info@pawpad.in calendar.
+ * Each booking reserves the time of the team members who do the work (the bather,
+ * the groomer, Leena for massages): see schedule.php for the rules and times.
+ * - Website: hourly start times (11 AM, or 10 AM on Saturday and Sunday, to 7 PM),
+ *   closed on Thursdays, every service finishes by 8 PM, today (times at least an
+ *   hour away) up to 30 days ahead. Payment at the studio.
+ * - Admin panel: any start time; a clash shows a warning that can be overridden.
+ * Calendar events, admin blocks and studio closures stop the whole studio.
  */
 
 declare(strict_types=1);
@@ -19,12 +18,6 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
-const WEEKDAY_TIMES = ['11:00', '12:00', '13:00', '16:00', '17:00', '18:00', '19:00'];
-const WEEKEND_EXTRA_TIME = '10:00';
-const EVENING_TIME = '19:00';
-// Services with a haircut or clipping: never at 19:00.
-// "grooming-unspecified" is a booking where the service is chosen later at the studio.
-const NO_EVENING_SERVICES = ['dog-grooming-long-hair', 'cat-haircut', 'puppy-long', 'matted-dogs', 'hygiene-clip', 'grooming-unspecified'];
 const STUDIO_WHATSAPP = '+91 91484 43330';
 const STUDIO_ADDRESS = 'Pawpad, #426, 5th Main Road, HRBR 2nd Block, Kalyan Nagar, Bangalore - 560043';
 
@@ -72,16 +65,6 @@ function parse_studio_date(string $date): ?DateTimeImmutable
     return ($d && $d->format('Y-m-d') === $date) ? $d : null;
 }
 
-/** Start times the studio offers on a day (none on Thursdays). */
-function slot_times_for(DateTimeImmutable $day): array
-{
-    $weekday = (int) $day->format('N'); // 1 = Monday ... 7 = Sunday
-    if ($weekday === 4) {
-        return [];
-    }
-    return $weekday >= 6 ? array_merge([WEEKEND_EXTRA_TIME], WEEKDAY_TIMES) : WEEKDAY_TIMES;
-}
-
 /**
  * How soon a same-day slot can still be booked online (config: booking_same_day_notice_minutes,
  * default 60). The admin panel can use any slot that hasn't started yet.
@@ -107,11 +90,6 @@ function bookable_dates(): array
         $dates[] = $today->modify('+' . $i . ' days')->format('Y-m-d');
     }
     return $dates;
-}
-
-function service_allows_time(string $serviceId, string $time): bool
-{
-    return $time !== EVENING_TIME || !in_array($serviceId, NO_EVENING_SERVICES, true);
 }
 
 function slot_start(string $date, string $time): DateTimeImmutable
@@ -150,124 +128,33 @@ function calendar_busy(DateTimeImmutable $from, DateTimeImmutable $to, bool $fre
     return $result;
 }
 
-function slot_is_busy_in_calendar(array $busy, string $date, string $time): bool
-{
-    $start = slot_start($date, $time)->getTimestamp();
-    $end = $start + slot_minutes() * 60;
-    foreach ($busy as $period) {
-        if ($period[0] < $end && $period[1] > $start) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /**
- * What is happening at every start time on the given days.
- * @return array{days: array, calendarError: string}
- */
-function slot_states(array $dates, bool $freshCalendar): array
-{
-    if (!$dates) {
-        return ['days' => [], 'calendarError' => ''];
-    }
-    sort($dates);
-    $first = $dates[0];
-    $last = $dates[count($dates) - 1];
-
-    $locks = [];
-    $stmt = db()->prepare('SELECT slot_date, slot_time, booking_id FROM slot_locks WHERE slot_date BETWEEN ? AND ?');
-    $stmt->execute([$first, $last]);
-    foreach ($stmt->fetchAll() as $row) {
-        $locks[$row['slot_date']][$row['slot_time']] = (int) $row['booking_id'];
-    }
-
-    $blocks = [];
-    $stmt = db()->prepare('SELECT * FROM slot_blocks WHERE slot_date BETWEEN ? AND ?');
-    $stmt->execute([$first, $last]);
-    foreach ($stmt->fetchAll() as $row) {
-        $blocks[$row['slot_date']][$row['slot_time']] = $row;
-    }
-
-    $closures = closure_rows_between($first, $last);
-
-    $calendar = calendar_busy(
-        parse_studio_date($first),
-        parse_studio_date($last)->modify('+1 day'),
-        $freshCalendar
-    );
-
-    $days = [];
-    foreach ($dates as $date) {
-        $day = parse_studio_date($date);
-        $slots = [];
-        foreach (slot_times_for($day) as $time) {
-            $state = ['time' => $time, 'state' => 'free'];
-            if (isset($locks[$date][$time])) {
-                $state['state'] = 'booked';
-                $state['bookingId'] = $locks[$date][$time];
-            } elseif (isset($blocks[$date][''])) {
-                $state['state'] = 'blocked';
-                $state['blockId'] = (int) $blocks[$date]['']['id'];
-            } elseif (isset($blocks[$date][$time])) {
-                $state['state'] = 'blocked';
-                $state['blockId'] = (int) $blocks[$date][$time]['id'];
-            } elseif ($closure = closure_for_slot($closures, $date, $time)) {
-                $state['state'] = 'closed';
-                $state['closureId'] = (int) $closure['id'];
-                $state['reason'] = $closure['reason'];
-            } elseif (!$calendar['ok']) {
-                $state['state'] = 'unknown';
-            } elseif (slot_is_busy_in_calendar($calendar['busy'], $date, $time)) {
-                $state['state'] = 'calendar';
-            }
-            $slots[] = $state;
-        }
-        $days[$date] = [
-            'slots' => $slots,
-            'dayBlock' => isset($blocks[$date]['']) ? block_to_array($blocks[$date]['']) : null,
-        ];
-    }
-    return ['days' => $days, 'calendarError' => $calendar['ok'] ? '' : $calendar['error']];
-}
-
-function block_to_array(array $row): array
-{
-    return [
-        'id' => (int) $row['id'],
-        'date' => $row['slot_date'],
-        'time' => $row['slot_time'],
-        'reason' => $row['reason'],
-        'createdBy' => $row['created_by'],
-    ];
-}
-
-/**
- * Public: free start times for the next 30 days.
+ * Public: for the next 30 days, the hourly start times and the time the team is
+ * already busy (no names), plus how long each service takes and who does it.
+ * The website shows only the times a service fits; the server checks again on booking.
  */
 function booking_availability(): array
 {
-    $states = slot_states(bookable_dates(), false);
-    if ($states['calendarError'] !== '') {
-        error_log('Pawpad API availability: ' . $states['calendarError']);
+    $dates = bookable_dates();
+    $calendar = calendar_busy(parse_studio_date($dates[0]), parse_studio_date($dates[count($dates) - 1])->modify('+1 day'), false);
+    if (!$calendar['ok']) {
+        error_log('Pawpad API availability: ' . $calendar['error']);
         json_error('Online booking is not available right now. Please WhatsApp us on ' . STUDIO_WHATSAPP . ' to book.', 503);
     }
+    $schedules = day_schedules($dates, false, $calendar);
+    $now = new DateTimeImmutable('now', studio_tz());
+    $today = studio_today()->format('Y-m-d');
+    $earliestToday = (int) $now->format('G') * 60 + (int) $now->format('i') + same_day_notice_minutes() + 1;
     $days = [];
-    foreach ($states['days'] as $date => $day) {
-        $free = [];
-        foreach ($day['slots'] as $slot) {
-            if ($slot['state'] === 'free' && !slot_too_soon($date, $slot['time'], same_day_notice_minutes())) {
-                $free[] = $slot['time'];
-            }
-        }
-        $days[] = ['date' => $date, 'times' => $free];
+    foreach ($dates as $date) {
+        $days[] = [
+            'date' => $date,
+            'starts' => website_start_times(parse_studio_date($date)),
+            'minStart' => $date === $today ? $earliestToday : 0,
+            'busy' => public_busy($schedules[$date]),
+        ];
     }
-    return [
-        'days' => $days,
-        'eveningTime' => EVENING_TIME,
-        'noEveningServices' => NO_EVENING_SERVICES,
-        'slotMinutes' => slot_minutes(),
-    ];
+    return ['days' => $days] + public_plans();
 }
 
 function clean_pet(array $pet): array
@@ -308,6 +195,7 @@ function booking_to_array(array $row): array
         'emailStatus' => $row['email_status'],
         'price' => isset($row['price']) ? (float) $row['price'] : null,
         'source' => $row['source'] ?? 'website',
+        'matted' => !empty($row['matted']),
         'createdAt' => to_iso($row['created_at']),
         'cancelledAt' => to_iso($row['cancelled_at']),
         'cancelledBy' => $row['cancelled_by'],
@@ -321,7 +209,40 @@ function send_slot_taken(array $slots, string $message): void
 }
 
 /**
- * Public: book one slot per pet. Either every pet in the order is booked, or none.
+ * Fits every pet of one order into the team's time, in the order given (or, if that
+ * fails, the other way round: two pets can sometimes fit only one way).
+ * @return array{segments?: array, failed?: array, studio?: bool}
+ */
+function fit_order(array $items, array $schedules): array
+{
+    $tryOrder = function (array $order) use ($items, $schedules): array {
+        $extra = [];
+        $segments = [];
+        foreach ($order as $i) {
+            $item = $items[$i];
+            $fit = plan_fit($schedules[$item['date']], service_plan($item['serviceId']), hm_to_min($item['time']), $extra[$item['date']] ?? []);
+            if ($fit['segments'] === null) {
+                return ['failed' => $item, 'studio' => strpos($fit['clash'], 'busy') === false || strpos($fit['clash'], 'unavailable') !== false];
+            }
+            $segments[$i] = $fit['segments'];
+            $extra[$item['date']] = add_to_extra($extra[$item['date']] ?? [], $fit['segments']);
+        }
+        ksort($segments);
+        return ['segments' => $segments];
+    };
+    $order = array_keys($items);
+    $result = $tryOrder($order);
+    if (isset($result['failed']) && count($order) > 1) {
+        $second = $tryOrder(array_reverse($order));
+        if (!isset($second['failed'])) {
+            return $second;
+        }
+    }
+    return $result;
+}
+
+/**
+ * Public: book a time for each pet. Either every pet in the order is booked, or none.
  */
 function create_booking(array $input): array
 {
@@ -345,37 +266,33 @@ function create_booking(array $input): array
 
     $allowedDates = array_flip(bookable_dates());
     $items = [];
-    $seen = [];
     foreach ($requested as $index => $item) {
         if (!is_array($item)) {
             json_error('Invalid booking.');
         }
         $serviceId = strtolower(preg_replace('/[^A-Za-z0-9-]/', '', (string) ($item['serviceId'] ?? '')));
         $serviceId = substr($serviceId, 0, 60) ?: 'grooming-unspecified';
+        $serviceTitle = clean_text($item['serviceTitle'] ?? '', 255) ?: 'Grooming';
         $date = (string) ($item['date'] ?? '');
         $time = (string) ($item['time'] ?? '');
         $day = parse_studio_date($date);
         $label = 'Pet ' . ($index + 1);
+        if (in_array($serviceId, ONLINE_OFF_SERVICES, true)) {
+            json_error($label . ': ' . $serviceTitle . ' is booked after a quick chat. Please WhatsApp us on ' . STUDIO_WHATSAPP . '.');
+        }
         if (!$day || !isset($allowedDates[$date])) {
             json_error($label . ': please choose a date from today up to ' . booking_days_ahead() . ' days ahead.');
         }
-        if (!in_array($time, slot_times_for($day), true)) {
-            json_error($label . ': the studio has no ' . $time . ' slot on ' . $day->format('l') . 's.');
-        }
-        if (!service_allows_time($serviceId, $time)) {
-            json_error($label . ': the 7 PM slot is only for services without a haircut or clipping. Please choose an earlier time.');
+        if (!in_array($time, website_start_times($day), true)) {
+            json_error($label . ': the studio has no ' . $time . ' start time on ' . $day->format('l') . 's.');
         }
         if (slot_too_soon($date, $time, same_day_notice_minutes())) {
             send_slot_taken([['date' => $date, 'time' => $time]], $label . ': ' . friendly_slot($date, $time)
                 . ' is too soon to book online. Please choose a later time, or WhatsApp us on ' . STUDIO_WHATSAPP . '.');
         }
-        if (isset($seen[$date . ' ' . $time])) {
-            json_error('Each pet needs its own time slot. Two pets are booked for ' . friendly_slot($date, $time) . '.');
-        }
-        $seen[$date . ' ' . $time] = true;
         $items[] = [
             'serviceId' => $serviceId,
-            'serviceTitle' => clean_text($item['serviceTitle'] ?? '', 255) ?: 'Grooming',
+            'serviceTitle' => $serviceTitle,
             // The price shown at checkout, only used to pre-fill the daily closing.
             'price' => parse_amount($item['price'] ?? ''),
             'date' => $date,
@@ -384,22 +301,13 @@ function create_booking(array $input): array
         ];
     }
 
-    // Check the calendar right now (not the cached copy) for manual events.
+    // Read the calendar right now (not the cached copy) for events added by hand.
     $dates = array_values(array_unique(array_column($items, 'date')));
     sort($dates);
     $calendar = calendar_busy(parse_studio_date($dates[0]), parse_studio_date($dates[count($dates) - 1])->modify('+1 day'), true);
     if (!$calendar['ok']) {
         error_log('Pawpad API booking: ' . $calendar['error']);
         json_error('Online booking is not available right now. Please WhatsApp us on ' . STUDIO_WHATSAPP . ' to book.', 503);
-    }
-    $taken = [];
-    foreach ($items as $item) {
-        if (slot_is_busy_in_calendar($calendar['busy'], $item['date'], $item['time'])) {
-            $taken[] = ['date' => $item['date'], 'time' => $item['time']];
-        }
-    }
-    if ($taken) {
-        send_slot_taken($taken, 'Sorry, ' . friendly_slot($taken[0]['date'], $taken[0]['time']) . ' is no longer available. Please choose another time.');
     }
 
     $now = now_utc();
@@ -409,6 +317,15 @@ function create_booking(array $input): array
         $saved = [];
         $pdo->beginTransaction();
         try {
+            // One booking per day at a time: read the team's time only after taking the day's lock.
+            foreach ($dates as $date) {
+                lock_schedule_day($pdo, $date);
+            }
+            $schedules = day_schedules($dates, true, $calendar);
+            $fits = fit_order($items, $schedules);
+            if (isset($fits['failed'])) {
+                throw new SlotTakenException(['date' => $fits['failed']['date'], 'time' => $fits['failed']['time']], $fits['studio']);
+            }
             // Sequential reference (PAW-0001, PAW-0002, ...), from the same counter table as
             // course applications. "#GROOMING" can never clash with a course code (letters/digits only).
             // The counter is part of this transaction, so a failed booking leaves no gap.
@@ -418,9 +335,7 @@ function create_booking(array $input): array
                     customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
-            $lock = $pdo->prepare('INSERT INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)');
-            $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
-            foreach ($items as $item) {
+            foreach ($items as $i => $item) {
                 $insert->execute([
                     $ref, $item['date'], $item['time'], 'booked', $item['serviceId'], $item['serviceTitle'],
                     json_encode($item['pet'], JSON_UNESCAPED_UNICODE), $name, $email, $phone,
@@ -428,19 +343,8 @@ function create_booking(array $input): array
                     clean_text($input['notes'] ?? '', 2000), $now, $item['price'], 'website',
                 ]);
                 $id = (int) $pdo->lastInsertId();
-                try {
-                    $lock->execute([$item['date'], $item['time'], $id]);
-                } catch (PDOException $e) {
-                    if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
-                        throw new SlotTakenException(['date' => $item['date'], 'time' => $item['time']]);
-                    }
-                    throw $e;
-                }
-                $blocked->execute([$item['date'], $item['time']]);
-                if ((int) $blocked->fetchColumn() > 0 || slot_is_closed($pdo, $item['date'], $item['time'])) {
-                    throw new SlotTakenException(['date' => $item['date'], 'time' => $item['time']], true);
-                }
-                $saved[] = $item + ['id' => $id, 'ref' => $ref];
+                save_segments($pdo, $id, $item['date'], $fits['segments'][$i]);
+                $saved[] = $item + ['id' => $id, 'ref' => $ref, 'segments' => $fits['segments'][$i]];
             }
             $pdo->commit();
             break;
@@ -496,6 +400,7 @@ function booking_event_description(array $item, string $name, string $phone, str
         'Booking ' . $item['ref'],
         'Customer: ' . $name . ' · ' . $phone . ' · ' . $email,
         'Service: ' . $item['serviceTitle'],
+        'Team: ' . segments_label($item['segments'] ?? []),
         'Pet: ' . trim($pet['name'] . ' · ' . $pet['type'] . ' · ' . $pet['breed'], ' ·'),
     ];
     foreach (['age' => 'Age', 'size' => 'Size', 'coat' => 'Coat', 'temperament' => 'Temperament', 'healthNotes' => 'Health notes'] as $key => $label) {
@@ -533,6 +438,49 @@ function booking_confirmation_text(string $name, array $saved, string $estimated
 // Admin
 // ---------------------------------------------------------------------------
 
+/** Bookings as arrays, each with its team time (segments) and end time. */
+function bookings_with_segments(array $rows): array
+{
+    if (!$rows) {
+        return [];
+    }
+    $ids = array_map('intval', array_column($rows, 'id'));
+    $stmt = db()->prepare('SELECT * FROM booking_segments WHERE booking_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY start_min, id');
+    $stmt->execute($ids);
+    $byBooking = [];
+    foreach ($stmt->fetchAll() as $seg) {
+        $byBooking[(int) $seg['booking_id']][] = ['staff' => $seg['staff'], 'start' => (int) $seg['start_min'], 'end' => (int) $seg['end_min'], 'kind' => $seg['kind']];
+    }
+    return array_map(function (array $row) use ($byBooking): array {
+        $b = booking_to_array($row);
+        $b['segments'] = $byBooking[$b['id']] ?? [];
+        $b['endTime'] = $b['segments'] ? min_to_hm(max(array_column($b['segments'], 'end'))) : '';
+        $b['label'] = friendly_slot($row['slot_date'], $row['slot_time']);
+        return $b;
+    }, $rows);
+}
+
+function block_to_array(array $row): array
+{
+    [$s, $e] = block_interval($row);
+    return [
+        'id' => (int) $row['id'],
+        'date' => $row['slot_date'],
+        'time' => $row['slot_time'],
+        'endTime' => $row['slot_time'] === '' ? '' : min_to_hm($e),
+        'start' => $s,
+        'end' => $e,
+        'staff' => (string) ($row['staff'] ?? ''),
+        'reason' => $row['reason'],
+        'createdBy' => $row['created_by'],
+    ];
+}
+
+/**
+ * Admin: one day of the team's schedule: bookings (with who does what, when),
+ * blocks, closures, calendar events. "exceptBooking" leaves one booking out
+ * (to find a new time for it).
+ */
 function list_bookings(array $input): array
 {
     $date = (string) ($input['date'] ?? '');
@@ -541,26 +489,22 @@ function list_bookings(array $input): array
         json_error('Invalid date.');
     }
     $date = $day->format('Y-m-d');
-    $states = slot_states([$date], false);
-    $dayState = $states['days'][$date];
+    $calendar = calendar_busy($day, $day->modify('+1 day'), false);
+    $schedule = day_schedules([$date], false, $calendar, (int) ($input['exceptBooking'] ?? 0))[$date];
 
     $stmt = db()->prepare('SELECT * FROM bookings WHERE slot_date = ? ORDER BY slot_time, id');
     $stmt->execute([$date]);
-    $bookings = array_map('booking_to_array', $stmt->fetchAll());
-    $byId = [];
-    foreach ($bookings as $b) {
-        $byId[$b['id']] = $b;
-    }
-    $slots = array_map(function (array $slot) use ($byId): array {
-        if (isset($slot['bookingId'], $byId[$slot['bookingId']])) {
-            $slot['booking'] = $byId[$slot['bookingId']];
-        }
-        return $slot;
-    }, $dayState['slots']);
+    $bookings = bookings_with_segments($stmt->fetchAll());
 
-    $stmt = db()->prepare("SELECT * FROM slot_blocks WHERE slot_date = ? ORDER BY slot_time");
+    $stmt = db()->prepare('SELECT * FROM slot_blocks WHERE slot_date = ? ORDER BY slot_time');
     $stmt->execute([$date]);
     $blocks = array_map('block_to_array', $stmt->fetchAll());
+    $dayBlock = null;
+    foreach ($blocks as $bl) {
+        if ($bl['time'] === '' && $bl['staff'] === '') {
+            $dayBlock = $bl;
+        }
+    }
     $closures = array_map('closure_to_array', closure_rows_between($date, $date));
 
     // How many bookings each coming day has, for the overview.
@@ -572,19 +516,26 @@ function list_bookings(array $input): array
         $upcoming[] = ['date' => $row['slot_date'], 'booked' => (int) $row['n']];
     }
 
+    $studio = array_map(function (array $iv): array {
+        return ['start' => $iv[0], 'end' => $iv[1], 'why' => $iv[2]];
+    }, $schedule['studio']);
     return [
         'date' => $date,
         'label' => $day->format('l, j F Y'),
-        'closed' => slot_times_for($day) === [],
-        'dayBlock' => $dayState['dayBlock'],
-        'slots' => $slots,
+        'closed' => website_start_times($day) === [],
+        'openMin' => studio_open_min($day),
+        'starts' => website_start_times($day),
+        'dayBlock' => $dayBlock,
         'bookings' => $bookings,
         'blocks' => $blocks,
         'closures' => $closures,
+        'studio' => $studio,
+        'busy' => public_busy($schedule),
         'upcoming' => $upcoming,
-        'calendarError' => $states['calendarError'],
-        'eveningTime' => EVENING_TIME,
-    ];
+        'calendarError' => $calendar['ok'] ? '' : $calendar['error'],
+        'staff' => STAFF_LABELS,
+        'mattedMinutes' => MATTED_MINUTES,
+    ] + public_plans();
 }
 
 /**
@@ -594,28 +545,48 @@ function list_upcoming_bookings(): array
 {
     $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'booked' AND slot_date >= ? ORDER BY slot_date, slot_time, id LIMIT 1000");
     $stmt->execute([studio_today()->format('Y-m-d')]);
-    $bookings = array_map(function (array $row): array {
-        $b = booking_to_array($row);
-        $b['label'] = friendly_slot($row['slot_date'], $row['slot_time']);
-        return $b;
-    }, $stmt->fetchAll());
-    return ['bookings' => $bookings];
+    return ['bookings' => bookings_with_segments($stmt->fetchAll())];
 }
 
 /**
- * Adds one booking to the info@ calendar. Every booking's events share the UID
- * prefix "pawpad-booking-<id>-", so they can always be found and removed.
+ * Adds one booking to the info@ calendar, from its first to its last minute of team time.
+ * Every booking's events share the UID prefix "pawpad-booking-<id>-", so they can always
+ * be found and removed. $item needs id, ref, date, time, pet, serviceTitle (and segments).
  */
 function add_booking_event(array $item, string $name, string $phone, string $email, string $notes): string
 {
+    $item['segments'] = $item['segments'] ?? booking_segments((int) $item['id']);
+    $day = parse_studio_date($item['date']);
+    $start = hm_to_min($item['time']);
+    $end = $start + slot_minutes();
+    if ($item['segments']) {
+        $start = min(array_column($item['segments'], 1));
+        $end = max(array_column($item['segments'], 2));
+    }
     return caldav_create_event(
         'pawpad-booking-' . $item['id'] . '-' . bin2hex(random_bytes(4)),
-        slot_start($item['date'], $item['time']),
-        slot_start($item['date'], $item['time'])->modify('+' . slot_minutes() . ' minutes'),
+        $day->modify('+' . $start . ' minutes'),
+        $day->modify('+' . $end . ' minutes'),
         'Grooming: ' . ($item['pet']['name'] ?: 'Pet') . ($item['pet']['type'] ? ' (' . $item['pet']['type'] . ')' : '') . ' – ' . $item['serviceTitle'],
         booking_event_description($item, $name, $phone, $email, $notes),
         STUDIO_ADDRESS
     );
+}
+
+/** Replaces a booking's calendar event (after a change of time or length). */
+function refresh_booking_event(array $row): bool
+{
+    caldav_remove_events('pawpad-booking-' . $row['id'] . '-', (string) $row['calendar_href'], parse_studio_date($row['slot_date']));
+    $pet = json_decode($row['pet'], true) ?: [];
+    $pet += ['name' => '', 'type' => '', 'breed' => '', 'age' => '', 'size' => '', 'coat' => '', 'temperament' => '', 'healthNotes' => ''];
+    $href = add_booking_event(
+        ['id' => (int) $row['id'], 'ref' => $row['ref'], 'date' => $row['slot_date'], 'time' => $row['slot_time'], 'pet' => $pet, 'serviceTitle' => $row['service_title']],
+        $row['customer_name'], $row['customer_phone'], $row['customer_email'] !== '' ? $row['customer_email'] : '(walk-in / phone)', (string) $row['notes']
+    );
+    db()->prepare('UPDATE bookings SET calendar_href = ?, calendar_status = ? WHERE id = ?')
+        ->execute([$href, $href !== '' ? 'synced' : 'failed', $row['id']]);
+    forget_calendar_cache();
+    return $href !== '';
 }
 
 /** The calendar changed: make the next availability check read it fresh. */
@@ -670,7 +641,6 @@ function cancel_booking(array $admin, array $input): array
     $pdo->beginTransaction();
     $pdo->prepare("UPDATE bookings SET status = 'cancelled', cancelled_at = ?, cancelled_by = ?, admin_log = ? WHERE id = ?")
         ->execute([now_utc(), $admin['email'], booking_log_entry($row, $admin, 'Cancelled (' . $when . ')' . ($reason !== '' ? ': ' . $reason : '')), $row['id']]);
-    $pdo->prepare('DELETE FROM slot_locks WHERE booking_id = ?')->execute([$row['id']]);
     $pdo->commit();
 
     $removed = caldav_remove_events('pawpad-booking-' . $row['id'] . '-', $row['calendar_href'], parse_studio_date($row['slot_date']));
@@ -678,13 +648,46 @@ function cancel_booking(array $admin, array $input): array
         ->execute([$removed ? 'removed' : 'remove_failed', $row['id']]);
     forget_calendar_cache();
 
-    $mail = booking_change_email($row, 'Your Pawpad grooming appointment has been cancelled (' . $row['ref'] . ')',
-        'Your grooming appointment on ' . $when . ' has been cancelled.', $reason);
+    $mail = $row['customer_email'] !== ''
+        ? booking_change_email($row, 'Your Pawpad grooming appointment has been cancelled (' . $row['ref'] . ')',
+            'Your grooming appointment on ' . $when . ' has been cancelled.', $reason)
+        : ['sent' => false, 'error' => 'no email address (walk-in / phone booking)'];
     return ['calendarRemoved' => $removed, 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
 }
 
 /**
- * Moves a booking to another free slot, updates the calendar event, and emails the customer.
+ * A booking's team time starting at $start: the service, then (if the dog is matted)
+ * 30 more minutes for the groomer. A clash of the Matted extra is only a warning.
+ * @return array{segments: ?array, clash: string, warning: string}
+ */
+function fit_booking(array $day, string $serviceId, bool $matted, int $start, bool $force): array
+{
+    $fit = plan_fit($day, service_plan($serviceId), $start, [], $force);
+    if ($fit['segments'] === null) {
+        return ['segments' => null, 'clash' => $fit['clash'], 'warning' => ''];
+    }
+    $segments = $fit['segments'];
+    $warning = '';
+    if ($matted) {
+        $end = max(array_column($segments, 2));
+        $extra = plan_fit($day, [['groomer', MATTED_MINUTES]], $end, add_to_extra([], $segments), true);
+        $warning = $extra['clash'] !== '' ? 'Matted Dogs (+' . MATTED_MINUTES . ' min): ' . $extra['clash'] . '.' : '';
+        foreach ($extra['segments'] as $seg) {
+            $segments[] = [$seg[0], $seg[1], $seg[2], 'matted'];
+        }
+    }
+    return ['segments' => $segments, 'clash' => $fit['clash'], 'warning' => $warning];
+}
+
+/** Stops with the clash, so the admin panel can offer "Book anyway". */
+function send_clash(string $clash): void
+{
+    send_json(['ok' => false, 'error' => 'This time clashes: ' . $clash . '.', 'clash' => $clash], 409);
+}
+
+/**
+ * Admin: moves a booking to another day or time (any start time), updates the
+ * calendar event and emails the customer. A clash needs "force" (Move anyway).
  */
 function reschedule_booking(array $admin, array $input): array
 {
@@ -702,27 +705,19 @@ function reschedule_booking(array $admin, array $input): array
     if (!$day || !in_array($date, bookable_dates(), true)) {
         json_error('Please choose a date from today up to ' . booking_days_ahead() . ' days ahead.');
     }
-    if (!in_array($time, slot_times_for($day), true)) {
-        json_error('The studio has no ' . $time . ' slot on that day.');
+    if (!valid_hm($time) || hm_to_min($time) < ADMIN_EARLIEST_MIN) {
+        json_error('Please choose a start time from 8:00 AM.');
     }
     if (slot_too_soon($date, $time, 0)) {
         json_error(friendly_slot($date, $time) . ' has already started. Please choose a later time.', 409);
     }
-    if (!service_allows_time($row['service_id'], $time)) {
-        json_error('The 7 PM slot is only for services without a haircut or clipping.');
-    }
     if ($date === $row['slot_date'] && $time === $row['slot_time']) {
         json_error('That is the current time of this booking. Please choose a different one.');
     }
-    if (slot_is_closed(db(), $date, $time)) {
-        json_error(friendly_slot($date, $time) . ' is inside a studio closure. Please choose another time.', 409);
-    }
+    $force = !empty($input['force']);
     $calendar = calendar_busy($day, $day->modify('+1 day'), true);
-    if (!$calendar['ok']) {
+    if (!$calendar['ok'] && !$force) {
         json_error('The info@ calendar could not be read, so the new time can\'t be checked. Please try again.', 503);
-    }
-    if (slot_is_busy_in_calendar($calendar['busy'], $date, $time)) {
-        json_error(friendly_slot($date, $time) . ' is no longer free (there is an event in the calendar).', 409);
     }
 
     $oldWhen = friendly_slot($row['slot_date'], $row['slot_time']);
@@ -730,40 +725,91 @@ function reschedule_booking(array $admin, array $input): array
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)')->execute([$date, $time, $row['id']]);
-        $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
-        $blocked->execute([$date, $time]);
-        if ((int) $blocked->fetchColumn() > 0 || slot_is_closed($pdo, $date, $time)) {
-            throw new SlotTakenException(['date' => $date, 'time' => $time], true);
+        lock_schedule_day($pdo, $date);
+        $schedule = day_schedules([$date], true, $calendar['ok'] ? $calendar : ['ok' => true, 'busy' => []], (int) $row['id'])[$date];
+        $fit = fit_booking($schedule, $row['service_id'], !empty($row['matted']), hm_to_min($time), $force);
+        if ($fit['segments'] === null) {
+            $pdo->rollBack();
+            send_clash($fit['clash']);
         }
-        $pdo->prepare('DELETE FROM slot_locks WHERE booking_id = ? AND slot_date = ? AND slot_time = ?')
-            ->execute([$row['id'], $row['slot_date'], $row['slot_time']]);
+        $pdo->prepare('DELETE FROM booking_segments WHERE booking_id = ?')->execute([$row['id']]);
+        save_segments($pdo, (int) $row['id'], $date, $fit['segments']);
+        $note = 'Rescheduled from ' . $oldWhen . ' to ' . $newWhen . ': ' . $reason . ($fit['clash'] !== '' ? ' (moved despite a clash: ' . $fit['clash'] . ')' : '');
         $pdo->prepare('UPDATE bookings SET slot_date = ?, slot_time = ?, admin_log = ? WHERE id = ?')
-            ->execute([$date, $time, booking_log_entry($row, $admin, 'Rescheduled from ' . $oldWhen . ' to ' . $newWhen . ': ' . $reason), $row['id']]);
+            ->execute([$date, $time, booking_log_entry($row, $admin, $note), $row['id']]);
         $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
-        if ($e instanceof SlotTakenException || ($e instanceof PDOException && (int) ($e->errorInfo[1] ?? 0) === 1062)) {
-            json_error(friendly_slot($date, $time) . ' is no longer free. Please choose another time.', 409);
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
         }
         throw $e;
     }
 
     // Move the calendar event: remove the old one(s), then add the new time.
-    caldav_remove_events('pawpad-booking-' . $row['id'] . '-', $row['calendar_href'], parse_studio_date($row['slot_date']));
-    $pet = json_decode($row['pet'], true) ?: [];
-    $pet += ['name' => '', 'type' => '', 'breed' => '', 'age' => '', 'size' => '', 'coat' => '', 'temperament' => '', 'healthNotes' => ''];
-    $href = add_booking_event(
-        ['id' => $row['id'], 'ref' => $row['ref'], 'date' => $date, 'time' => $time, 'pet' => $pet, 'serviceTitle' => $row['service_title']],
-        $row['customer_name'], $row['customer_phone'], $row['customer_email'], $row['notes']
-    );
-    $pdo->prepare('UPDATE bookings SET calendar_href = ?, calendar_status = ? WHERE id = ?')
-        ->execute([$href, $href !== '' ? 'synced' : 'failed', $row['id']]);
-    forget_calendar_cache();
+    caldav_remove_events('pawpad-booking-' . $row['id'] . '-', (string) $row['calendar_href'], parse_studio_date($row['slot_date']));
+    $updated = find_booking((int) $row['id']);
+    $synced = refresh_booking_event($updated);
 
-    $mail = booking_change_email($row, 'Your Pawpad grooming appointment has been rescheduled (' . $row['ref'] . ')',
-        "Your grooming appointment has been moved.\n\nNew time: " . $newWhen . "\n(was: " . $oldWhen . ')', $reason);
-    return ['booking' => booking_to_array(find_booking((int) $row['id'])), 'calendarSynced' => $href !== '', 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
+    $mail = $row['customer_email'] !== ''
+        ? booking_change_email($row, 'Your Pawpad grooming appointment has been rescheduled (' . $row['ref'] . ')',
+            "Your grooming appointment has been moved.\n\nNew time: " . $newWhen . "\n(was: " . $oldWhen . ')', $reason)
+        : ['sent' => false, 'error' => 'no email address (walk-in / phone booking)'];
+    return [
+        'booking' => bookings_with_segments([$updated])[0],
+        'calendarSynced' => $synced,
+        'emailSent' => $mail['sent'],
+        'emailError' => $mail['error'],
+        'warning' => trim($fit['clash'] . ' ' . $fit['warning']),
+    ];
+}
+
+/**
+ * Admin: the dog is matted: 30 more minutes for the groomer, straight after the
+ * service (and the Matted Dogs price added to the booking). A clash is only a warning.
+ */
+function set_matted(array $admin, array $input): array
+{
+    $row = find_booking((int) ($input['id'] ?? 0));
+    if ($row['status'] !== 'booked') {
+        json_error('Only active bookings can be changed.');
+    }
+    $on = !empty($input['on']);
+    if ((bool) $row['matted'] === $on) {
+        return ['booking' => bookings_with_segments([$row])[0], 'warning' => ''];
+    }
+    $extraPrice = parse_amount($input['price'] ?? '');
+    $extraPrice = $extraPrice !== null && $extraPrice >= 0 ? $extraPrice : 850.0;
+    $date = $row['slot_date'];
+    $warning = '';
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        lock_schedule_day($pdo, $date);
+        $pdo->prepare("DELETE FROM booking_segments WHERE booking_id = ? AND kind = 'matted'")->execute([$row['id']]);
+        if ($on) {
+            $own = array_map(function (array $s): array {
+                return [$s[0], $s[1], $s[2]];
+            }, booking_segments((int) $row['id']));
+            $end = $own ? max(array_column($own, 2)) : hm_to_min($row['slot_time']) + slot_minutes();
+            $schedule = day_schedules([$date], true, null, (int) $row['id'])[$date];
+            $fit = plan_fit($schedule, [['groomer', MATTED_MINUTES]], $end, add_to_extra([], $own), true);
+            $warning = $fit['clash'];
+            save_segments($pdo, (int) $row['id'], $date, $fit['segments'], 'matted');
+        }
+        $price = $row['price'] !== null ? max(0, (float) $row['price'] + ($on ? $extraPrice : -$extraPrice)) : null;
+        $text = $on ? 'Matted Dogs added (+' . MATTED_MINUTES . ' min groomer' . ($warning !== '' ? '; clash: ' . $warning : '') . ')' : 'Matted Dogs removed';
+        $pdo->prepare('UPDATE bookings SET matted = ?, price = ?, admin_log = ? WHERE id = ?')
+            ->execute([$on ? 1 : 0, $price, booking_log_entry($row, $admin, $text), $row['id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+    $updated = find_booking((int) $row['id']);
+    $synced = refresh_booking_event($updated);
+    return ['booking' => bookings_with_segments([$updated])[0], 'warning' => $warning, 'calendarSynced' => $synced];
 }
 
 /**
@@ -787,6 +833,10 @@ function cleanup_calendar(): array
     return ['checked' => $cleaned + $failed, 'failed' => $failed];
 }
 
+/**
+ * Admin: blocks the whole studio (or only Leena: no massages) for a whole day,
+ * one hour, or from a time to a time. Shown in the info@ calendar too.
+ */
 function block_slot(array $admin, array $input): array
 {
     $day = parse_studio_date((string) ($input['date'] ?? ''));
@@ -794,44 +844,67 @@ function block_slot(array $admin, array $input): array
         json_error('Please choose today or a later date.');
     }
     $date = $day->format('Y-m-d');
-    $time = (string) ($input['time'] ?? '');
-    if ($time !== '' && !in_array($time, slot_times_for($day), true)) {
-        json_error('The studio has no ' . $time . ' slot on that day.');
+    $staff = (string) ($input['staff'] ?? '');
+    if (!in_array($staff, ['', 'leena'], true)) {
+        json_error('Unknown team member.');
     }
-
-    if ($time === '') {
-        $stmt = db()->prepare('SELECT COUNT(*) FROM slot_locks WHERE slot_date = ?');
-        $stmt->execute([$date]);
-        $count = (int) $stmt->fetchColumn();
-        if ($count > 0) {
-            json_error('This day has ' . $count . ' booking' . ($count > 1 ? 's' : '') . '. Cancel ' . ($count > 1 ? 'them' : 'it') . ' first, then block the day.', 409);
+    $time = (string) ($input['time'] ?? '');
+    $endTime = (string) ($input['endTime'] ?? '');
+    if ($time !== '') {
+        if (!valid_hm($time) || ($endTime !== '' && !valid_hm($endTime))) {
+            json_error('Please choose the times.');
+        }
+        if ($endTime === '') {
+            $endTime = min_to_hm(min(1439, hm_to_min($time) + 60));
+        }
+        if (hm_to_min($endTime) <= hm_to_min($time)) {
+            json_error('The end time must be after the start time.');
         }
     } else {
-        $stmt = db()->prepare('SELECT COUNT(*) FROM slot_locks WHERE slot_date = ? AND slot_time = ?');
-        $stmt->execute([$date, $time]);
-        if ((int) $stmt->fetchColumn() > 0) {
-            json_error('This slot has a booking. Cancel the booking first, then block the slot.', 409);
-        }
+        $endTime = '';
     }
-
+    [$start, $end] = $time === '' ? [0, 1440] : [hm_to_min($time), hm_to_min($endTime)];
     $reason = clean_text($input['reason'] ?? '', 255);
+    $who = $staff === 'leena' ? 'Leena' : 'the studio';
+
+    $pdo = db();
+    $pdo->beginTransaction();
     try {
-        db()->prepare('INSERT INTO slot_blocks (slot_date, slot_time, reason, created_at, created_by) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$date, $time, $reason, now_utc(), $admin['email']]);
+        lock_schedule_day($pdo, $date);
+        $sql = "SELECT b.ref, b.slot_time, s.start_min FROM booking_segments s JOIN bookings b ON b.id = s.booking_id
+                WHERE b.status = 'booked' AND s.slot_date = ? AND s.start_min < ? AND s.end_min > ?" . ($staff === 'leena' ? " AND s.staff = 'leena'" : '');
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$date, $end, $start]);
+        $clashes = $stmt->fetchAll();
+        if ($clashes) {
+            $pdo->rollBack();
+            $refs = array_values(array_unique(array_column($clashes, 'ref')));
+            json_error('There ' . (count($refs) > 1 ? 'are bookings' : 'is a booking') . ' for ' . $who . ' at that time (' . implode(', ', $refs)
+                . '). Cancel or move ' . (count($refs) > 1 ? 'them' : 'it') . ' first, then block the time.', 409);
+        }
+        $pdo->prepare('INSERT INTO slot_blocks (slot_date, slot_time, end_time, staff, reason, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$date, $time, $endTime, $staff, $reason, now_utc(), $admin['email']]);
+        $blockId = (int) $pdo->lastInsertId();
+        $pdo->commit();
     } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         if ((int) ($e->errorInfo[1] ?? 0) === 1062) {
             json_error('This is already blocked.');
         }
         throw $e;
     }
-    $blockId = (int) db()->lastInsertId();
 
     // Show the block in the info@ calendar too, so it's visible on the phone.
-    $summary = 'Blocked' . ($reason !== '' ? ': ' . $reason : '') . ' (Pawpad admin)';
+    $summary = ($staff === 'leena' ? 'Leena unavailable (no massages)' : 'Blocked') . ($reason !== '' ? ': ' . $reason : '') . ' (Pawpad admin)';
+    $description = 'Blocked by ' . $admin['email'] . ' in the Pawpad admin panel. Unblock it there.';
+    $uid = 'pawpad-block-' . $blockId . '-' . bin2hex(random_bytes(4));
     $href = $time === ''
-        ? caldav_create_event('pawpad-block-' . $blockId . '-' . bin2hex(random_bytes(4)), $day, $day->modify('+1 day'), $summary, 'Blocked by ' . $admin['email'] . ' in the Pawpad admin panel. Unblock it there.', STUDIO_ADDRESS, true)
-        : caldav_create_event('pawpad-block-' . $blockId . '-' . bin2hex(random_bytes(4)), slot_start($date, $time), slot_start($date, $time)->modify('+' . slot_minutes() . ' minutes'), $summary, 'Blocked by ' . $admin['email'] . ' in the Pawpad admin panel. Unblock it there.', STUDIO_ADDRESS);
+        ? caldav_create_event($uid, $day, $day->modify('+1 day'), $summary, $description, STUDIO_ADDRESS, true)
+        : caldav_create_event($uid, $day->modify('+' . $start . ' minutes'), $day->modify('+' . $end . ' minutes'), $summary, $description, STUDIO_ADDRESS);
     db()->prepare('UPDATE slot_blocks SET calendar_href = ? WHERE id = ?')->execute([$href, $blockId]);
+    forget_calendar_cache();
     return list_bookings(['date' => $date]) + ['calendarSynced' => $href !== ''];
 }
 

@@ -2303,6 +2303,7 @@
   // WEBSITE CONTENT CMS EDITOR TAB
   // -------------------------------------------------------------
   function ContentEditorTab() {
+    useTeamPlans();
     const [selectedPage, setSelectedPage] = useState("home");
     const [formData, setFormData] = useState({});
     const [toastMessage, setToastMessage] = useState("");
@@ -3192,6 +3193,30 @@
                     },
                     "Delete Package"
                   )
+                ),
+
+                // How customers book this service (Hand Stripping: WhatsApp first; Matted Dogs: the team adds it).
+                React.createElement(
+                  "div",
+                  { style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
+                  React.createElement("label", { htmlFor: "pkg-booking-" + idx, style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "How customers book"),
+                  React.createElement("select", {
+                    id: "pkg-booking-" + idx,
+                    "data-pkg-booking": pkg.key,
+                    className: "input-field",
+                    style: { width: "auto" },
+                    value: pkg.booking || "online",
+                    onChange: (e) => {
+                      const list = [...formData.packages];
+                      list[idx] = { ...list[idx], booking: e.target.value === "online" ? undefined : e.target.value };
+                      updateField("packages", list);
+                    }
+                  },
+                    React.createElement("option", { value: "online" }, "Book online (Add to cart)"),
+                    React.createElement("option", { value: "whatsapp" }, "Enquire on WhatsApp first"),
+                    React.createElement("option", { value: "studio" }, "Added by the team at the studio (not sold online)")),
+                  window.PawpadSchedule && React.createElement("span", { style: { fontSize: "12px", color: "var(--admin-text-faint)" } },
+                    "Team time: " + teamTimeText(pkg.key))
                 ),
 
                 // Fields Grid
@@ -4858,49 +4883,216 @@
   }
 
   // -------------------------------------------------------------
+  // TEAM SCHEDULING (who does each service, and when: bather, groomer, Leena)
+  // -------------------------------------------------------------
+  let teamPlansCache = null;
+  const teamPlansListeners = new Set();
+  function loadTeamPlans() {
+    if (teamPlansCache || loadTeamPlans.busy || !window.PawpadApi) return;
+    loadTeamPlans.busy = true;
+    window.PawpadApi.call("service_plans", {}).then((r) => {
+      loadTeamPlans.busy = false;
+      if (!r.ok) return;
+      teamPlansCache = r.data;
+      teamPlansListeners.forEach((f) => f());
+    });
+  }
+  /** Re-renders the component once the service plans have arrived from the server. */
+  function useTeamPlans() {
+    const [, bump] = useState(0);
+    useEffect(() => {
+      const f = () => bump((n) => n + 1);
+      teamPlansListeners.add(f);
+      loadTeamPlans();
+      return () => teamPlansListeners.delete(f);
+    }, []);
+    return teamPlansCache;
+  }
+  /** "2 hours (Bather 1 hour, then groomer 1 hour)". */
+  function teamTimeText(serviceId, plans) {
+    const info = plans || teamPlansCache;
+    if (!info || !window.PawpadSchedule) {
+      loadTeamPlans();
+      return "…";
+    }
+    const plan = window.PawpadSchedule.planFor(info, serviceId);
+    return `${window.PawpadSchedule.durationLabel(plan)} (${window.PawpadSchedule.planLabel(plan)})`;
+  }
+  /**
+   * Start times (every 30 minutes, from opening) that fit a service on a day from
+   * list_bookings, plus the website's hourly ones. Each: { time, fits }.
+   */
+  function adminStartOptions(day, serviceId) {
+    const S = window.PawpadSchedule;
+    if (!day || !S) return [];
+    const plan = S.planFor(day, serviceId);
+    const from = Math.min(day.openMin || 660, 660);
+    const out = [];
+    for (let m = from; m + S.planMinutes(plan) <= (day.closeMin || 1200); m += 30) {
+      out.push({ time: S.toHm(m), fits: Boolean(S.fit({ busy: day.busy }, plan, m, {}, day.closeMin)), hourly: (day.starts || []).includes(S.toHm(m)) });
+    }
+    return out;
+  }
+  const STAFF_COLUMNS = [["bather", "Bather"], ["groomer", "Groomer"], ["leena", "Leena"]];
+
+  /**
+   * The day as three columns (bather, groomer, Leena), from opening to 8 PM.
+   * Overlapping bookings in one column (booked despite a clash) are outlined in red.
+   */
+  function TeamTimeline({ day }) {
+    const S = window.PawpadSchedule;
+    const bookings = (day.bookings || []).filter((b) => b.status === "booked");
+    const segs = { bather: [], groomer: [], leena: [] };
+    bookings.forEach((b) => (b.segments || []).forEach((sg) => segs[sg.staff] && segs[sg.staff].push({ ...sg, b })));
+    const all = [].concat(segs.bather, segs.groomer, segs.leena);
+    const from = Math.min(day.openMin || 660, ...all.map((s) => s.start), 660);
+    const to = Math.max(1200, ...all.map((s) => s.end));
+    const px = 1.1; // pixels per minute
+    const top = (m) => `${(Math.max(m, from) - from) * px}px`;
+    const height = (a, b) => `${Math.max(14, (Math.min(b, to) - Math.max(a, from)) * px)}px`;
+    const hours = [];
+    for (let h = Math.ceil(from / 60); h * 60 <= to; h++) hours.push(h * 60);
+    const studio = (day.studio || []).filter((iv) => iv.end > from && iv.start < to);
+    const leenaOff = (day.blocks || []).filter((bl) => bl.staff === "leena");
+    const clashes = (list) => list.map((s) => list.some((o) => o !== s && o.start < s.end && o.end > s.start));
+    // Overlapping bookings (booked despite a clash) sit side by side instead of on top of each other.
+    const lanes = (list) => {
+      const lane = [];
+      const count = [];
+      let group = [];
+      let ends = [];
+      let groupEnd = -1;
+      const close = () => group.forEach((i) => { count[i] = Math.max(1, ends.length); });
+      list.forEach((sg, idx) => {
+        if (sg.start >= groupEnd) {
+          close();
+          group = [];
+          ends = [];
+        }
+        let i = ends.findIndex((end) => end <= sg.start);
+        if (i < 0) i = ends.length;
+        ends[i] = sg.end;
+        lane[idx] = i;
+        group.push(idx);
+        groupEnd = Math.max(groupEnd, sg.end);
+      });
+      close();
+      return { lane, count };
+    };
+
+    return React.createElement(
+      "div",
+      { className: "team-timeline", "data-section": "team-timeline", style: { display: "grid", gridTemplateColumns: "64px repeat(3, minmax(0, 1fr))", gap: "6px", fontSize: "12px", paddingBottom: "10px" } },
+      React.createElement("div", null),
+      STAFF_COLUMNS.map(([key, label]) => React.createElement("div", { key, style: { fontWeight: 700, color: "var(--admin-gold)", textAlign: "center" } }, label)),
+      React.createElement("div", { style: { position: "relative", height: `${(to - from) * px}px` } },
+        hours.map((m) => React.createElement("span", { key: m, style: { position: "absolute", top: top(m), right: "6px", transform: "translateY(-50%)", color: "var(--admin-text-faint)" } }, S ? S.clock(m) : m))),
+      STAFF_COLUMNS.map(([key]) => {
+        const list = segs[key].sort((a, b) => a.start - b.start);
+        const red = clashes(list);
+        const { lane, count } = lanes(list);
+        return React.createElement(
+          "div",
+          { key, "data-staff-column": key, style: { position: "relative", height: `${(to - from) * px}px`, background: "var(--admin-bg)", borderRadius: "8px", border: "1px solid var(--admin-border-subtle)", overflow: "hidden" } },
+          hours.map((m) => React.createElement("div", { key: m, style: { position: "absolute", top: top(m), left: 0, right: 0, borderTop: "1px dashed var(--admin-border-subtle)" } })),
+          studio.map((iv, i) => React.createElement("div", { key: "st" + i, title: iv.why, style: { position: "absolute", top: top(iv.start), height: height(iv.start, iv.end), left: 0, right: 0, background: "repeating-linear-gradient(45deg, rgba(160,160,160,.18) 0 6px, transparent 6px 12px)" } })),
+          key === "leena" && leenaOff.map((bl) => React.createElement("div", { key: "lo" + bl.id, "data-leena-off": true, title: "Leena unavailable" + (bl.reason ? `: ${bl.reason}` : ""), style: { position: "absolute", top: top(bl.start), height: height(bl.start, bl.end), left: 0, right: 0, background: "repeating-linear-gradient(45deg, rgba(200,80,80,.16) 0 6px, transparent 6px 12px)", color: "var(--admin-danger)", padding: "2px 6px" } }, "Unavailable")),
+          list.map((sg, i) => React.createElement("div", {
+            key: `${sg.b.id}-${i}`,
+            "data-segment": `${key}-${sg.b.ref}`,
+            title: `${S ? S.clock(sg.start) : sg.start}–${S ? S.clock(sg.end) : sg.end} · ${sg.b.pet.name || "Pet"} · ${sg.b.serviceTitle} · ${sg.b.customer.name}`,
+            style: {
+              position: "absolute", top: top(sg.start), height: height(sg.start, sg.end),
+              left: `calc(${(lane[i] * 100) / count[i]}% + 3px)`, width: `calc(${100 / count[i]}% - 6px)`,
+              background: sg.kind === "matted" ? "rgba(214,140,60,.28)" : "rgba(201,168,106,.25)",
+              border: red[i] ? "2px solid var(--admin-danger)" : "1px solid var(--admin-gold)",
+              borderRadius: "6px", padding: "2px 6px", overflow: "hidden", lineHeight: 1.3, color: "var(--admin-text)"
+            }
+          },
+            React.createElement("strong", null, `${S ? S.clock(sg.start) : ""} ${sg.b.pet.name || "Pet"}`),
+            React.createElement("span", { style: { display: "block", color: "var(--admin-text-muted)" } }, sg.kind === "matted" ? "Matted (+30 min)" : sg.b.serviceTitle)))
+        );
+      })
+    );
+  }
+
+  // -------------------------------------------------------------
   // CANCEL / RESCHEDULE A BOOKING (both email the customer, with a copy to info@)
   // -------------------------------------------------------------
+  /**
+   * Start-time chooser for the admin panel: times that fit the service (every 30
+   * minutes; ★ = an hourly website time), or any other time typed in.
+   */
+  function AdminTimeChooser({ day, serviceId, value, onChange, idPrefix }) {
+    const options = adminStartOptions(day, serviceId);
+    const fitting = options.filter((o) => o.fits);
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "8px" } },
+      fitting.length === 0
+        ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "No free start time fits this service on this day. You can still type a time (you'll be warned about the clash).")
+        : React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap" } },
+            fitting.map((o) => React.createElement("button", {
+              type: "button", key: o.time, "data-start": o.time,
+              className: "btn-admin " + (value === o.time ? "btn-admin-primary" : "btn-admin-secondary"),
+              style: { padding: "5px 10px", fontSize: "12px" },
+              title: o.hourly ? "Also offered on the website" : "Admin panel only",
+              onClick: () => onChange(o.time)
+            }, `${formatSlotTime(o.time)}${o.hourly ? " ★" : ""}`))),
+      React.createElement("label", { style: { fontSize: "12px", color: "var(--admin-text-muted)", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+        "Or any start time:",
+        React.createElement("input", { id: (idPrefix || "time") + "-custom", type: "time", step: 300, className: "input-field", style: { width: "auto" }, value: value || "", onChange: (e) => onChange(e.target.value) }),
+        day && window.PawpadSchedule && React.createElement("span", { style: { color: "var(--admin-text-faint)" } }, `Takes ${teamTimeText(serviceId, day)}. ★ = also offered on the website.`))
+    );
+  }
+
   function BookingChangeModal({ mode, booking, onClose, onDone }) {
     const isReschedule = mode === "reschedule";
     const [reason, setReason] = useState("");
-    const [choice, setChoice] = useState({ date: null, time: null });
-    const [availability, setAvailability] = useState(null);
+    const [date, setDate] = useState(booking.date);
+    const [time, setTime] = useState("");
+    const [day, setDay] = useState(null);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [clash, setClash] = useState("");
 
-    const loadSlots = async () => {
-      setAvailability(null);
-      setAvailability(await window.PawpadSlots.load(true));
+    const loadDay = async (d) => {
+      setDay(null);
+      const r = await window.PawpadApi.call("list_bookings", { date: d, exceptBooking: booking.id });
+      setDay(r.ok ? r.data : null);
+      if (!r.ok) setError((r.data && r.data.error) || "The day could not be loaded.");
     };
     useEffect(() => {
-      if (isReschedule && window.PawpadSlots) loadSlots();
-    }, []);
+      if (isReschedule) loadDay(date);
+    }, [date]);
 
     const who = `${booking.pet.name || "Pet"} (${booking.serviceTitle}) for ${booking.customer.name}`;
-    const canSubmit = !saving && (isReschedule ? reason.trim() && choice.date && choice.time : true);
+    const canSubmit = !saving && (isReschedule ? reason.trim() && date && time : true);
 
-    const submit = async () => {
+    const submit = async (force) => {
       if (!canSubmit) return;
       setSaving(true);
       setError("");
       const result = isReschedule
-        ? await window.PawpadApi.call("reschedule_booking", { id: booking.id, date: choice.date, time: choice.time, reason: reason.trim() })
+        ? await window.PawpadApi.call("reschedule_booking", { id: booking.id, date, time, reason: reason.trim(), force: Boolean(force) })
         : await window.PawpadApi.call("cancel_booking", { id: booking.id, reason: reason.trim() });
       setSaving(false);
       if (!result.ok) {
-        setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
-        if (isReschedule && result.status === 409) {
-          setChoice({ date: choice.date, time: null });
-          loadSlots();
+        if (isReschedule && result.data && result.data.clash) {
+          setClash(result.data.clash);
+          return;
         }
+        setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
+        if (isReschedule && result.status === 409) loadDay(date);
         return;
       }
       const d = result.data;
       const parts = [isReschedule ? "✓ Booking rescheduled." : "✓ Booking cancelled."];
+      if (d.warning) parts.push(`⚠️ ${d.warning}.`);
       if (isReschedule ? d.calendarSynced === false : d.calendarRemoved === false) {
         parts.push("⚠️ The info@ calendar could not be updated; please check it on the phone.");
       }
-      parts.push(d.emailSent ? `Email sent to ${booking.customer.email} (copy to info@).` : `⚠️ Email not sent: ${d.emailError}`);
+      if (booking.customer.email) parts.push(d.emailSent ? `Email sent to ${booking.customer.email} (copy to info@).` : `⚠️ Email not sent: ${d.emailError}`);
       onDone(parts.join(" "));
     };
 
@@ -4914,18 +5106,21 @@
           isReschedule ? "Reschedule booking" : "Cancel booking"),
         React.createElement("p", { style: { fontSize: "14px", marginBottom: "4px" } }, who),
         React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)", marginBottom: "16px" } },
-          `Currently: ${booking.label || `${booking.date} ${formatSlotTime(booking.time)}`} · Ref ${booking.ref}`),
+          `Currently: ${booking.label || `${booking.date} ${formatSlotTime(booking.time)}`}${booking.endTime ? ` to ${formatSlotTime(booking.endTime)}` : ""} · Ref ${booking.ref}`),
         React.createElement("label", { style: { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" } },
           isReschedule ? "Reason for rescheduling (sent to the customer) *" : "Reason for cancelling (sent to the customer, optional)"),
         React.createElement("textarea", { className: "input-field", rows: 2, value: reason, onChange: (e) => setReason(e.target.value), "aria-label": "Reason", style: { width: "100%", marginBottom: "16px" } }),
         isReschedule && React.createElement(
           "div",
-          { className: "reschedule-slots", style: { marginBottom: "16px" } },
-          React.createElement("p", { style: { fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "8px" } }, "New date and time (only free slots are shown)"),
-          window.SlotPicker
-            ? React.createElement(window.SlotPicker, { availability, serviceId: booking.serviceId, value: choice, onChange: setChoice, excluded: [], onRetry: loadSlots })
-            : React.createElement("p", null, "The slot picker could not be loaded. Please reload the page.")
+          { className: "reschedule-slots", style: { marginBottom: "16px", display: "flex", flexDirection: "column", gap: "10px" } },
+          React.createElement("label", { style: { fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", display: "flex", gap: "8px", alignItems: "center" } }, "New date",
+            React.createElement("input", { type: "date", className: "input-field", style: { width: "auto" }, value: date, "aria-label": "New date", onChange: (e) => { if (e.target.value) { setDate(e.target.value); setTime(""); setClash(""); } } })),
+          !day ? React.createElement("p", { style: { fontSize: "13px" } }, "Checking the team's time…")
+            : React.createElement(AdminTimeChooser, { day, serviceId: booking.serviceId, value: time, onChange: (t) => { setTime(t); setClash(""); }, idPrefix: "reschedule" })
         ),
+        clash && React.createElement("div", { role: "alert", "data-clash": true, style: { border: "1px solid var(--admin-danger)", borderRadius: "8px", padding: "10px 12px", marginBottom: "12px", fontSize: "13px" } },
+          React.createElement("p", { style: { color: "var(--admin-danger)", fontWeight: 600, marginBottom: "8px" } }, `⚠️ This time clashes: ${clash}.`),
+          React.createElement("button", { type: "button", className: "btn-admin btn-admin-danger", disabled: saving, onClick: () => submit(true) }, "Move anyway")),
         error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontSize: "13px", fontWeight: 600, marginBottom: "12px" } }, error),
         React.createElement(
           "div",
@@ -4936,8 +5131,8 @@
             className: `btn-admin ${isReschedule ? "btn-admin-primary" : "btn-admin-danger"}`,
             disabled: !canSubmit,
             style: { opacity: canSubmit ? 1 : 0.5 },
-            onClick: submit
-          }, saving ? "Saving…" : isReschedule ? "Reschedule & email customer" : "Cancel booking & email customer")
+            onClick: () => submit(false)
+          }, saving ? "Saving…" : isReschedule ? (booking.customer.email ? "Reschedule & email customer" : "Reschedule") : (booking.customer.email ? "Cancel booking & email customer" : "Cancel booking"))
         )
       )
     );
@@ -4964,6 +5159,40 @@
   function logLine(entry) {
     const when = entry.date ? new Date(entry.date).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
     return `↺ ${entry.text}${entry.by ? ` — ${entry.by}` : ""}${when ? `, ${when}` : ""}`;
+  }
+
+  /** Admin form: block the whole studio or only Leena (no massages), all day or from–to. */
+  function BlockTimeForm({ date, onDone, onError }) {
+    const [who, setWho] = useState("");
+    const [allDay, setAllDay] = useState(false);
+    const [from, setFrom] = useState("14:00");
+    const [to, setTo] = useState("15:00");
+    const [reason, setReason] = useState("");
+    const [saving, setSaving] = useState(false);
+    const submit = async (e) => {
+      e.preventDefault();
+      setSaving(true);
+      const r = await window.PawpadApi.call("block_slot", { date, staff: who, time: allDay ? "" : from, endTime: allDay ? "" : to, reason });
+      setSaving(false);
+      if (!r.ok) return onError((r.data && r.data.error) || "The Pawpad server could not be reached.");
+      setReason("");
+      onDone(r.data, `✓ ${who === "leena" ? "Leena is marked unavailable (no massages)" : "The studio is blocked"} ${allDay ? "all day" : `${formatSlotTime(from)}–${formatSlotTime(to)}`}.`);
+    };
+    const small = { fontSize: "12px", color: "var(--admin-text-muted)", display: "flex", flexDirection: "column", gap: "4px" };
+    return React.createElement(
+      "form",
+      { onSubmit: submit, "data-section": "block-time", style: { display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap", padding: "12px", borderRadius: "8px", border: "1px dashed var(--admin-border)" } },
+      React.createElement("label", { style: small }, "Block",
+        React.createElement("select", { className: "input-field", value: who, onChange: (e) => setWho(e.target.value), "aria-label": "Who to block" },
+          React.createElement("option", { value: "" }, "The whole studio"),
+          React.createElement("option", { value: "leena" }, "Leena only (no massages)"))),
+      React.createElement("label", { style: { ...small, flexDirection: "row", alignItems: "center", paddingBottom: "10px" } },
+        React.createElement("input", { type: "checkbox", checked: allDay, onChange: (e) => setAllDay(e.target.checked), "aria-label": "All day" }), "All day"),
+      !allDay && React.createElement("label", { style: small }, "From", React.createElement("input", { type: "time", step: 300, className: "input-field", value: from, onChange: (e) => setFrom(e.target.value), "aria-label": "Block from" })),
+      !allDay && React.createElement("label", { style: small }, "To", React.createElement("input", { type: "time", step: 300, className: "input-field", value: to, onChange: (e) => setTo(e.target.value), "aria-label": "Block until" })),
+      React.createElement("label", { style: { ...small, flex: 1, minWidth: "160px" } }, "Reason (optional)", React.createElement("input", { className: "input-field", value: reason, onChange: (e) => setReason(e.target.value), "aria-label": "Block reason" })),
+      React.createElement("button", { type: "submit", className: "btn-admin btn-admin-danger", disabled: saving }, saving ? "Blocking…" : "Block")
+    );
   }
 
   function BookingsTab({ canAdmin }) {
@@ -5012,15 +5241,6 @@
       load();
     };
 
-    const handleBlock = async (time) => {
-      const reason = window.prompt(time ? `Block ${formatSlotTime(time)}? Reason (optional):` : "Block the whole day? Reason (optional):", "");
-      if (reason === null) return;
-      const result = await window.PawpadApi.call("block_slot", { date, time: time || "", reason });
-      if (!result.ok) return flash("⚠️ " + serverError(result));
-      setDay(result.data);
-      flash(time ? `✓ ${formatSlotTime(time)} is blocked.` : "✓ The whole day is blocked.");
-    };
-
     const handleUnblock = async (blockId) => {
       const result = await window.PawpadApi.call("unblock_slot", { id: blockId });
       if (!result.ok) return flash("⚠️ " + serverError(result));
@@ -5028,16 +5248,19 @@
       flash("✓ Unblocked.");
     };
 
-    const stateBadge = {
-      free: { text: "Free", style: { background: "var(--admin-card-hover)" } },
-      booked: { text: "Booked", className: "badge-approved" },
-      blocked: { text: "Blocked", className: "badge-rejected" },
-      calendar: { text: "Calendar event", style: { background: "var(--admin-card-hover)", color: "var(--admin-gold)" } },
-      unknown: { text: "Calendar unreachable", className: "badge-rejected" },
-      closed: { text: "Studio closed", className: "badge-rejected" }
+    const handleMatted = async (b, on) => {
+      const result = await window.PawpadApi.call("set_matted", { id: b.id, on, price: listPrice("matted-dogs") ?? 850 });
+      if (!result.ok) return flash("⚠️ " + serverError(result));
+      load();
+      flash(result.data.warning
+        ? `⚠️ Matted Dogs added for ${b.pet.name || "the pet"}, but it clashes: ${result.data.warning}. Please rearrange if needed.`
+        : on ? `✓ Matted Dogs added: 30 more minutes for the groomer.` : "✓ Matted Dogs removed.");
     };
 
+    const S = window.PawpadSchedule;
+    const active = day ? day.bookings.filter((b) => b.status === "booked") : [];
     const cancelled = day ? day.bookings.filter((b) => b.status === "cancelled") : [];
+    const blocks = day ? day.blocks.filter((bl) => !(bl.time === "" && bl.staff === "")) : [];
 
     return React.createElement(
       "div",
@@ -5088,49 +5311,60 @@
       // The chosen day
       day && React.createElement(
         "div",
-        { className: "card", style: { display: "flex", flexDirection: "column", gap: "12px" } },
+        { className: "card", style: { display: "flex", flexDirection: "column", gap: "14px" } },
         React.createElement(
           "div",
           { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" } },
           React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-text)" } }, day.label),
           canAdmin && !day.closed && (day.dayBlock
             ? React.createElement("button", { className: "btn-admin btn-admin-secondary", onClick: () => handleUnblock(day.dayBlock.id) }, "Unblock whole day")
-            : React.createElement("button", { className: "btn-admin btn-admin-danger", onClick: () => handleBlock("") }, "Block whole day"))
+            : null)
         ),
-        day.closed && React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "The studio is closed on Thursdays."),
-        day.dayBlock && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `Whole day blocked${day.dayBlock.reason ? `: ${day.dayBlock.reason}` : ""}.`),
+        day.closed && React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "The studio is closed on Thursdays (walk-in and phone bookings can still be added from Daily Closing)."),
+        day.dayBlock && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `Whole studio blocked all day${day.dayBlock.reason ? `: ${day.dayBlock.reason}` : ""}.`),
         (day.closures || []).map((c) => React.createElement("p", { key: "closure" + c.id, style: { color: "var(--admin-danger)", fontSize: "14px" } },
           `Studio closure: ${c.label}${c.reason ? ` (${c.reason})` : ""}.${canAdmin ? " Change it under Studio Closures." : ""}`)),
         day.calendarError && React.createElement("p", { style: { color: "var(--admin-danger)", fontSize: "14px" } }, `⚠️ ${day.calendarError} Customers can't book online until this is fixed.`),
-        day.slots.map((slot) => {
-          const badge = stateBadge[slot.state] || stateBadge.free;
-          const b = slot.booking;
-          return React.createElement(
-            "div",
-            { key: slot.time, "data-slot": slot.time, style: { display: "flex", alignItems: "flex-start", gap: "14px", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", flexWrap: "wrap" } },
-            React.createElement("strong", { style: { minWidth: "78px", fontSize: "15px" } }, formatSlotTime(slot.time)),
-            React.createElement("span", { className: "badge " + (badge.className || ""), style: { fontSize: "11px", ...(badge.style || {}) } }, badge.text),
-            React.createElement(
+        (day.studio || []).filter((iv) => iv.why.startsWith("Event in")).length > 0 && React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+          "Events in the info@ calendar stop the whole studio: " + day.studio.filter((iv) => iv.why.startsWith("Event in")).map((iv) => `${S.clock(iv.start)}–${S.clock(Math.min(iv.end, 1440))}`).join(", ") + "."),
+
+        // Who is busy when
+        React.createElement(TeamTimeline, { day }),
+
+        // Blocks (studio hours and Leena's time off)
+        blocks.length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } },
+          blocks.map((bl) => React.createElement("div", { key: bl.id, "data-block": bl.id, style: { display: "flex", gap: "10px", alignItems: "center", fontSize: "13px", flexWrap: "wrap" } },
+            React.createElement("span", { className: "badge badge-rejected", style: { fontSize: "11px" } }, bl.staff === "leena" ? "Leena unavailable" : "Studio blocked"),
+            React.createElement("span", null, `${bl.time === "" ? "All day" : `${formatSlotTime(bl.time)}–${formatSlotTime(bl.endTime)}`}${bl.reason ? ` · ${bl.reason}` : ""}`),
+            canAdmin && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "4px 10px" }, onClick: () => handleUnblock(bl.id) }, "Unblock")))),
+        canAdmin && React.createElement(BlockTimeForm, { date, onDone: (data, text) => { setDay(data); flash(text); }, onError: (text) => flash("⚠️ " + text) }),
+
+        // The bookings, in time order
+        active.length === 0
+          ? React.createElement("p", { style: { color: "var(--admin-text-muted)", fontSize: "14px" } }, "No bookings on this day.")
+          : active.map((b) => React.createElement(
               "div",
-              { style: { flex: 1, minWidth: "200px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
-              b && React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
-              b && React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
-              b && b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
-              b && b.source === "walkin" && React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-gold)" } }, "Walk-in / phone booking"),
-              b && (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(entry))),
-              b && React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px" } }, `Ref ${b.ref}`,
-                b.calendarStatus === "failed" ? " · ⚠️ not added to the calendar" : "",
-                b.emailStatus === "failed" ? " · ⚠️ confirmation email not sent" : ""),
-              slot.state === "calendar" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "An event in the info@ calendar blocks this time."),
-              slot.state === "blocked" && !day.dayBlock && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, "Blocked by an admin."),
-              slot.state === "closed" && React.createElement("span", { style: { color: "var(--admin-text-muted)" } }, `Studio closure${slot.reason ? `: ${slot.reason}` : ""}.`)
-            ),
-            b && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleReschedule(b) }, "Reschedule"),
-            b && React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking"),
-            canAdmin && slot.state === "free" && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleBlock(slot.time) }, "Block"),
-            canAdmin && slot.state === "blocked" && !day.dayBlock && slot.blockId && React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleUnblock(slot.blockId) }, "Unblock")
-          );
-        }),
+              { key: b.id, "data-booking": b.ref, "data-slot": b.time, style: { display: "flex", alignItems: "flex-start", gap: "14px", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", flexWrap: "wrap" } },
+              React.createElement("strong", { style: { minWidth: "130px", fontSize: "14px" } }, `${formatSlotTime(b.time)}${b.endTime ? ` – ${formatSlotTime(b.endTime)}` : ""}`),
+              React.createElement(
+                "div",
+                { style: { flex: 1, minWidth: "220px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
+                React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}${b.matted ? " + Matted Dogs" : ""}`),
+                S && b.segments.length > 0 && React.createElement("span", { "data-team": true, style: { color: "var(--admin-gold)" } }, S.segmentsLabel(b.segments)),
+                React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), b.customer.email ? ` · ${b.customer.email}` : ""),
+                b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
+                b.source === "walkin" && React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-gold)" } }, "Walk-in / phone booking"),
+                (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(entry))),
+                React.createElement("span", { style: { color: "var(--admin-text-faint)", fontSize: "11px" } }, `Ref ${b.ref}`,
+                  b.calendarStatus === "failed" ? " · ⚠️ not added to the calendar" : "",
+                  b.emailStatus === "failed" ? " · ⚠️ confirmation email not sent" : ""),
+                b.pet.type !== "Cat" && b.serviceId !== "matted-dogs" && React.createElement("label", { style: { display: "flex", gap: "6px", alignItems: "center", fontSize: "12px", marginTop: "4px" } },
+                  React.createElement("input", { type: "checkbox", checked: Boolean(b.matted), "data-matted": b.ref, onChange: (e) => handleMatted(b, e.target.checked) }),
+                  `Matted dog: add Matted Dogs (+30 min groomer${listPrice("matted-dogs") != null ? `, ₹${listPrice("matted-dogs")}` : ""})`)
+              ),
+              React.createElement("button", { className: "btn-admin btn-admin-secondary", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleReschedule(b) }, "Reschedule"),
+              React.createElement("button", { className: "btn-admin btn-admin-danger", style: { fontSize: "12px", padding: "5px 10px" }, onClick: () => handleCancel(b) }, "Cancel booking")
+            )),
         cancelled.length > 0 && React.createElement(
           "details",
           { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
@@ -5200,12 +5434,13 @@
         day.items.map((b) => React.createElement(
           "div",
           { key: b.id, "data-booking": b.ref, style: { display: "flex", alignItems: "flex-start", gap: "14px", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--admin-border)", background: "var(--admin-bg)", flexWrap: "wrap" } },
-          React.createElement("strong", { style: { minWidth: "78px" } }, formatSlotTime(b.time)),
+          React.createElement("strong", { style: { minWidth: "130px" } }, `${formatSlotTime(b.time)}${b.endTime ? ` – ${formatSlotTime(b.endTime)}` : ""}`),
           React.createElement(
             "div",
             { style: { flex: 1, minWidth: "220px", fontSize: "13px", display: "flex", flexDirection: "column", gap: "3px" } },
-            React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}`),
-            React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), ` · ${b.customer.email}`),
+            React.createElement("span", { style: { fontWeight: 600 } }, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type}${b.pet.breed ? ` · ${b.pet.breed}` : ""})` : ""} — ${b.serviceTitle}${b.matted ? " + Matted Dogs" : ""}`),
+            window.PawpadSchedule && (b.segments || []).length > 0 && React.createElement("span", { style: { color: "var(--admin-gold)" } }, window.PawpadSchedule.segmentsLabel(b.segments)),
+            React.createElement("span", null, `${b.customer.name} · `, React.createElement("a", { href: `tel:${b.customer.phone}` }, b.customer.phone), b.customer.email ? ` · ${b.customer.email}` : ""),
             b.notes && React.createElement("span", { style: { fontStyle: "italic", color: "var(--admin-text-muted)" } }, `Notes: ${b.notes}`),
             (b.adminLog || []).map((entry, i) => React.createElement("span", { key: "log" + i, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(entry))),
             React.createElement("span", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}`, b.source === "walkin" ? " · walk-in / phone" : "")
@@ -5222,7 +5457,7 @@
   // -------------------------------------------------------------
   function ClosuresTab() {
     const [closures, setClosures] = useState(null);
-    const [times, setTimes] = useState(["10:00", "11:00", "12:00", "13:00", "16:00", "17:00", "18:00", "19:00"]);
+    const [times, setTimes] = useState(["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"]);
     const [form, setForm] = useState({ startDate: todayString(), endDate: todayString(), allDay: true, times: [], reason: "" });
     const [preview, setPreview] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -5503,7 +5738,7 @@
         onAdded: (data) => {
           applyDay(data);
           setShowWalkin(false);
-          setNotice(`✓ Walk-in / phone booking ${data.added.ref} added. ${data.slotMessage}`);
+          setNotice(`${data.warning ? "⚠️ " : "✓ "}Walk-in / phone booking ${data.added.ref} added. ${data.slotMessage}${data.warning ? ` ${data.warning}` : ""}`);
         }
       }),
       !day ? React.createElement("div", { className: "card" }, "Loading…") : React.createElement(
@@ -5580,34 +5815,40 @@
 
   function WalkinForm({ date, isFuture, onAdded }) {
     const packages = groomingPackages();
-    const [f, setF] = useState({ time: "", customerName: "", phone: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "" });
+    const [f, setF] = useState({ time: "", customerName: "", phone: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "", matted: false });
     const [error, setError] = useState("");
+    const [clash, setClash] = useState("");
     const [saving, setSaving] = useState(false);
-    const [slots, setSlots] = useState(null);
-    const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+    const [day, setDay] = useState(null);
+    const set = (patch) => {
+      setClash("");
+      setF((prev) => ({ ...prev, ...patch }));
+    };
 
-    // The day's studio slots, so a free one can be picked with one tap.
+    // The team's time on this day, so a start time that fits can be picked with one tap.
     useEffect(() => {
       let live = true;
-      setSlots(null);
-      window.PawpadApi.call("list_bookings", { date }).then((r) => { if (live) setSlots(r.ok ? (r.data.slots || []) : []); });
+      setDay(null);
+      window.PawpadApi.call("list_bookings", { date }).then((r) => { if (live) setDay(r.ok ? r.data : null); });
       return () => { live = false; };
     }, [date]);
-    const SLOT_STATE_LABEL = { free: "Free", booked: "Booked", blocked: "Blocked", closed: "Closed", calendar: "Busy in calendar", unknown: "Calendar not readable" };
 
     const pickService = (key) => {
       const pkg = packages.find((p) => p.key === key);
       set(pkg ? { serviceId: pkg.key, serviceTitle: pkg.title, amount: typeof pkg.priceNum === "number" ? String(pkg.priceNum) : f.amount } : { serviceId: "", serviceTitle: "" });
     };
 
-    const submit = async (e) => {
-      e.preventDefault();
+    const submit = async (e, force) => {
+      if (e) e.preventDefault();
       if (!f.time || !f.customerName.trim()) return setError("Please fill in at least the time and the customer's name.");
       setSaving(true);
       setError("");
-      const result = await window.PawpadApi.call("add_walkin", { ...f, date });
+      const result = await window.PawpadApi.call("add_walkin", { ...f, date, force: Boolean(force) });
       setSaving(false);
-      if (!result.ok) return setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
+      if (!result.ok) {
+        if (result.data && result.data.clash) return setClash(result.data.clash);
+        return setError((result.data && result.data.error) || "The Pawpad server could not be reached.");
+      }
       onAdded(result.data);
     };
 
@@ -5615,35 +5856,14 @@
     const field = (key, text, props) => React.createElement("div", { style: { minWidth: "140px", flex: 1 } },
       React.createElement("label", { style: label, htmlFor: "walkin-" + key }, text),
       React.createElement("input", { id: "walkin-" + key, className: "input-field", value: f[key], onChange: (e) => set({ [key]: e.target.value }), ...(props || {}) }));
+    const serviceId = f.serviceId || "grooming-unspecified";
 
     return React.createElement(
       "form",
       { className: "card", onSubmit: submit, "data-section": "walkin", style: { display: "flex", flexDirection: "column", gap: "12px" } },
       React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "17px", color: "var(--admin-gold)" } }, "Add a walk-in or phone booking"),
-      React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "If the time is free, the slot is taken (so nobody can book it online) and an event is added to the info@ calendar."),
-      slots && slots.length > 0 && React.createElement("div", { "data-section": "walkin-slots" },
-        React.createElement("p", { style: { ...label, marginBottom: "6px" } }, "Studio slots on this day (tap a free one)"),
-        React.createElement("div", { style: { display: "flex", gap: "6px", flexWrap: "wrap" } },
-          slots.map((sl) => {
-            const free = sl.state === "free";
-            return React.createElement("button", {
-              type: "button", key: sl.time, "data-walkin-slot": sl.time, disabled: !free,
-              title: SLOT_STATE_LABEL[sl.state] || sl.state,
-              className: "btn-admin " + (f.time === sl.time ? "btn-admin-primary" : "btn-admin-secondary"),
-              style: { padding: "5px 10px", fontSize: "12px", opacity: free ? 1 : 0.55 },
-              onClick: () => set({ time: sl.time })
-            }, `${formatSlotTime(sl.time)} · ${SLOT_STATE_LABEL[sl.state] || sl.state}`);
-          }))),
-      slots && slots.length === 0 && React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "The studio has no slots on this day (closed). The booking will only be recorded."),
-      React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
-        field("time", "Time *", { type: "time", required: true }),
-        field("customerName", "Customer name *", { required: true }),
-        field("phone", "Phone", { type: "tel" }),
-        field("petName", "Pet name"),
-        React.createElement("div", { style: { minWidth: "110px" } },
-          React.createElement("label", { style: label, htmlFor: "walkin-petType" }, "Pet"),
-          React.createElement("select", { id: "walkin-petType", className: "input-field", value: f.petType, onChange: (e) => set({ petType: e.target.value }) },
-            React.createElement("option", { value: "Dog" }, "Dog"), React.createElement("option", { value: "Cat" }, "Cat")))),
+      React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } },
+        "Any start time works here. The booking reserves the team's time (bather, groomer or Leena, depending on the service), so nobody can book over it online, and it is added to the info@ calendar. If it clashes, you'll be asked first."),
       React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
         React.createElement("div", { style: { minWidth: "220px", flex: 2 } },
           React.createElement("label", { style: label, htmlFor: "walkin-service" }, "Service"),
@@ -5651,6 +5871,22 @@
             React.createElement("option", { value: "" }, "Other (type below)"),
             packages.map((p) => React.createElement("option", { key: p.key, value: p.key }, `${p.title}${p.price ? ` · ${p.price}` : ""}`)))),
         !f.serviceId && field("serviceTitle", "Service (if other)"),
+        React.createElement("div", { style: { minWidth: "110px" } },
+          React.createElement("label", { style: label, htmlFor: "walkin-petType" }, "Pet"),
+          React.createElement("select", { id: "walkin-petType", className: "input-field", value: f.petType, onChange: (e) => set({ petType: e.target.value }) },
+            React.createElement("option", { value: "Dog" }, "Dog"), React.createElement("option", { value: "Cat" }, "Cat")))),
+      f.petType === "Dog" && f.serviceId !== "matted-dogs" && React.createElement("label", { style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" } },
+        React.createElement("input", { type: "checkbox", checked: f.matted, onChange: (e) => set({ matted: e.target.checked }), "aria-label": "Matted dog" }),
+        "Matted dog: add Matted Dogs (+30 min for the groomer). A clash is only a warning."),
+      React.createElement("div", { "data-section": "walkin-slots" },
+        React.createElement("p", { style: { ...label, marginBottom: "6px" } }, "Start time *"),
+        !day ? React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Checking the team's time…")
+          : React.createElement(AdminTimeChooser, { day, serviceId, value: f.time, onChange: (t) => set({ time: t }), idPrefix: "walkin" })),
+      React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
+        field("customerName", "Customer name *", { required: true }),
+        field("phone", "Phone", { type: "tel" }),
+        field("petName", "Pet name")),
+      React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
         field("amount", "Amount (₹)", { inputMode: "decimal" }),
         React.createElement("div", { style: { minWidth: "140px" } },
           React.createElement("label", { style: label, htmlFor: "walkin-mode" }, "Payment mode"),
@@ -5662,6 +5898,9 @@
           React.createElement("select", { id: "walkin-status", className: "input-field", value: f.status, onChange: (e) => set({ status: e.target.value }) },
             React.createElement("option", { value: "" }, "— not yet —"),
             CLOSING_STATUS_OPTIONS.map(([v, l]) => React.createElement("option", { key: v, value: v }, l))))),
+      clash && React.createElement("div", { role: "alert", "data-clash": true, style: { border: "1px solid var(--admin-danger)", borderRadius: "8px", padding: "10px 12px", fontSize: "13px" } },
+        React.createElement("p", { style: { color: "var(--admin-danger)", fontWeight: 600, marginBottom: "8px" } }, `⚠️ This time clashes: ${clash}.`),
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-danger", disabled: saving, onClick: () => submit(null, true) }, "Book anyway")),
       error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontWeight: 600, fontSize: "13px" } }, error),
       React.createElement("div", null, React.createElement("button", { type: "submit", className: "btn-admin btn-admin-primary", disabled: saving }, saving ? "Adding…" : "Add booking"))
     );

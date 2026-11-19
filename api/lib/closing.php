@@ -226,15 +226,16 @@ function save_closing(array $admin, array $input): array
 }
 
 /**
- * A walk-in or phone booking. If its time is free (not booked, blocked,
- * closed or busy in the calendar) the slot is taken and a calendar event added.
+ * A walk-in or phone booking, at any start time. It reserves the team's time
+ * (who does what, from schedule.php) and adds an event to the info@ calendar.
+ * If the time clashes, the admin panel is told first and can choose "Book anyway".
  */
 function add_walkin(array $admin, array $input): array
 {
     $day = closing_date($input, true);
     $date = $day->format('Y-m-d');
     $time = (string) ($input['time'] ?? '');
-    if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
+    if (!valid_hm($time)) {
         json_error('Please choose the time.');
     }
     $name = clean_text($input['customerName'] ?? '', 255);
@@ -246,6 +247,7 @@ function add_walkin(array $admin, array $input): array
     $serviceId = substr(strtolower(preg_replace('/[^A-Za-z0-9-]/', '', (string) ($input['serviceId'] ?? ''))), 0, 60) ?: 'grooming-unspecified';
     $petType = clean_text($input['petType'] ?? '', 10);
     $pet = clean_pet(['name' => $input['petName'] ?? '', 'type' => $petType, 'breed' => $input['breed'] ?? '']);
+    $matted = !empty($input['matted']) && $serviceId !== MATTED_SERVICE;
     $amount = null;
     if (($input['amount'] ?? '') !== '' && ($input['amount'] ?? null) !== null) {
         $amount = parse_amount($input['amount']);
@@ -265,36 +267,38 @@ function add_walkin(array $admin, array $input): array
         $status = ''; // a phone booking for a later day has not happened yet
     }
     $notes = clean_text($input['notes'] ?? '', 2000);
+    $past = $day < studio_today();
+    // Earlier days are only recorded for the closing: no clash check.
+    $force = !empty($input['force']) || $past;
 
-    // Free in the calendar? (Read fresh; if it can't be read the slot is not taken.)
-    $calendar = calendar_busy($day, $day->modify('+1 day'), true);
-    $calendarFree = $calendar['ok'] && !slot_is_busy_in_calendar($calendar['busy'], $date, $time);
+    // Calendar events added by hand (read fresh). If it can't be read, the team's time is still checked.
+    $calendar = $past ? ['ok' => true, 'busy' => []] : calendar_busy($day, $day->modify('+1 day'), true);
+    $calendarNote = $calendar['ok'] ? '' : ' (The info@ calendar could not be read, so its events were not checked.)';
 
     $now = now_utc();
     $pdo = db();
     for ($attempt = 1; ; $attempt++) {
         $pdo->beginTransaction();
         try {
+            lock_schedule_day($pdo, $date);
+            $schedule = day_schedules([$date], true, $calendar['ok'] ? $calendar : ['ok' => true, 'busy' => []])[$date];
+            $fit = fit_booking($schedule, $serviceId, $matted, hm_to_min($time), $force);
+            if ($fit['segments'] === null) {
+                $pdo->rollBack();
+                send_clash($fit['clash']);
+            }
             $ref = 'PAW-' . str_pad((string) next_sequence($pdo, '#GROOMING'), 4, '0', STR_PAD_LEFT);
-            $log = json_encode([['date' => to_iso($now), 'by' => $admin['email'], 'text' => 'Walk-in / phone booking added from the daily closing.']], JSON_UNESCAPED_UNICODE);
+            $logText = 'Walk-in / phone booking added from the daily closing.'
+                . ($fit['clash'] !== '' && !$past ? ' Booked despite a clash: ' . $fit['clash'] . '.' : '');
+            $log = json_encode([['date' => to_iso($now), 'by' => $admin['email'], 'text' => $logText]], JSON_UNESCAPED_UNICODE);
             $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status, matted)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([$ref, $date, $time, 'booked', $serviceId, $serviceTitle, json_encode($pet, JSON_UNESCAPED_UNICODE),
-                $name, '', $phone, '', 'walk-in', $notes, $now, $amount, 'walkin', $log, 'not_needed']);
+                $name, '', $phone, '', 'walk-in', $notes, $now, $amount, 'walkin', $log, 'not_needed', $matted ? 1 : 0]);
             $id = (int) $pdo->lastInsertId();
-
-            $taken = false;
-            if ($calendarFree) {
-                $blocked = $pdo->prepare("SELECT COUNT(*) FROM slot_blocks WHERE slot_date = ? AND (slot_time = '' OR slot_time = ?)");
-                $blocked->execute([$date, $time]);
-                if ((int) $blocked->fetchColumn() === 0 && !slot_is_closed($pdo, $date, $time)) {
-                    $lock = $pdo->prepare('INSERT IGNORE INTO slot_locks (slot_date, slot_time, booking_id) VALUES (?, ?, ?)');
-                    $lock->execute([$date, $time, $id]);
-                    $taken = $lock->rowCount() === 1;
-                }
-            }
+            save_segments($pdo, $id, $date, $fit['segments']);
             if ($status !== '' || $amount !== null || $mode !== '') {
                 $pdo->prepare('INSERT INTO booking_closing (booking_id, status, amount, mode, reference, note, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
                     ->execute([$id, $status, $amount, $mode, clean_text($input['reference'] ?? '', 120), '', $admin['email'], $now]);
@@ -302,7 +306,9 @@ function add_walkin(array $admin, array $input): array
             $pdo->commit();
             break;
         } catch (Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             if ($attempt < 5 && is_retryable_lock_error($e)) {
                 usleep(random_int(20000, 120000));
                 continue;
@@ -312,22 +318,24 @@ function add_walkin(array $admin, array $input): array
     }
 
     $href = '';
-    if ($taken) {
-        $href = add_booking_event(['id' => $id, 'ref' => $ref, 'date' => $date, 'time' => $time, 'pet' => $pet, 'serviceTitle' => $serviceTitle],
+    if (!$past) {
+        $href = add_booking_event(['id' => $id, 'ref' => $ref, 'date' => $date, 'time' => $time, 'pet' => $pet, 'serviceTitle' => $serviceTitle, 'segments' => $fit['segments']],
             $name, $phone, '(walk-in / phone)', $notes);
         forget_calendar_cache();
     }
     $pdo->prepare('UPDATE bookings SET calendar_href = ?, calendar_status = ? WHERE id = ?')
-        ->execute([$href, $href !== '' ? 'synced' : ($taken ? 'failed' : 'not_blocked'), $id]);
+        ->execute([$href, $href !== '' ? 'synced' : ($past ? 'not_blocked' : 'failed'), $id]);
 
+    $warning = trim(($fit['clash'] !== '' && !$past ? 'Booked despite a clash: ' . $fit['clash'] . '. ' : '') . $fit['warning']);
     return closing_day(['date' => $date]) + [
         'added' => ['id' => $id, 'ref' => $ref],
-        'slotBlocked' => $taken,
+        'slotBlocked' => !$past,
         'calendarSynced' => $href !== '',
-        'slotMessage' => $taken
-            ? 'The ' . $time . ' slot is now taken' . ($href !== '' ? ' and added to the info@ calendar.' : ', but the calendar event could not be added.')
-            : ($calendar['ok'] ? 'That time was not free, so the booking was only recorded (no slot blocked, no calendar event).'
-                : 'The calendar could not be read, so the booking was only recorded (no slot blocked, no calendar event).'),
+        'warning' => $warning,
+        'slotMessage' => $past
+            ? 'Recorded for the closing.'
+            : 'Team time reserved: ' . segments_label($fit['segments']) . '.'
+                . ($href !== '' ? ' Added to the info@ calendar.' : ' ⚠️ The calendar event could not be added.') . $calendarNote,
     ];
 }
 

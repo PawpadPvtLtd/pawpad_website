@@ -1,10 +1,11 @@
 /**
  * Grooming slot booking, shared by the checkout and the "Book a session" window.
  *
- * Free start times come from the Pawpad server (api.pawpad.in), which checks
- * existing bookings, admin blocks and the info@pawpad.in calendar. The server
- * checks everything again when the booking is saved, so a slot can never be
- * booked twice.
+ * The Pawpad server (api.pawpad.in) sends each day's hourly start times and the
+ * time the team (bather, groomer, Leena) is already busy, from bookings, admin
+ * blocks and the info@pawpad.in calendar. Only the times a service fits are shown
+ * (schedule-rules.js); the server checks everything again when the booking is
+ * saved, so the same time can never be given twice.
  */
 
 const { useState: useStateSlots, useEffect: useEffectSlots } = React;
@@ -18,7 +19,7 @@ const PawpadSlots = {
   _cached: null,
   _cachedAt: 0,
 
-  /** Free times for the next 30 days: { ok, days: [{date, times}], eveningTime, noEveningServices, error }. */
+  /** The next 30 days: { ok, days: [{ date, starts, minStart, busy }], plans, defaultPlan, onlineOff, closeMin, error }. */
   async load(force) {
     if (!force && this._cached && Date.now() - this._cachedAt < 30000) return this._cached;
     if (!window.PawpadApi || !window.PawpadApi.isEnabled()) {
@@ -26,7 +27,7 @@ const PawpadSlots = {
     }
     const result = await window.PawpadApi.call("booking_availability", {});
     const value = result.ok
-      ? { ok: true, days: result.data.days || [], eveningTime: result.data.eveningTime || "19:00", noEveningServices: result.data.noEveningServices || [], error: "" }
+      ? { ok: true, ...result.data, days: result.data.days || [], error: "" }
       : {
           ok: false,
           days: [],
@@ -47,16 +48,22 @@ const PawpadSlots = {
     return Boolean(item) && SLOT_CATEGORIES.includes(item.category);
   },
 
-  /** Free times on a date for one service (7 PM only for services without a haircut / clipping). */
+  /**
+   * Start times on a date that fit one service, after the other pets of the same
+   * order (excluded: [{ date, time, serviceId }]).
+   */
   timesFor(availability, date, serviceId, excluded) {
-    if (!availability || !availability.ok) return [];
+    if (!availability || !availability.ok || !window.PawpadSchedule) return [];
     const day = availability.days.find((d) => d.date === date);
     if (!day) return [];
-    const noEvening = (availability.noEveningServices || []).includes(serviceId || UNSPECIFIED_GROOMING_SERVICE);
-    return day.times.filter((t) => {
-      if (noEvening && t === availability.eveningTime) return false;
-      return !(excluded || []).some((x) => x.date === date && x.time === t);
-    });
+    const others = (excluded || []).filter((x) => x && x.date === date && x.time);
+    return window.PawpadSchedule.freeStarts(availability, day, serviceId || UNSPECIFIED_GROOMING_SERVICE, others);
+  },
+
+  /** "Takes about 2 hours" for a service, from the server's list. */
+  durationText(availability, serviceId) {
+    if (!availability || !availability.ok || !window.PawpadSchedule) return "";
+    return window.PawpadSchedule.durationLabel(window.PawpadSchedule.planFor(availability, serviceId || UNSPECIFIED_GROOMING_SERVICE));
   },
 
   formatTime(time) {
@@ -110,6 +117,13 @@ function useSlotAvailability(active) {
  * value: { date, time }; excluded: slots already chosen by other pets in the same order.
  */
 function SlotPicker({ availability, serviceId, value, onChange, excluded, onRetry }) {
+  // A time chosen earlier can stop fitting (another pet in the order moved onto it): clear it.
+  const chosen = value || {};
+  const stillFits = !chosen.date || !chosen.time || !availability || !availability.ok
+    || PawpadSlots.timesFor(availability, chosen.date, serviceId, excluded).includes(chosen.time);
+  useEffectSlots(() => {
+    if (!stillFits) onChange({ date: chosen.date, time: null });
+  }, [stillFits]);
   if (!availability) {
     return React.createElement("p", { className: "lead-sm slot-status" }, "Checking free times…");
   }
@@ -129,7 +143,7 @@ function SlotPicker({ availability, serviceId, value, onChange, excluded, onRetr
 
   const selected = value || {};
   const times = selected.date ? PawpadSlots.timesFor(availability, selected.date, serviceId, excluded) : [];
-  const noEvening = (availability.noEveningServices || []).includes(serviceId || UNSPECIFIED_GROOMING_SERVICE);
+  const duration = PawpadSlots.durationText(availability, serviceId);
 
   return React.createElement(
     "div",
@@ -189,8 +203,8 @@ function SlotPicker({ availability, serviceId, value, onChange, excluded, onRetr
               )
             )
           ),
-      noEvening && React.createElement("p", { className: "lead-sm", style: { marginTop: 10, fontSize: 13 } },
-        "The 7:00 PM slot is only for services without a haircut or clipping.")
+      duration && React.createElement("p", { className: "lead-sm slot-duration", style: { marginTop: 10, fontSize: 13 } },
+        `This service takes about ${duration}. Only start times that finish by 8:00 PM are shown.`)
     )
   );
 }

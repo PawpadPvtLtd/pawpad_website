@@ -8,17 +8,18 @@ customer gets a confirmation email from info@pawpad.in, and info@ gets a copy.
 
 | Rule | Setting |
 |---|---|
-| Start times | 11:00, 12:00, 13:00, 16:00, 17:00, 18:00, 19:00. Saturday and Sunday also 10:00 |
+| Start times (website) | Every hour from 11 AM to 7 PM (2 PM and 3 PM included). Saturday and Sunday also 10 AM. Every service must finish by 8 PM |
 | Closed | Thursdays |
-| 7 PM slot | Only services without a haircut or clipping. Never for: Dog Grooming Long Hair with haircut, Cat Hair Cut, Puppy Grooming Long Hair, Matted Dogs, Hygiene Clip |
-| One booking per start time | Enforced by the database, even if two people book the same second |
-| Several pets | Each pet picks its own time |
+| Who does the work | Each booking reserves the time of the bather, the groomer or Leena. See [Team scheduling](team-scheduling.md) (since November 2026) |
+| Two bookings at once | Only when the right people are free. Checked by the server, even if two people book the same second |
+| Several pets | Each pet picks its own time, around the pets before it |
 | How far ahead | From today up to 30 days. Today's times can be booked online until 1 hour before they start (`booking_same_day_notice_minutes` in config.php, optional) |
 | Payment | At the studio |
 | Boarding and courses | Still enquiries (no slot). Boarding dates can be requested up to 3 months ahead |
 
-A time is shown as free only when it is not booked, not blocked in the admin
-panel, and **there is no event at that time in the info@ calendar**. So if Leena
+A time is shown only when the team members the service needs are free, it is not
+blocked in the admin panel, and **there is no event at that time in the info@ calendar**
+(an event stops the whole studio; the website's own booking events don't count). So if Leena
 adds anything to that calendar on her phone (a vet visit, a day off), that time
 disappears from the website within about a minute.
 
