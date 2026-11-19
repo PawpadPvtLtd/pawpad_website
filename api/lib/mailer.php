@@ -61,7 +61,10 @@ function mail_configured(string $which = 'courses'): bool
 /**
  * @return array{sent: bool, error: string}
  */
-function send_mail(string $which, string $toEmail, string $toName, string $subject, string $body): array
+/**
+ * $attachments: [['name' => 'file.pdf', 'data' => bytes, 'type' => 'application/pdf'], …]
+ */
+function send_mail(string $which, string $toEmail, string $toName, string $subject, string $body, array $attachments = []): array
 {
     if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
         return ['sent' => false, 'error' => 'There is no valid email address to send to.'];
@@ -101,6 +104,9 @@ function send_mail(string $which, string $toEmail, string $toName, string $subje
         $mail->isHTML(false);
         $mail->Subject = $subject;
         $mail->Body = $body;
+        foreach ($attachments as $file) {
+            $mail->addStringAttachment($file['data'], $file['name'], PHPMailer::ENCODING_BASE64, $file['type'] ?? 'application/octet-stream');
+        }
         $mail->send();
         return ['sent' => true, 'error' => ''];
     } catch (Throwable $e) {

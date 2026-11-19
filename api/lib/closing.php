@@ -48,8 +48,18 @@ function closing_rows(string $date): array
          WHERE b.slot_date = ? ORDER BY b.slot_time, b.id'
     );
     $stmt->execute([$date]);
-    return array_map(function (array $row): array {
+    $rows = $stmt->fetchAll();
+    // The invoice each booking is on, if any.
+    $invoices = [];
+    $inv = db()->prepare('SELECT ib.booking_id, i.id, i.number, i.email_status, i.revision FROM invoice_bookings ib
+        JOIN invoices i ON i.id = ib.invoice_id JOIN bookings b ON b.id = ib.booking_id WHERE b.slot_date = ?');
+    $inv->execute([$date]);
+    foreach ($inv->fetchAll() as $r) {
+        $invoices[(int) $r['booking_id']] = ['id' => (int) $r['id'], 'number' => $r['number'], 'emailStatus' => $r['email_status'], 'revision' => (int) $r['revision']];
+    }
+    return array_map(function (array $row) use ($invoices): array {
         $b = booking_to_array($row);
+        $b['invoice'] = $invoices[(int) $row['id']] ?? null;
         $saved = $row['c_updated_at'] !== null;
         $b['closing'] = [
             'saved' => $saved,
@@ -62,7 +72,7 @@ function closing_rows(string $date): array
             'updatedAt' => $saved ? to_iso($row['c_updated_at']) : null,
         ];
         return $b;
-    }, $stmt->fetchAll());
+    }, $rows);
 }
 
 function course_payments_on(string $date): array
@@ -217,9 +227,15 @@ function save_closing(array $admin, array $input): array
             note = VALUES(note), updated_by = VALUES(updated_by), updated_at = VALUES(updated_at)'
     )->execute([$booking['id'], $status, $amount, $mode, $reference, $note, $admin['email'], now_utc()]);
 
+    // Completed and the payment mode chosen: the invoice is made (and emailed) once every pet of this booking is done.
+    $invoice = $status === 'completed' && $mode !== '' ? auto_invoice($admin, (int) $booking['id']) : null;
+    $group = invoice_group_rows($booking['ref'], $booking['slot_date']);
     foreach (closing_rows($booking['slot_date']) as $row) {
         if ($row['id'] === (int) $booking['id']) {
-            return ['booking' => $row];
+            return ['booking' => $row, 'invoiceNotice' => $invoice['message'] ?? '', 'invoiceEmailed' => $invoice['emailSent'] ?? false,
+                'group' => array_map(function (array $b): array {
+                    return ['id' => $b['id'], 'invoice' => $b['invoice']];
+                }, $group)];
         }
     }
     return [];
@@ -327,7 +343,10 @@ function add_walkin(array $admin, array $input): array
         ->execute([$href, $href !== '' ? 'synced' : ($past ? 'not_blocked' : 'failed'), $id]);
 
     $warning = trim(($fit['clash'] !== '' && !$past ? 'Booked despite a clash: ' . $fit['clash'] . '. ' : '') . $fit['warning']);
+    // Added as completed (a walk-in that is done): its invoice is made straight away.
+    $invoice = $status === 'completed' && $mode !== '' ? auto_invoice($admin, $id) : null;
     return closing_day(['date' => $date]) + [
+        'invoiceNotice' => $invoice['message'] ?? '',
         'added' => ['id' => $id, 'ref' => $ref],
         'slotBlocked' => !$past,
         'calendarSynced' => $href !== '',

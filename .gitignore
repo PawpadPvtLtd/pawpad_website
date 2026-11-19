@@ -38,3 +38,8 @@ test-results/
 playwright-report/
 blob-report/
 
+
+# Font caches written by tFPDF on the server (made again when missing)
+api/lib/tFPDF/font/unifont/*.mtx.php
+api/lib/tFPDF/font/unifont/*.cw.dat
+api/lib/tFPDF/font/unifont/*.cw127.php

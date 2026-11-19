@@ -5661,10 +5661,18 @@
       load(date);
     }, [date]);
 
+    const [invoiceOpen, setInvoiceOpen] = useState(null);
+    // A booking's invoice changed: show it on every pet of the same booking.
+    const setInvoices = (group) => setDay((prev) => prev && ({
+      ...prev,
+      bookings: prev.bookings.map((b) => { const g = group.find((x) => x.id === b.id); return g ? { ...b, invoice: g.invoice } : b; })
+    }));
     const save = async (id, values) => {
       setSaveState((prev) => ({ ...prev, [id]: "saving" }));
       const result = await window.PawpadApi.call("save_closing", { bookingId: id, ...values });
       setSaveState((prev) => ({ ...prev, [id]: result.ok ? "saved" : "⚠️ " + serverError(result) }));
+      if (result.ok && result.data.group) setInvoices(result.data.group);
+      if (result.ok && result.data.invoiceNotice) setNotice((result.data.invoiceNotice.includes("could not") ? "⚠️ " : "✓ ") + result.data.invoiceNotice);
     };
 
     // Autosave: choices save at once, typing saves after a short pause.
@@ -5732,13 +5740,14 @@
         !isFuture && React.createElement("button", { className: "btn-admin btn-admin-primary", onClick: openReport, disabled: !day }, "Send daily report")
       ),
       notice && React.createElement("div", { className: "card", role: "status", style: { fontWeight: 600, fontSize: "14px", color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice),
+      invoiceOpen && React.createElement(InvoiceModal, { ...invoiceOpen, onClose: () => setInvoiceOpen(null), onSaved: (inv, text) => { setInvoiceOpen(null); setNotice(text); load(); } }),
       showWalkin && React.createElement(WalkinForm, {
         date,
         isFuture,
         onAdded: (data) => {
           applyDay(data);
           setShowWalkin(false);
-          setNotice(`${data.warning ? "⚠️ " : "✓ "}Walk-in / phone booking ${data.added.ref} added. ${data.slotMessage}${data.warning ? ` ${data.warning}` : ""}`);
+          setNotice(`${data.warning ? "⚠️ " : "✓ "}Walk-in / phone booking ${data.added.ref} added. ${data.slotMessage}${data.warning ? ` ${data.warning}` : ""}${data.invoiceNotice ? ` ${data.invoiceNotice}` : ""}`);
         }
       }),
       !day ? React.createElement("div", { className: "card" }, "Loading…") : React.createElement(
@@ -5757,7 +5766,7 @@
                 "table",
                 { style: { width: "100%", borderCollapse: "collapse", fontSize: "13px", textAlign: "left" } },
                 React.createElement("thead", null, React.createElement("tr", { style: { color: "var(--admin-text-muted)" } },
-                  ["Time", "Customer / pet / service", "Status", "Amount (₹)", "Payment mode", "Reference", "Note", ""].map((h) => React.createElement("th", { key: h, style: cell }, h)))),
+                  ["Time", "Customer / pet / service", "Status", "Amount (₹)", "Payment mode", "Reference", "Note", "", "Invoice"].map((h) => React.createElement("th", { key: h, style: cell }, h)))),
                 React.createElement("tbody", null, rows.map((b) => {
                   const f = forms[b.id] || closingForm(b);
                   const st = saveState[b.id];
@@ -5784,7 +5793,9 @@
                     React.createElement("td", { style: cell },
                       React.createElement("input", { className: "input-field", style: { ...small, width: "140px" }, disabled: isFuture, "aria-label": `Note ${b.ref}`, value: f.note, onChange: (e) => change(b.id, { note: e.target.value }) })),
                     React.createElement("td", { style: { ...cell, fontSize: "11px", whiteSpace: "nowrap", color: st && st.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-text-faint)" }, "data-save-state": st || "" },
-                      st === "saving" ? "Saving…" : st === "saved" ? "Saved ✓" : st || "")
+                      st === "saving" ? "Saving…" : st === "saved" ? "Saved ✓" : st || ""),
+                    React.createElement("td", { style: cell },
+                      React.createElement(InvoiceActions, { booking: b, invoice: b.invoice, canMake: f.status === "completed" && !isFuture, onOpen: setInvoiceOpen, onNotice: setNotice, onChanged: () => load() }))
                   );
                 }))
               )
@@ -5809,6 +5820,193 @@
           ? React.createElement("p", { style: { fontSize: "13px", color: "var(--admin-text-muted)" } }, "None. (Course payments are recorded under Course Applications.)")
           : day.coursePayments.map((p) => React.createElement("p", { key: p.id, style: { fontSize: "13px" } },
               `${p.applicationId} · ${p.candidate || "(application deleted)"} · ${formatRupees(p.amount)} · ${p.modeLabel}${p.reference ? ` · Ref ${p.reference}` : ""} · by ${p.recordedBy}`))
+      )
+    );
+  }
+
+  // -------------------------------------------------------------
+  // INVOICES (PDF on the letterhead; emailed from info@, or downloaded to share on WhatsApp)
+  // -------------------------------------------------------------
+  const INVOICE_EMAIL_LABEL = { sent: "Emailed", failed: "⚠️ Email failed", no_email: "No email: share the PDF", not_sent: "Not emailed" };
+
+  /** Saves the invoice PDF to the computer (or phone). */
+  async function downloadInvoicePdf(id) {
+    const r = await window.PawpadApi.call("invoice_pdf", { id });
+    if (!r.ok) return (r.data && r.data.error) || "The PDF could not be made.";
+    const bytes = Uint8Array.from(atob(r.data.pdf), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = r.data.filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return "";
+  }
+
+  /** Extras that can be added to an invoice: the grooming add-ons and services from the CMS. */
+  function invoiceExtras() {
+    const store = window.PawpadContentStore;
+    const g = store && typeof store.get === "function" ? store.get("grooming") : {};
+    const num = (v) => parseFloat(String(v || "").replace(/[^0-9.]/g, "")) || 0;
+    const addOns = (g.addOns || []).map((a) => ({ label: `Add-on: ${a.name} (${a.price})`, description: a.name, amount: num(a.price) }));
+    const services = groomingPackages().map((p) => ({ label: `${p.title} (${p.price || ""})`, description: p.title, amount: typeof p.priceNum === "number" ? p.priceNum : num(p.price) }));
+    return addOns.concat(services);
+  }
+
+  /**
+   * Make or edit an invoice. bookingId: make one from a booking (pre-filled);
+   * invoiceId: edit an existing one (saved as "Revised", same number).
+   */
+  function InvoiceModal({ bookingId, invoiceId, onClose, onSaved }) {
+    const [invoice, setInvoice] = useState(null);
+    const [form, setForm] = useState(null);
+    const [send, setSend] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [extra, setExtra] = useState("");
+    const extras = useMemo(invoiceExtras, []);
+
+    useEffect(() => {
+      window.PawpadApi.call("get_invoice", invoiceId ? { id: invoiceId } : { bookingId }).then((r) => {
+        if (!r.ok) return setError((r.data && r.data.error) || "The invoice could not be loaded.");
+        const src = r.data.invoice || r.data.draft;
+        setInvoice(r.data.invoice);
+        setForm({
+          customer: { ...src.customer },
+          lines: src.lines.map((l) => ({ ...l, amount: String(l.amount) })),
+          paidInFull: r.data.invoice ? r.data.invoice.balance <= 0 : Boolean(src.paidInFull),
+          payment: src.payment || ""
+        });
+        setSend(!r.data.invoice && Boolean(src.customer.email));
+      });
+    }, []);
+
+    const total = form ? form.lines.reduce((s, l) => s + (parseFloat(String(l.amount).replace(/,/g, "")) || 0), 0) : 0;
+    const setLine = (i, patch) => setForm((f) => ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
+    const addExtra = (key) => {
+      setExtra("");
+      const item = key === "blank" ? { description: "", amount: 0 } : extras[Number(key)];
+      if (!item) return;
+      setForm((f) => ({ ...f, lines: [...f.lines, { description: item.description, detail: "", amount: String(item.amount || "") }] }));
+    };
+
+    const submit = async () => {
+      setSaving(true);
+      setError("");
+      const payload = { ...form, send: send && Boolean(form.customer.email) };
+      const r = await window.PawpadApi.call("save_invoice", invoice ? { id: invoice.id, ...payload } : { bookingId, ...payload });
+      setSaving(false);
+      if (!r.ok) return setError((r.data && r.data.error) || "The invoice could not be saved.");
+      const inv = r.data.invoice;
+      onSaved(inv, `✓ Invoice ${inv.number} ${invoice ? "updated (revised)" : "made"}.` +
+        (payload.send ? (r.data.emailSent ? ` Emailed to ${inv.customer.email}.` : ` ⚠️ Not emailed: ${r.data.emailError}`) : ""));
+    };
+
+    const label = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" };
+    const input = (value, onChange, props) => React.createElement("input", { className: "input-field", value, onChange: (e) => onChange(e.target.value), ...(props || {}) });
+    return React.createElement(
+      "div",
+      { className: "modal-overlay", onClick: onClose },
+      React.createElement(
+        "div",
+        { className: "modal-card", role: "dialog", "aria-label": "Invoice", style: { maxWidth: "820px", width: "96vw", padding: "26px", maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "14px" }, onClick: (e) => e.stopPropagation() },
+        React.createElement("h3", { style: { fontFamily: "var(--font-display)", fontSize: "20px", color: "var(--admin-gold)" } },
+          invoice ? `Invoice ${invoice.number}${invoice.revision > 1 ? ` (revised ${invoice.revision - 1}×)` : ""}` : "Make an invoice"),
+        !form && !error && React.createElement("p", null, "Loading…"),
+        form && React.createElement(React.Fragment, null,
+          React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" } },
+            React.createElement("div", null, React.createElement("label", { style: label, htmlFor: "inv-name" }, "Customer name"),
+              input(form.customer.name, (v) => setForm((f) => ({ ...f, customer: { ...f.customer, name: v } })), { id: "inv-name" })),
+            React.createElement("div", null, React.createElement("label", { style: label, htmlFor: "inv-phone" }, "Phone"),
+              input(form.customer.phone, (v) => setForm((f) => ({ ...f, customer: { ...f.customer, phone: v } })), { id: "inv-phone", type: "tel" })),
+            React.createElement("div", null, React.createElement("label", { style: label, htmlFor: "inv-email" }, "Email (optional)"),
+              input(form.customer.email, (v) => setForm((f) => ({ ...f, customer: { ...f.customer, email: v } })), { id: "inv-email", type: "email", placeholder: "Leave empty to share the PDF on WhatsApp" }))),
+          React.createElement("div", { "data-section": "invoice-lines", style: { display: "flex", flexDirection: "column", gap: "8px" } },
+            React.createElement("p", { style: label }, "Items"),
+            form.lines.map((l, i) => React.createElement("div", { key: i, "data-invoice-line": i, style: { display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 2fr) 110px auto", gap: "8px", alignItems: "center" } },
+              input(l.description, (v) => setLine(i, { description: v }), { "aria-label": `Item ${i + 1} description` }),
+              input(l.detail || "", (v) => setLine(i, { detail: v }), { "aria-label": `Item ${i + 1} details`, placeholder: "Details (optional)" }),
+              input(l.amount, (v) => setLine(i, { amount: v }), { "aria-label": `Item ${i + 1} amount`, inputMode: "decimal" }),
+              React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 10px" }, "aria-label": `Remove item ${i + 1}`, onClick: () => setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) })) }, "✕"))),
+            React.createElement("select", { className: "input-field", style: { maxWidth: "420px" }, value: extra, "aria-label": "Add an item", onChange: (e) => addExtra(e.target.value) },
+              React.createElement("option", { value: "" }, "+ Add an item…"),
+              React.createElement("option", { value: "blank" }, "Other (type it in)"),
+              extras.map((x, i) => React.createElement("option", { key: i, value: String(i) }, x.label)))),
+          React.createElement("div", { style: { display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap", fontSize: "13px" } },
+            React.createElement("strong", { style: { fontSize: "16px" } }, `Total: ${formatRupees(total)}`),
+            React.createElement("label", { style: { display: "flex", gap: "6px", alignItems: "center" } },
+              React.createElement("input", { type: "checkbox", checked: form.paidInFull, onChange: (e) => setForm((f) => ({ ...f, paidInFull: e.target.checked })) }), "Paid in full"),
+            form.paidInFull && input(form.payment, (v) => setForm((f) => ({ ...f, payment: v })), { "aria-label": "How it was paid", placeholder: "e.g. Paid by UPI", style: { maxWidth: "260px" } })),
+          React.createElement("label", { style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px", opacity: form.customer.email ? 1 : 0.5 } },
+            React.createElement("input", { type: "checkbox", checked: send && Boolean(form.customer.email), disabled: !form.customer.email, onChange: (e) => setSend(e.target.checked), "aria-label": "Email the invoice" }),
+            form.customer.email ? `Email the invoice (PDF) to ${form.customer.email} from info@pawpad.in` : "No email address: after saving, download the PDF and share it on WhatsApp.")),
+        error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontWeight: 600, fontSize: "13px" } }, error),
+        React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" } },
+          React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: onClose }, "Close"),
+          invoice && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", onClick: async () => { const e = await downloadInvoicePdf(invoice.id); if (e) setError(e); } }, "Download PDF"),
+          form && React.createElement("button", { type: "button", className: "btn-admin btn-admin-primary", disabled: saving, onClick: submit },
+            saving ? "Saving…" : invoice ? "Save changes" : "Make invoice"))
+      )
+    );
+  }
+
+  /** The invoice buttons on a booking: number, PDF, email again, edit. Or "Make invoice". */
+  function InvoiceActions({ booking, invoice, canMake, onOpen, onNotice, onChanged }) {
+    const small = { padding: "3px 8px", fontSize: "11px" };
+    if (!invoice) {
+      return canMake
+        ? React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, "data-make-invoice": booking.ref, onClick: () => onOpen({ bookingId: booking.id }) }, "Make invoice")
+        : null;
+    }
+    const resend = async () => {
+      const r = await window.PawpadApi.call("email_invoice", { id: invoice.id });
+      onNotice(r.ok ? `✓ Invoice ${invoice.number} emailed again.` : "⚠️ " + ((r.data && r.data.error) || "Not sent."));
+      if (r.ok) onChanged();
+    };
+    return React.createElement("div", { "data-invoice": invoice.number, style: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" } },
+      React.createElement("strong", null, invoice.number),
+      React.createElement("span", { style: { color: invoice.emailStatus === "failed" ? "var(--admin-danger)" : "var(--admin-text-muted)" } }, INVOICE_EMAIL_LABEL[invoice.emailStatus] || invoice.emailStatus),
+      React.createElement("div", { style: { display: "flex", gap: "4px", flexWrap: "wrap" } },
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: async () => { const e = await downloadInvoicePdf(invoice.id); if (e) onNotice("⚠️ " + e); } }, "PDF"),
+        invoice.emailStatus !== "no_email" && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: resend }, "Email again"),
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: () => onOpen({ invoiceId: invoice.id }) }, "Edit")));
+  }
+
+  /** Every invoice, newest first, with search. */
+  function InvoicesTab() {
+    const [q, setQ] = useState("");
+    const [list, setList] = useState(null);
+    const [notice, setNotice] = useState("");
+    const [open, setOpen] = useState(null);
+    const load = async (query) => {
+      const r = await window.PawpadApi.call("list_invoices", { q: query ?? q });
+      if (r.ok) setList(r.data.invoices);
+      else setNotice("⚠️ " + ((r.data && r.data.error) || "The Pawpad server could not be reached."));
+    };
+    useEffect(() => { load(""); }, []);
+    const cell = { padding: "8px 10px", borderBottom: "1px solid var(--admin-border-subtle)", textAlign: "left", fontSize: "13px", verticalAlign: "top" };
+    return React.createElement(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: "16px" } },
+      open && React.createElement(InvoiceModal, { ...open, onClose: () => setOpen(null), onSaved: (inv, text) => { setOpen(null); setNotice(text); load(); } }),
+      React.createElement("form", { className: "card", onSubmit: (e) => { e.preventDefault(); load(); }, style: { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" } },
+        React.createElement("input", { className: "input-field", style: { maxWidth: "360px" }, value: q, onChange: (e) => setQ(e.target.value), placeholder: "Search: invoice no., name, phone, booking ref", "aria-label": "Search invoices" }),
+        React.createElement("button", { type: "submit", className: "btn-admin btn-admin-secondary" }, "Search"),
+        React.createElement("span", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Invoices are made in Today's Closing when a booking is Completed and its payment mode is chosen.")),
+      notice && React.createElement("div", { className: "card", role: "status", style: { fontWeight: 600, fontSize: "14px", color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice),
+      React.createElement("div", { className: "card", style: { overflowX: "auto" } },
+        list === null ? "Loading…" : list.length === 0 ? React.createElement("p", { style: { color: "var(--admin-text-muted)" } }, "No invoices yet.")
+          : React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+              React.createElement("thead", null, React.createElement("tr", null, ["Invoice", "Date", "Customer", "Total", "Paid", ""].map((h) => React.createElement("th", { key: h, style: cell }, h)))),
+              React.createElement("tbody", null, list.map((inv) => React.createElement("tr", { key: inv.id, "data-invoice-row": inv.number },
+                React.createElement("td", { style: cell }, React.createElement("strong", null, inv.number), inv.revision > 1 ? " (revised)" : "", React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Booking ${inv.bookingRef}`)),
+                React.createElement("td", { style: cell }, new Date(inv.date + "T00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })),
+                React.createElement("td", { style: cell }, inv.customer.name, React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, [inv.customer.phone, inv.customer.email].filter(Boolean).join(" · "))),
+                React.createElement("td", { style: cell }, formatRupees(inv.total)),
+                React.createElement("td", { style: cell }, inv.balance > 0 ? `Due ${formatRupees(inv.balance)}` : "Paid"),
+                React.createElement("td", { style: cell }, React.createElement(InvoiceActions, { booking: { ref: inv.bookingRef }, invoice: inv, canMake: false, onOpen: setOpen, onNotice: setNotice, onChanged: () => load() }))))))
       )
     );
   }
@@ -6610,6 +6808,7 @@
       { id: "upcoming", label: "Upcoming Grooming", icon: Icons.Dashboard },
       { id: "bookings", label: "Grooming Bookings", icon: Icons.Dashboard },
       { id: "closing", label: "Today's Closing", icon: Icons.Dashboard },
+      { id: "invoices", label: "Invoices", icon: Icons.Dashboard },
       { id: "boarding", label: "Boarding Requests", icon: Icons.Dashboard },
       canAdmin && { id: "reports", label: "Daily Reports", icon: Icons.Dashboard },
       canAdmin && { id: "closures", label: "Studio Closures", icon: Icons.Dashboard },
@@ -6772,6 +6971,7 @@
               shownTab === "content" && "Omnichannel Content Management",
               shownTab === "media" && "Media Manager & WebP Optimization",
               shownTab === "closing" && "Today's Closing",
+              shownTab === "invoices" && "Invoices",
               shownTab === "boarding" && "Boarding Requests",
               shownTab === "reports" && "Daily Reports",
               shownTab === "closures" && "Studio Closures",
@@ -6785,6 +6985,7 @@
               shownTab === "content" && "Live updates to text, headlines, pricing, and packages",
               shownTab === "media" && "Automated compression to WebP and live asset slot replacement",
               shownTab === "closing" && "Status and payment of every booking of the day, walk-ins, and the daily report email",
+              shownTab === "invoices" && "Every grooming invoice: download the PDF, email it again, or correct it",
               shownTab === "boarding" && "Boarding stays requested at the website checkout — confirm, decline or complete them here",
               shownTab === "reports" && "Every daily report that was emailed, with corrections",
               shownTab === "closures" && "Close the studio for dates or times; the slots disappear from the booking page",
@@ -6828,6 +7029,7 @@
           shownTab === "upcoming" && React.createElement(UpcomingGroomingTab, null),
           shownTab === "bookings" && React.createElement(BookingsTab, { canAdmin }),
           shownTab === "closing" && React.createElement(ClosingTab, { currentUser }),
+          shownTab === "invoices" && React.createElement(InvoicesTab, null),
           shownTab === "boarding" && React.createElement(BoardingRequestsTab, null),
           shownTab === "reports" && React.createElement(DailyReportsTab, null),
           shownTab === "closures" && React.createElement(ClosuresTab, null),

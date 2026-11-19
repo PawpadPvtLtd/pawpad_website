@@ -196,6 +196,7 @@ function booking_to_array(array $row): array
         'price' => isset($row['price']) ? (float) $row['price'] : null,
         'source' => $row['source'] ?? 'website',
         'matted' => !empty($row['matted']),
+        'mattedPrice' => isset($row['matted_price']) ? (float) $row['matted_price'] : null,
         'createdAt' => to_iso($row['created_at']),
         'cancelledAt' => to_iso($row['cancelled_at']),
         'cancelledBy' => $row['cancelled_by'],
@@ -798,8 +799,8 @@ function set_matted(array $admin, array $input): array
         }
         $price = $row['price'] !== null ? max(0, (float) $row['price'] + ($on ? $extraPrice : -$extraPrice)) : null;
         $text = $on ? 'Matted Dogs added (+' . MATTED_MINUTES . ' min groomer' . ($warning !== '' ? '; clash: ' . $warning : '') . ')' : 'Matted Dogs removed';
-        $pdo->prepare('UPDATE bookings SET matted = ?, price = ?, admin_log = ? WHERE id = ?')
-            ->execute([$on ? 1 : 0, $price, booking_log_entry($row, $admin, $text), $row['id']]);
+        $pdo->prepare('UPDATE bookings SET matted = ?, matted_price = ?, price = ?, admin_log = ? WHERE id = ?')
+            ->execute([$on ? 1 : 0, $on ? $extraPrice : null, $price, booking_log_entry($row, $admin, $text), $row['id']]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
