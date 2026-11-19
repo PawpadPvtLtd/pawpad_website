@@ -357,7 +357,11 @@ function ics_event_periods(string $ics, int $fromTs, int $toTs): array
             if ($event !== null && $depth > 0) {
                 $depth--;
             } elseif ($event !== null && strtoupper($line['value']) === 'VEVENT') {
-                foreach (ics_expand_event($event, $fromTs, $toTs) as $p) {
+                // Events the Pawpad server added itself (bookings, blocks, closures) are already
+                // counted from the database, per person. Counting them here too would close
+                // the whole studio during every booking.
+                $own = strpos($event['UID'] ?? '', 'pawpad-') === 0;
+                foreach ($own ? [] : ics_expand_event($event, $fromTs, $toTs) as $p) {
                     $periods[] = $p;
                 }
                 $event = null;
@@ -385,6 +389,9 @@ function ics_event_periods(string $ics, int $fromTs, int $toTs): array
                         $event['exdates'][] = $t[0]->getTimestamp();
                     }
                 }
+                break;
+            case 'UID':
+                $event['UID'] = trim($line['value']);
                 break;
             case 'STATUS':
                 $event['STATUS'] = strtoupper(trim($line['value']));

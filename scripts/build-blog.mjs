@@ -107,9 +107,10 @@ async function main() {
   let enabled;
   let posts;
   try {
-    const content = await get("get_content");
-    enabled = Boolean(content.content && content.content.blog && content.content.blog.enabled);
-    posts = enabled ? (await get("list_posts", "&full=1")).posts || [] : [];
+    // The server decides whether the Blog is on (it is, unless switched off in the CMS).
+    const list = await get("list_posts", "&full=1");
+    enabled = list.enabled === true;
+    posts = enabled ? list.posts || [] : [];
   } catch (err) {
     console.error(`The Pawpad server could not be read (${err.message}). Nothing was changed.`);
     process.exit(1);
@@ -130,7 +131,8 @@ async function main() {
 
   const sitemapPath = path.join(ROOT, "sitemap.xml");
   const sitemap = readFileSync(sitemapPath, "utf8");
-  const next = sitemap.replace(/(<!-- blog:start -->\n)[\s\S]*?(\s*<!-- blog:end -->)/, `$1${sitemapBlock(enabled, posts)}$2`.replace(/\n\s*<!-- blog:end -->/, "  <!-- blog:end -->"));
+  // The whole Blog part is rebuilt each time, so running again with no changes changes nothing.
+  const next = sitemap.replace(/<!-- blog:start -->[\s\S]*?<!-- blog:end -->/, () => `<!-- blog:start -->\n${sitemapBlock(enabled, posts)}  <!-- blog:end -->`);
   if (next !== sitemap) writeFileSync(sitemapPath, next);
 
   console.log(enabled ? `Blog is on: ${posts.length} post page(s) built, ${removed} old page(s) removed.` : `Blog is switched off: no post pages (${removed} removed), no Blog entries in the sitemap.`);

@@ -2,13 +2,15 @@
 
 Everything is in the admin panel: **Website Content CMS → Blog & Vlogs**.
 
-The Blog is **switched off** to begin with. While it is off:
+The Blog is **live** (switched on in November 2026): "Blog" is in the menu and
+footer, and every published post shows on pawpad.in/blog.html. Drafts are never shown.
+
+It can be hidden again with the switch **Show the Blog on the website** (untick, then
+**Save Live Changes**). While it is off:
 - visitors who open pawpad.in/blog.html see "Coming soon";
 - there is no "Blog" link in the menu or footer;
 - Google is told to skip the page, and the Blog is not in the sitemap;
 - you can still see every post (drafts included) when you are signed in to the admin panel in the same browser. A "Preview for Pawpad staff" bar shows at the top.
-
-So you can write a few posts first and go live when you're ready.
 
 ## Write an article
 
@@ -48,14 +50,10 @@ YouTube and Vimeo videos play on the Pawpad page. Instagram videos show a "Watch
 - **Delete** removes the post for good, after you confirm. A video is only removed from the website; it stays on YouTube.
 - **View ↗** opens the post as visitors see it.
 
-## Go live
+## Google pages
 
-1. Tick **Show the Blog on the website (adds "Blog" to the menu)**.
-2. Click **Save Live Changes**.
+Within about 30 minutes of publishing a ready-made page is created for each published post (`pawpad.in/blog/<post-name>.html`) and added to the sitemap, so Google can find it. Until then the post is already visible on the Blog page.
 
-Within about 30 minutes a ready-made page is created for each published post (`pawpad.in/blog/<post-name>.html`) and added to the sitemap, so Google can find it. Until then the post is already visible on the Blog page.
-
-To hide the Blog again, untick the box and save.
 
 ## For the developer
 

@@ -3,16 +3,16 @@
  * Pawpad API — https://api.pawpad.in/index.php?action=<name>
  *
  * Public:  health (GET), get_content (GET or POST), submit_application,
- *          booking_availability (GET or POST), create_booking, boarding_availability, create_boarding_request,
+ *          booking_availability (GET or POST), service_plans (who does each service, how long), create_booking, boarding_availability, create_boarding_request,
  *          list_posts, get_post (Blog & Vlogs; GET or POST)
  * Staff (Owner, Administrator and Manager):
  *          login, logout, me, change_password,
- *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking,
+ *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking, set_matted,
  *          list_applications, update_application (Manager: interviews, notes, enrol only),
  *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report,
  *          list_boarding_requests, update_boarding_request
  * Owner and Administrator only:
- *          cleanup_calendar, block_slot, unblock_slot,
+ *          cleanup_calendar, block_slot, unblock_slot (whole studio, or Leena only),
  *          closure_preview, create_closure, list_closures, delete_closure,
  *          delete_applications, delete_payment, list_daily_reports, get_daily_report,
  *          save_content, upload_file, list_uploads, delete_upload, convert_uploads,
@@ -35,6 +35,7 @@ require __DIR__ . '/lib/content.php';
 require __DIR__ . '/lib/uploads.php';
 require __DIR__ . '/lib/mailer.php';
 require __DIR__ . '/lib/caldav.php';
+require __DIR__ . '/lib/schedule.php';
 require __DIR__ . '/lib/bookings.php';
 require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
@@ -64,7 +65,7 @@ if ($action === 'health') {
     ]);
 }
 // Public reads may use a plain GET (no CORS preflight for visitors).
-$publicGet = ['get_content', 'booking_availability', 'list_posts', 'get_post'];
+$publicGet = ['get_content', 'booking_availability', 'service_plans', 'list_posts', 'get_post'];
 if ($method !== 'POST' && !($method === 'GET' && in_array($action, $publicGet, true))) {
     json_error('Use POST.', 405);
 }
@@ -83,6 +84,9 @@ try {
             break;
         case 'booking_availability':
             send_json(['ok' => true] + booking_availability());
+            break;
+        case 'service_plans':
+            send_json(['ok' => true] + public_plans());
             break;
         case 'create_booking':
             send_json(['ok' => true] + create_booking($input), 201);
@@ -133,6 +137,9 @@ try {
             break;
         case 'reschedule_booking':
             send_json(['ok' => true] + reschedule_booking(require_role(STAFF_ROLES), $input));
+            break;
+        case 'set_matted':
+            send_json(['ok' => true] + set_matted(require_role(STAFF_ROLES), $input));
             break;
         case 'cancel_booking':
             send_json(['ok' => true] + cancel_booking(require_role(STAFF_ROLES), $input));

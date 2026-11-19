@@ -348,6 +348,22 @@ function sortGroomingPackages(packages) {
     .map((item) => item.pkg);
 }
 
+/**
+ * How a package is booked (Website Content CMS → Grooming → "How customers book"):
+ * online (Add to cart), "whatsapp" (Enquire on WhatsApp first, e.g. Hand Stripping),
+ * or "studio" (added by the team at the studio, e.g. Matted Dogs).
+ */
+function packageAction(p, addToCart) {
+  if (p.booking === "whatsapp") {
+    const text = `Hi Pawpad, I'd like to enquire about ${p.title} for my dog.`;
+    return React.createElement("a", { className: "btn btn-primary btn-sm", href: `https://wa.me/919148443330?text=${encodeURIComponent(text)}`, target: "_blank", rel: "noopener", "data-enquire": p.key }, "Enquire on WhatsApp ", React.createElement(Arrow, { size: 12 }));
+  }
+  if (p.booking === "studio") {
+    return React.createElement("span", { className: "g-pkg-studio", "data-studio-only": p.key }, "Added by our team at the studio if needed");
+  }
+  return React.createElement("button", { className: "btn btn-primary btn-sm", onClick: () => addToCart(p) }, "Add to cart ", React.createElement(Arrow, { size: 12 }));
+}
+
 function GroomingPackages({ onBook, onAddToCart }) {
   const cats = ["Puppy", "Dog", "Cat", "Care", "Wellness", "Styling"];
   const [filter, setFilter] = useStateG("All");
@@ -400,7 +416,7 @@ function GroomingPackages({ onBook, onAddToCart }) {
     const isOpen = open === p.key;
     const includesList = Array.isArray(p.includes) ? p.includes : [];
     const notIncludesList = Array.isArray(p.notIncludes) ? p.notIncludes : [];
-    return /* @__PURE__ */ React.createElement("article", { key: p.key, className: "g-pkg-card " + (isOpen ? "open" : ""), style: { transitionDelay: `${i * 60}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "g-pkg-img" }, /* @__PURE__ */ React.createElement("img", { src: p.img, alt: p.title }), /* @__PURE__ */ React.createElement("span", { className: "tag" }, p.cat)), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-body" }, /* @__PURE__ */ React.createElement("div", { className: "g-pkg-top" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "h-3" }, p.title), /* @__PURE__ */ React.createElement("p", { className: "mute", style: { margin: "4px 0 0", fontSize: 13 } }, p.sub)), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-price" }, /* @__PURE__ */ React.createElement("strong", null, p.price), /* @__PURE__ */ React.createElement("span", null, p.duration))), /* @__PURE__ */ React.createElement("p", { className: "g-pkg-note" }, p.note), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-details" }, /* @__PURE__ */ React.createElement("h5", null, "Included"), /* @__PURE__ */ React.createElement("ul", null, includesList.map((inc) => /* @__PURE__ */ React.createElement("li", { key: inc }, /* @__PURE__ */ React.createElement(PawIcon, { size: 10, color: "var(--driftwood)" }), " ", inc))), notIncludesList.length > 0 ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("h5", { style: { marginTop: 16 } }, "Not Included"), /* @__PURE__ */ React.createElement("ul", null, notIncludesList.map((ninc) => /* @__PURE__ */ React.createElement("li", { key: ninc, style: { color: "var(--ink-mute)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "var(--driftwood)", fontSize: 12, marginRight: 4, fontWeight: 700 } }, "—"), " ", ninc)))) : null), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-actions" }, /* @__PURE__ */ React.createElement("button", { className: "g-pkg-toggle", onClick: () => setOpen(isOpen ? null : p.key) }, isOpen ? "Show less" : "Show more", " ", /* @__PURE__ */ React.createElement("span", { className: "g-pkg-arrow" }, isOpen ? "\u2212" : "+")), /* @__PURE__ */ React.createElement("button", { className: "btn btn-primary btn-sm", onClick: () => handleAddToCart(p) }, "Add to cart ", /* @__PURE__ */ React.createElement(Arrow, { size: 12 })))));
+    return /* @__PURE__ */ React.createElement("article", { key: p.key, className: "g-pkg-card " + (isOpen ? "open" : ""), style: { transitionDelay: `${i * 60}ms` } }, /* @__PURE__ */ React.createElement("div", { className: "g-pkg-img" }, /* @__PURE__ */ React.createElement("img", { src: p.img, alt: p.title }), /* @__PURE__ */ React.createElement("span", { className: "tag" }, p.cat)), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-body" }, /* @__PURE__ */ React.createElement("div", { className: "g-pkg-top" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "h-3" }, p.title), /* @__PURE__ */ React.createElement("p", { className: "mute", style: { margin: "4px 0 0", fontSize: 13 } }, p.sub)), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-price" }, /* @__PURE__ */ React.createElement("strong", null, p.price), /* @__PURE__ */ React.createElement("span", null, p.duration))), /* @__PURE__ */ React.createElement("p", { className: "g-pkg-note" }, p.note), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-details" }, /* @__PURE__ */ React.createElement("h5", null, "Included"), /* @__PURE__ */ React.createElement("ul", null, includesList.map((inc) => /* @__PURE__ */ React.createElement("li", { key: inc }, /* @__PURE__ */ React.createElement(PawIcon, { size: 10, color: "var(--driftwood)" }), " ", inc))), notIncludesList.length > 0 ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("h5", { style: { marginTop: 16 } }, "Not Included"), /* @__PURE__ */ React.createElement("ul", null, notIncludesList.map((ninc) => /* @__PURE__ */ React.createElement("li", { key: ninc, style: { color: "var(--ink-mute)" } }, /* @__PURE__ */ React.createElement("span", { style: { color: "var(--driftwood)", fontSize: 12, marginRight: 4, fontWeight: 700 } }, "—"), " ", ninc)))) : null), /* @__PURE__ */ React.createElement("div", { className: "g-pkg-actions" }, /* @__PURE__ */ React.createElement("button", { className: "g-pkg-toggle", onClick: () => setOpen(isOpen ? null : p.key) }, isOpen ? "Show less" : "Show more", " ", /* @__PURE__ */ React.createElement("span", { className: "g-pkg-arrow" }, isOpen ? "\u2212" : "+")), packageAction(p, handleAddToCart))));
   })), /* @__PURE__ */ React.createElement("p", { className: "g-pkg-footnote reveal" }, /* @__PURE__ */ React.createElement(PawIcon, { size: 14, color: "var(--driftwood)" }), "Please refer to the notes below for grooming duration, appointment policies, and important grooming guidelines. Add-on services are available exclusively alongside a full grooming package.")), /* @__PURE__ */ React.createElement("style", null, `
         .g-packages { background: var(--cream-bg); padding-top: 0; padding-bottom: 24px; }
         .g-pkg-head {
@@ -449,6 +465,7 @@ function GroomingPackages({ onBook, onAddToCart }) {
         .g-pkg-price { text-align: right; display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
         .g-pkg-price strong { font-family: var(--f-display); font-size: 28px; color: var(--driftwood); line-height: 1; }
         .g-pkg-price span { font-size: 11px; color: var(--ink-mute); letter-spacing: .12em; text-transform: uppercase; }
+        .g-pkg-studio { font-size: 12px; font-weight: 600; color: var(--ink-mute); text-align: right; max-width: 22ch; line-height: 1.4; }
         .g-pkg-note { margin: 0; font-size: 14px; color: var(--ink-mute); line-height: 1.6; }
         .g-pkg-details {
           max-height: 0; overflow: hidden;

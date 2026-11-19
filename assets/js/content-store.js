@@ -153,7 +153,7 @@
     },
     // Blog & Vlogs page (posts themselves are saved on the server, one by one).
     blog: {
-      enabled: false,
+      enabled: true,
       eyebrow: "Blog & Vlogs",
       title: "Notes from ",
       titleAccent: "the studio",
@@ -312,6 +312,8 @@
       ],
       lead: "Conscious pet grooming in Bangalore — built around coat health, hygiene, gentle handling, and emotional wellbeing. Every session is paced around your pet's comfort.",
       heroImage: "assets/img/pawpad/grooming-snapshot.webp",
+      // Services added after launch: added once to content saved before them (see _normalize).
+      packagesAdded: ["breed-specific-haircut", "hand-stripping", "matted-dogs-studio"],
       packages: [
         {
           cat: "Puppy",
@@ -393,9 +395,39 @@
           duration: "Assessment first",
           isDogOnly: true,
           petType: "Dog",
+          booking: "studio",
           img: "assets/img/pawpad/grooming-page-grooming-matted-dogs.webp",
           includes: ["Coat assessment", "Gentle dematting where possible", "Clip-down when needed", "Aftercare guidance"],
           note: "For coats with matting or tangles. We prioritise comfort and skin safety over cosmetic results."
+        },
+        {
+          cat: "Styling",
+          key: "breed-specific-haircut",
+          title: "Breed-Specific Haircut",
+          sub: "Your dog's classic breed look",
+          price: "₹3,500",
+          priceNum: 3500,
+          duration: "2½ hours",
+          isDogOnly: true,
+          petType: "Dog",
+          img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
+          includes: ["Bath & blow-dry", "Clipper & scissor shaping", "Breed-standard look", "Finish"],
+          note: "Your dog's classic breed look, shaped with clippers and scissors: the Schnauzer beard and brows, the Cocker skirt, the Westie round head. Includes bath, blow-dry and finish."
+        },
+        {
+          cat: "Styling",
+          key: "hand-stripping",
+          title: "Hand Stripping | Breed-Specific Grooming",
+          sub: "For wire-coated breeds",
+          price: "₹4,500",
+          priceNum: 4500,
+          duration: "2½ hours · Enquire on WhatsApp first",
+          isDogOnly: true,
+          petType: "Dog",
+          booking: "whatsapp",
+          img: "assets/img/pawpad/grooming-page-dog-long-hair-haircut.webp",
+          includes: ["Coat assessment first", "Dead coat removed by hand", "Natural texture, shine and colour kept", "Breed-standard groom to finish"],
+          note: "Ideal for wire-coated breeds such as Schnauzers and terriers. We remove the dead coat by hand instead of clipping it, preserving its natural texture, shine and colour. Every session finishes with a breed-standard groom. As previously clipped coats are not always suitable for stripping, we assess your dog's coat before confirming the booking."
         },
         {
           cat: "Cat",
@@ -1444,6 +1476,31 @@
             }
           });
         }
+      }
+
+      // Phase 2 services (Leena, 10 Nov 2026): added once to grooming packages saved earlier,
+      // so a package removed in the admin panel later stays removed.
+      if (parsed && parsed.grooming && Array.isArray(parsed.grooming.packages)) {
+        const g = parsed.grooming;
+        const added = Array.isArray(g.packagesAdded) ? [...g.packagesAdded] : [];
+        const defaults = DEFAULT_CONTENT.grooming.packages;
+        ["breed-specific-haircut", "hand-stripping"].forEach((key) => {
+          if (added.includes(key)) return;
+          added.push(key);
+          if (g.packages.some((p) => p && p.key === key)) return;
+          const pkg = JSON.parse(JSON.stringify(defaults.find((p) => p.key === key)));
+          // After "Dog Grooming Long Hair with haircut" if it is there, else at the end.
+          const at = g.packages.findIndex((p) => p && p.key === (key === "hand-stripping" ? "breed-specific-haircut" : "dog-grooming-long-hair"));
+          g.packages.splice(at >= 0 ? at + 1 : g.packages.length, 0, pkg);
+        });
+        // Matted Dogs is added by the team at the studio (it can only be assessed in person).
+        if (!added.includes("matted-dogs-studio")) {
+          added.push("matted-dogs-studio");
+          g.packages.forEach((p) => {
+            if (p && p.key === "matted-dogs" && !p.booking) p.booking = "studio";
+          });
+        }
+        g.packagesAdded = added;
       }
 
       if (parsed && parsed.grooming) {

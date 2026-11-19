@@ -13,8 +13,8 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
-// Every start time the studio has (10:00 only exists on Saturday and Sunday).
-const CLOSURE_TIMES = ['10:00', '11:00', '12:00', '13:00', '16:00', '17:00', '18:00', '19:00'];
+// Every hour the studio can close (10:00 only matters on Saturday and Sunday). Each closes one hour.
+const CLOSURE_TIMES = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 const CLOSURE_MAX_DAYS = 90;
 
 /** Closures that overlap the dates $first..$last (YYYY-MM-DD). */
@@ -29,30 +29,6 @@ function closure_times(array $row): array
 {
     $times = json_decode((string) $row['times'], true);
     return is_array($times) ? $times : [];
-}
-
-function closure_covers(array $row, string $date, string $time): bool
-{
-    return $row['start_date'] <= $date && $row['end_date'] >= $date
-        && ((int) $row['all_day'] === 1 || in_array($time, closure_times($row), true));
-}
-
-function closure_for_slot(array $rows, string $date, string $time): ?array
-{
-    foreach ($rows as $row) {
-        if (closure_covers($row, $date, $time)) {
-            return $row;
-        }
-    }
-    return null;
-}
-
-/** Checked inside the booking transaction, so a new closure is always respected. */
-function slot_is_closed(PDO $pdo, string $date, string $time): bool
-{
-    $stmt = $pdo->prepare('SELECT * FROM closures WHERE start_date <= ? AND end_date >= ?');
-    $stmt->execute([$date, $date]);
-    return closure_for_slot($stmt->fetchAll(), $date, $time) !== null;
 }
 
 function closure_label(string $start, string $end, bool $allDay, array $times): string
@@ -128,11 +104,19 @@ function closure_affected_bookings(array $c): array
 {
     $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'booked' AND slot_date BETWEEN ? AND ? ORDER BY slot_date, slot_time, id");
     $stmt->execute([$c['start'], $c['end']]);
+    $closed = array_map(function (string $t): array {
+        return [hm_to_min($t), hm_to_min($t) + 60];
+    }, $c['times']);
     $affected = [];
-    foreach ($stmt->fetchAll() as $row) {
-        if ($c['allDay'] || in_array($row['slot_time'], $c['times'], true)) {
-            $b = booking_to_array($row);
-            $b['label'] = friendly_slot($row['slot_date'], $row['slot_time']);
+    foreach (bookings_with_segments($stmt->fetchAll()) as $b) {
+        $hit = $c['allDay'];
+        foreach ($b['segments'] as $seg) {
+            $hit = $hit || overlaps($closed, $seg['start'], $seg['end']) !== null;
+        }
+        if (!$b['segments'] && !$hit) {
+            $hit = in_array($b['time'], $c['times'], true);
+        }
+        if ($hit) {
             $affected[] = $b;
         }
     }

@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -38,6 +38,17 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'boarding_requests', 'check_in', "DATE NULL");
     add_column_if_missing($pdo, 'boarding_requests', 'check_out', "DATE NULL");
     add_column_if_missing($pdo, 'boarding_requests', 'dogs', "SMALLINT UNSIGNED NOT NULL DEFAULT 0");
+    // Scheduling by person (schema 10): blocks for Leena only, blocks with an end time,
+    // the Matted Dogs extra, and team time for bookings made before.
+    add_column_if_missing($pdo, 'slot_blocks', 'staff', "VARCHAR(20) NOT NULL DEFAULT ''");
+    add_column_if_missing($pdo, 'slot_blocks', 'end_time', "CHAR(5) NOT NULL DEFAULT ''");
+    add_column_if_missing($pdo, 'bookings', 'matted', "TINYINT(1) NOT NULL DEFAULT 0");
+    replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
+    blog_go_live($pdo);
+    if (!function_exists('backfill_booking_segments')) {
+        return; // setup.php: the API finishes this on its next request
+    }
+    backfill_booking_segments($pdo);
     $pdo->prepare('INSERT INTO schema_info (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)')
         ->execute([SCHEMA_VERSION]);
 }
@@ -48,6 +59,40 @@ function add_column_if_missing(PDO $pdo, string $table, string $column, string $
     $stmt->execute([$table, $column]);
     if ((int) $stmt->fetchColumn() === 0) {
         $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    }
+}
+
+/**
+ * The Blog goes live with schema 10 (November 2026): if its switch was saved as
+ * off while it was being prepared, it is switched on once. It can be switched off
+ * again in Website Content CMS → Blog & Vlogs.
+ */
+function blog_go_live(PDO $pdo): void
+{
+    $stmt = $pdo->prepare('SELECT data FROM site_content WHERE page_key = ?');
+    $stmt->execute(['blog']);
+    $data = json_decode((string) $stmt->fetchColumn(), true);
+    if (!is_array($data) || !empty($data['enabled'])) {
+        return;
+    }
+    $data['enabled'] = true;
+    $pdo->prepare('UPDATE site_content SET data = ?, updated_at = ?, updated_by = ? WHERE page_key = ?')
+        ->execute([json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), gmdate('Y-m-d H:i:s'), 'Blog launch (automatic)', 'blog']);
+}
+
+/** Swaps a unique key for another one (only if the old one is still there). */
+function replace_unique_key(PDO $pdo, string $table, string $old, string $new, string $columns): void
+{
+    $has = function (string $name) use ($pdo, $table): bool {
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+        $stmt->execute([$table, $name]);
+        return (int) $stmt->fetchColumn() > 0;
+    };
+    if (!$has($new)) {
+        $pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY `$new` ($columns)");
+    }
+    if ($has($old)) {
+        $pdo->exec("ALTER TABLE `$table` DROP INDEX `$old`");
     }
 }
 
@@ -167,7 +212,27 @@ function create_tables(PDO $pdo): void
         reason VARCHAR(255) NOT NULL DEFAULT '',
         created_at DATETIME NOT NULL,
         created_by VARCHAR(190) NOT NULL DEFAULT '',
-        UNIQUE KEY uniq_block (slot_date, slot_time)
+        staff VARCHAR(20) NOT NULL DEFAULT '',
+        end_time CHAR(5) NOT NULL DEFAULT '',
+        UNIQUE KEY uniq_block_staff (slot_date, slot_time, staff)
+    ) $opts");
+
+    // Team time each booking reserves (scheduling by person): who, and from/to in minutes.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS booking_segments (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        booking_id INT UNSIGNED NOT NULL,
+        slot_date DATE NOT NULL,
+        staff VARCHAR(20) NOT NULL,
+        start_min SMALLINT UNSIGNED NOT NULL,
+        end_min SMALLINT UNSIGNED NOT NULL,
+        kind VARCHAR(20) NOT NULL DEFAULT 'service',
+        INDEX idx_day (slot_date, staff),
+        INDEX idx_booking (booking_id)
+    ) $opts");
+
+    // One row per day, locked while a booking for that day is saved (so two can't overlap).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS schedule_locks (
+        slot_date DATE NOT NULL PRIMARY KEY
     ) $opts");
 
     // Short-lived copy of the calendar's busy times, so every visitor doesn't query the calendar.
