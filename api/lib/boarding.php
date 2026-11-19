@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
-const BOARDING_STATUSES = ['new' => 'New', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
+const BOARDING_STATUSES = ['new' => 'New', 'awaiting_deposit' => 'Awaiting deposit', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
 // Requests can be made from today up to this many days ahead; a stay is at most this many nights.
 const BOARDING_DAYS_AHEAD = 92;
 const BOARDING_MAX_NIGHTS = 60;
@@ -35,11 +35,11 @@ function boarding_night_dates(string $from, string $to): array
     return $nights;
 }
 
-/** Dogs in confirmed stays on each night between $from and $to ('Y-m-d' => dogs). */
+/** Dogs in confirmed stays (and stays whose deposit link is still valid) on each night between $from and $to ('Y-m-d' => dogs). */
 function boarding_nights_taken(string $from, string $to, int $exceptId = 0): array
 {
     $stmt = db()->prepare("SELECT check_in, check_out, dogs FROM boarding_requests
-        WHERE status = 'confirmed' AND dogs > 0 AND check_in IS NOT NULL AND check_out IS NOT NULL
+        WHERE status IN ('confirmed', 'awaiting_deposit') AND dogs > 0 AND check_in IS NOT NULL AND check_out IS NOT NULL
           AND check_in < ? AND check_out > ? AND id <> ?");
     $stmt->execute([$to, $from, $exceptId]);
     $taken = [];
@@ -116,6 +116,9 @@ function boarding_to_array(array $row): array
         'notes' => $row['notes'],
         'adminLog' => json_decode((string) ($row['admin_log'] ?? ''), true) ?: [],
         'emailStatus' => $row['email_status'],
+        'deposit' => isset($row['deposit']) && $row['deposit'] !== null ? (float) $row['deposit'] : null,
+        'depositStatus' => (string) ($row['deposit_status'] ?? ''),
+        'payment' => !empty($row['payment_ref']) ? deposit_payment_to_array(payment_row((int) $row['payment_ref'])) : null,
         'createdAt' => to_iso($row['created_at']),
     ];
 }
@@ -269,7 +272,8 @@ function boarding_dates_text(string $date, string $end, int $nights, string $tim
 function list_boarding_requests(): array
 {
     $rows = db()->query('SELECT * FROM boarding_requests ORDER BY created_at DESC, id DESC LIMIT 500')->fetchAll();
-    return ['requests' => array_map('boarding_to_array', $rows), 'statuses' => BOARDING_STATUSES];
+    return ['requests' => array_map('boarding_to_array', $rows), 'statuses' => BOARDING_STATUSES,
+        'depositsActive' => deposits_active(), 'depositAmount' => deposit_amount_setting(), 'linkHours' => deposit_link_hours()];
 }
 
 /** Staff: change the status and/or add a note; both are logged with who did it. */

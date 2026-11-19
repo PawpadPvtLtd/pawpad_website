@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -45,6 +45,13 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'bookings', 'matted', "TINYINT(1) NOT NULL DEFAULT 0");
     // Invoices (schema 11): the Matted Dogs price on its own invoice line.
     add_column_if_missing($pdo, 'bookings', 'matted_price', "DECIMAL(10,2) NULL");
+    // Razorpay deposits (schema 12): per booking / boarding stay, and its payment.
+    add_column_if_missing($pdo, 'bookings', 'deposit', "DECIMAL(10,2) NULL");
+    add_column_if_missing($pdo, 'bookings', 'deposit_status', "VARCHAR(20) NOT NULL DEFAULT ''");
+    add_column_if_missing($pdo, 'bookings', 'payment_ref', "INT UNSIGNED NULL");
+    add_column_if_missing($pdo, 'boarding_requests', 'deposit', "DECIMAL(10,2) NULL");
+    add_column_if_missing($pdo, 'boarding_requests', 'deposit_status', "VARCHAR(20) NOT NULL DEFAULT ''");
+    add_column_if_missing($pdo, 'boarding_requests', 'payment_ref', "INT UNSIGNED NULL");
     replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
     blog_go_live($pdo);
     if (!function_exists('backfill_booking_segments')) {
@@ -255,6 +262,26 @@ function create_tables(PDO $pdo): void
         invoice_id INT UNSIGNED NOT NULL,
         booking_id INT UNSIGNED NOT NULL PRIMARY KEY,
         INDEX idx_invoice (invoice_id)
+    ) $opts");
+
+    // Razorpay deposits: one row per checkout order or payment link.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS payments (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        kind VARCHAR(10) NOT NULL,
+        purpose VARCHAR(20) NOT NULL DEFAULT 'grooming',
+        razorpay_id VARCHAR(60) NOT NULL UNIQUE,
+        booking_ref VARCHAR(20) NOT NULL DEFAULT '',
+        boarding_id INT UNSIGNED NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'created',
+        payment_id VARCHAR(60) NOT NULL DEFAULT '',
+        link_url VARCHAR(255) NOT NULL DEFAULT '',
+        hold_until DATETIME NOT NULL,
+        paid_at DATETIME NULL,
+        refunded_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX idx_hold (status, hold_until)
     ) $opts");
 
     // One row per day, locked while a booking for that day is saved (so two can't overlap).

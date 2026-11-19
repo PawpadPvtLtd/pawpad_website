@@ -102,7 +102,7 @@ function closure_input(array $input): array
 /** Active bookings inside the closure. They are kept, but the admin sees them first. */
 function closure_affected_bookings(array $c): array
 {
-    $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'booked' AND slot_date BETWEEN ? AND ? ORDER BY slot_date, slot_time, id");
+    $stmt = db()->prepare("SELECT * FROM bookings WHERE status IN ('booked', 'pending') AND slot_date BETWEEN ? AND ? ORDER BY slot_date, slot_time, id");
     $stmt->execute([$c['start'], $c['end']]);
     $closed = array_map(function (string $t): array {
         return [hm_to_min($t), hm_to_min($t) + 60];

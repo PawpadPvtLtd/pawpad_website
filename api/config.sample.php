@@ -54,6 +54,17 @@ return [
     'boarding_dogs_per_night' => 3, // the most dogs boarding on one night (counts confirmed stays)
     'booking_rate_limit_per_hour' => 20, // bookings from one network per hour (stops spam)
 
+    // Razorpay booking deposits (₹500 per pet, or the full price when the service costs less).
+    // Razorpay Dashboard → Account & Settings → API Keys, and → Webhooks (the webhook secret).
+    // Type these on the server only. While they are empty, no deposit is taken.
+    'razorpay_key_id'         => '',
+    'razorpay_key_secret'     => '',
+    'razorpay_webhook_secret' => '',
+    'deposits_enabled'        => true,  // false switches deposits off without removing the keys
+    'deposit_amount'          => 500,   // per pet
+    'deposit_hold_minutes'    => 15,    // website: how long a time is held while the customer pays
+    'deposit_link_hours'      => 2,     // phone / WhatsApp bookings and boarding: how long a payment link is valid
+
     // Admin uploads (images and PDFs) are saved in the uploads/ folder.
     // The hosting has 1 GB in total, so uploads are capped well below that.
     'public_base_url'     => 'https://api.pawpad.in',

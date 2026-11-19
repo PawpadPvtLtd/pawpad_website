@@ -154,7 +154,12 @@ function booking_availability(): array
             'busy' => public_busy($schedules[$date]),
         ];
     }
-    return ['days' => $days] + public_plans();
+    return ['days' => $days, 'deposit' => [
+        'active' => deposits_active(),
+        'amount' => deposit_amount_setting(),
+        'holdMinutes' => deposit_hold_minutes(),
+        'knownPrices' => DEPOSIT_KNOWN_PRICES,
+    ]] + public_plans();
 }
 
 function clean_pet(array $pet): array
@@ -196,6 +201,8 @@ function booking_to_array(array $row): array
         'price' => isset($row['price']) ? (float) $row['price'] : null,
         'source' => $row['source'] ?? 'website',
         'matted' => !empty($row['matted']),
+        'deposit' => isset($row['deposit']) && $row['deposit'] !== null ? (float) $row['deposit'] : null,
+        'depositStatus' => (string) ($row['deposit_status'] ?? ''),
         'mattedPrice' => isset($row['matted_price']) ? (float) $row['matted_price'] : null,
         'createdAt' => to_iso($row['created_at']),
         'cancelledAt' => to_iso($row['cancelled_at']),
@@ -240,6 +247,49 @@ function fit_order(array $items, array $schedules): array
         }
     }
     return $result;
+}
+
+/**
+ * The bookings are held (status "pending") while the customer pays the deposit in
+ * Razorpay Checkout. Returns what the website needs to open Checkout.
+ */
+function start_deposit_checkout(array $saved, array $customer): array
+{
+    $ids = array_column($saved, 'id');
+    $stmt = db()->prepare('SELECT id, deposit FROM bookings WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')');
+    $stmt->execute($ids);
+    $amount = round((float) array_sum(array_column($stmt->fetchAll(), 'deposit')), 2);
+    $ref = $saved[0]['ref'];
+    $holdMinutes = deposit_hold_minutes();
+    // Five spare minutes after Checkout closes, so a payment made at the last second still counts.
+    $holdUntil = (new DateTimeImmutable('now', studio_tz()))->modify('+' . ($holdMinutes + 5) . ' minutes');
+    $orderId = create_razorpay_order($amount, $ref, ['ref' => $ref, 'purpose' => 'grooming']);
+    if ($orderId === '') {
+        // Razorpay can't be reached: let the times go again.
+        db()->prepare("UPDATE bookings SET status = 'expired', deposit_status = 'expired' WHERE ref = ? AND status = 'pending'")->execute([$ref]);
+        json_error('Online payment is not available right now. Please try again in a minute, or WhatsApp us on ' . STUDIO_WHATSAPP . ' to book.', 503);
+    }
+    $paymentId = new_payment('order', 'grooming', $orderId, $ref, $amount, $holdUntil);
+    db()->prepare('UPDATE bookings SET payment_ref = ? WHERE ref = ? AND status = ?')->execute([$paymentId, $ref, 'pending']);
+    return [
+        'ref' => $ref,
+        'payment' => [
+            'keyId' => razorpay_settings()['key_id'],
+            'orderId' => $orderId,
+            'amount' => paise($amount),
+            'currency' => 'INR',
+            'name' => 'Pawpad',
+            'description' => 'Booking deposit ' . $ref . ' (deducted from your bill)',
+            'prefill' => ['name' => $customer['name'], 'email' => $customer['email'], 'contact' => $customer['phone']],
+            'timeout' => $holdMinutes * 60,
+        ],
+        'depositAmount' => $amount,
+        'holdMinutes' => $holdMinutes,
+        'bookings' => array_map(function (array $item): array {
+            return ['date' => $item['date'], 'time' => $item['time'], 'label' => friendly_slot($item['date'], $item['time']),
+                'serviceTitle' => $item['serviceTitle'], 'petName' => $item['pet']['name']];
+        }, $saved),
+    ];
 }
 
 /**
@@ -311,6 +361,8 @@ function create_booking(array $input): array
         json_error('Online booking is not available right now. Please WhatsApp us on ' . STUDIO_WHATSAPP . ' to book.', 503);
     }
 
+    // With Razorpay set up, the time is held while the customer pays the deposit.
+    $withDeposit = deposits_active();
     $now = now_utc();
     $pdo = db();
     $saved = [];
@@ -333,15 +385,16 @@ function create_booking(array $input): array
             $ref = 'PAW-' . str_pad((string) next_sequence($pdo, '#GROOMING'), 4, '0', STR_PAD_LEFT);
             $insert = $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, deposit, deposit_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             foreach ($items as $i => $item) {
                 $insert->execute([
-                    $ref, $item['date'], $item['time'], 'booked', $item['serviceId'], $item['serviceTitle'],
+                    $ref, $item['date'], $item['time'], $withDeposit ? 'pending' : 'booked', $item['serviceId'], $item['serviceTitle'],
                     json_encode($item['pet'], JSON_UNESCAPED_UNICODE), $name, $email, $phone,
                     clean_text($customer['area'] ?? '', 255), clean_text($customer['contactMethod'] ?? '', 30),
                     clean_text($input['notes'] ?? '', 2000), $now, $item['price'], 'website',
+                    $withDeposit ? deposit_for_service($item['serviceId']) : null, $withDeposit ? 'awaiting' : '',
                 ]);
                 $id = (int) $pdo->lastInsertId();
                 save_segments($pdo, $id, $item['date'], $fits['segments'][$i]);
@@ -362,6 +415,10 @@ function create_booking(array $input): array
             error_log('Pawpad API booking failed: ' . $e->getMessage());
             json_error('Could not save your booking. Please try again.', 500);
         }
+    }
+
+    if ($withDeposit) {
+        return start_deposit_checkout($saved, ['name' => $name, 'email' => $email, 'phone' => $phone]);
     }
 
     // The slots are safely reserved. Now add them to the info@ calendar and email the customer.
@@ -416,7 +473,7 @@ function booking_event_description(array $item, string $name, string $phone, str
     return implode("\n", $lines);
 }
 
-function booking_confirmation_text(string $name, array $saved, string $estimatedTotal): string
+function booking_confirmation_text(string $name, array $saved, string $estimatedTotal, float $depositPaid = 0.0): string
 {
     $lines = [];
     foreach ($saved as $item) {
@@ -429,7 +486,10 @@ function booking_confirmation_text(string $name, array $saved, string $estimated
         . implode("\n", $lines) . "\n\n"
         . 'Booking reference: ' . $saved[0]['ref'] . "\n"
         . ($estimatedTotal !== '' ? 'Estimated total: ' . $estimatedTotal . "\n" : '')
-        . "Payment: at the studio after the session (UPI, card or cash). No advance payment needed.\n\n"
+        . ($depositPaid > 0
+            ? 'Booking deposit paid: ' . inr($depositPaid) . ". It is deducted from your bill; the rest is paid at the studio after the session (UPI, card or cash).\n"
+                . "Cancellation: the deposit is refunded in full if you cancel at least 24 hours before your appointment. It is not refunded for a no-show or a later cancellation. Rescheduling keeps your deposit.\n\n"
+            : "Payment: at the studio after the session (UPI, card or cash). No advance payment needed.\n\n")
         . 'Studio: ' . STUDIO_ADDRESS . "\n"
         . 'Need to change or cancel? Reply to this email or WhatsApp us on ' . STUDIO_WHATSAPP . ".\n\n"
         . "Warm regards,\nPawpad Grooming Studio\nhttps://pawpad.in\n";
@@ -452,8 +512,18 @@ function bookings_with_segments(array $rows): array
     foreach ($stmt->fetchAll() as $seg) {
         $byBooking[(int) $seg['booking_id']][] = ['staff' => $seg['staff'], 'start' => (int) $seg['start_min'], 'end' => (int) $seg['end_min'], 'kind' => $seg['kind']];
     }
-    return array_map(function (array $row) use ($byBooking): array {
+    $payments = [];
+    $refs = array_values(array_unique(array_filter(array_map('intval', array_column($rows, 'payment_ref')))));
+    if ($refs) {
+        $stmt = db()->prepare('SELECT * FROM payments WHERE id IN (' . implode(',', array_fill(0, count($refs), '?')) . ')');
+        $stmt->execute($refs);
+        foreach ($stmt->fetchAll() as $p) {
+            $payments[(int) $p['id']] = deposit_payment_to_array($p);
+        }
+    }
+    return array_map(function (array $row) use ($byBooking, $payments): array {
         $b = booking_to_array($row);
+        $b['payment'] = $payments[(int) ($row['payment_ref'] ?? 0)] ?? null;
         $b['segments'] = $byBooking[$b['id']] ?? [];
         $b['endTime'] = $b['segments'] ? min_to_hm(max(array_column($b['segments'], 'end'))) : '';
         $b['label'] = friendly_slot($row['slot_date'], $row['slot_time']);
@@ -510,7 +580,7 @@ function list_bookings(array $input): array
 
     // How many bookings each coming day has, for the overview.
     $today = studio_today();
-    $stmt = db()->prepare("SELECT slot_date, COUNT(*) AS n FROM bookings WHERE status = 'booked' AND slot_date BETWEEN ? AND ? GROUP BY slot_date");
+    $stmt = db()->prepare("SELECT slot_date, COUNT(*) AS n FROM bookings WHERE status IN ('booked', 'pending') AND slot_date BETWEEN ? AND ? GROUP BY slot_date");
     $stmt->execute([$today->format('Y-m-d'), $today->modify('+' . booking_days_ahead() . ' days')->format('Y-m-d')]);
     $upcoming = [];
     foreach ($stmt->fetchAll() as $row) {
@@ -536,6 +606,9 @@ function list_bookings(array $input): array
         'calendarError' => $calendar['ok'] ? '' : $calendar['error'],
         'staff' => STAFF_LABELS,
         'mattedMinutes' => MATTED_MINUTES,
+        'depositsActive' => deposits_active(),
+        'depositAmount' => deposit_amount_setting(),
+        'linkHours' => deposit_link_hours(),
     ] + public_plans();
 }
 
@@ -544,7 +617,7 @@ function list_bookings(array $input): array
  */
 function list_upcoming_bookings(): array
 {
-    $stmt = db()->prepare("SELECT * FROM bookings WHERE status = 'booked' AND slot_date >= ? ORDER BY slot_date, slot_time, id LIMIT 1000");
+    $stmt = db()->prepare("SELECT * FROM bookings WHERE status IN ('booked', 'pending') AND slot_date >= ? ORDER BY slot_date, slot_time, id LIMIT 1000");
     $stmt->execute([studio_today()->format('Y-m-d')]);
     return ['bookings' => bookings_with_segments($stmt->fetchAll())];
 }
@@ -633,7 +706,7 @@ function booking_change_email(array $row, string $subject, string $intro, string
 function cancel_booking(array $admin, array $input): array
 {
     $row = find_booking((int) ($input['id'] ?? 0));
-    if ($row['status'] !== 'booked') {
+    if (!in_array($row['status'], ['booked', 'pending'], true)) {
         json_error('This booking is already cancelled.');
     }
     $reason = clean_text($input['reason'] ?? '', 500);
@@ -649,11 +722,14 @@ function cancel_booking(array $admin, array $input): array
         ->execute([$removed ? 'removed' : 'remove_failed', $row['id']]);
     forget_calendar_cache();
 
-    $mail = $row['customer_email'] !== ''
+    // The deposit: refunded when cancelled 24 hours or more before, else kept (the admin can choose).
+    $deposit = settle_deposit_on_cancel($row, (string) ($input['deposit'] ?? 'auto'));
+    $mail = $row['customer_email'] !== '' && $row['status'] === 'booked'
         ? booking_change_email($row, 'Your Pawpad grooming appointment has been cancelled (' . $row['ref'] . ')',
-            'Your grooming appointment on ' . $when . ' has been cancelled.', $reason)
-        : ['sent' => false, 'error' => 'no email address (walk-in / phone booking)'];
-    return ['calendarRemoved' => $removed, 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
+            'Your grooming appointment on ' . $when . ' has been cancelled.' . ($deposit['text'] !== '' ? "\n\n" . $deposit['text'] : ''), $reason)
+        : ['sent' => false, 'error' => $row['status'] === 'pending' ? 'the deposit was never paid, so no email is needed' : 'no email address (walk-in / phone booking)'];
+    return ['calendarRemoved' => $removed, 'emailSent' => $mail['sent'], 'emailError' => $mail['error'],
+        'deposit' => $deposit['text'] !== '' ? ($deposit['refunded'] ? 'refunded' : 'kept') : '', 'depositError' => $deposit['error'] ?? ''];
 }
 
 /**
@@ -693,7 +769,7 @@ function send_clash(string $clash): void
 function reschedule_booking(array $admin, array $input): array
 {
     $row = find_booking((int) ($input['id'] ?? 0));
-    if ($row['status'] !== 'booked') {
+    if (!in_array($row['status'], ['booked', 'pending'], true)) {
         json_error('Only active bookings can be rescheduled.');
     }
     $reason = clean_text($input['reason'] ?? '', 500);
@@ -771,7 +847,7 @@ function reschedule_booking(array $admin, array $input): array
 function set_matted(array $admin, array $input): array
 {
     $row = find_booking((int) ($input['id'] ?? 0));
-    if ($row['status'] !== 'booked') {
+    if (!in_array($row['status'], ['booked', 'pending'], true)) {
         json_error('Only active bookings can be changed.');
     }
     $on = !empty($input['on']);
@@ -873,7 +949,7 @@ function block_slot(array $admin, array $input): array
     try {
         lock_schedule_day($pdo, $date);
         $sql = "SELECT b.ref, b.slot_time, s.start_min FROM booking_segments s JOIN bookings b ON b.id = s.booking_id
-                WHERE b.status = 'booked' AND s.slot_date = ? AND s.start_min < ? AND s.end_min > ?" . ($staff === 'leena' ? " AND s.staff = 'leena'" : '');
+                WHERE b.status IN ('booked', 'pending') AND s.slot_date = ? AND s.start_min < ? AND s.end_min > ?" . ($staff === 'leena' ? " AND s.staff = 'leena'" : '');
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$date, $end, $start]);
         $clashes = $stmt->fetchAll();
