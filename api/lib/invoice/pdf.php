@@ -43,7 +43,7 @@ class PawpadInvoicePdf extends tFPDF
 
     public function Footer(): void
     {
-        $this->SetY(-26);
+        $this->SetY(-22);
         $this->SetDrawColor(0xB1, 0x8D, 0x4E);
         $this->SetLineWidth(0.3);
         $this->Line(18, $this->GetY(), 192, $this->GetY());
@@ -52,9 +52,6 @@ class PawpadInvoicePdf extends tFPDF
         $this->SetTextColor(0x6B, 0x6B, 0x6B);
         $this->Cell(0, 4, 'Studio: ' . INVOICE_STUDIO_ADDRESS, 0, 1, 'C');
         $this->Cell(0, 4, implode('   •   ', INVOICE_CONTACT), 0, 1, 'C');
-        $this->SetFont('Carlito', '', 7.5);
-        $this->SetTextColor(0x2D, 0x3B, 0x36);
-        $this->Cell(0, 4, 'CIN: ' . INVOICE_CIN, 0, 1, 'C');
         if ($this->PageNo() > 1) {
             $this->SetTextColor(0x9A, 0x9A, 0x9A);
             $this->Cell(0, 3.5, 'Page ' . $this->PageNo(), 0, 0, 'R');

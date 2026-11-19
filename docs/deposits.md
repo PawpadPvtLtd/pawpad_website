@@ -6,7 +6,8 @@
   For grooming and boarding.
 - **Deducted from the final bill.** Today's Closing shows the deposit and pre-fills only
   what is left to pay; the invoice shows "Less: booking deposit paid".
-- **Cancelled 24 hours or more before:** refunded in full. **No-show, or cancelled later:** kept.
+- **Cancelled 24 hours or more before** (for boarding: before check-in): refunded in full.
+  **No-show, or cancelled later:** kept. The same rule is on the website's Refund Policy.
   A reschedule keeps the deposit on the booking.
 - **Website:** the customer pays in the Razorpay window at checkout. The time is held for
   **15 minutes** while they pay. If they close the window, pressing the button again opens
