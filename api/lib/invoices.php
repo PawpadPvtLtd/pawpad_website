@@ -26,7 +26,6 @@ const INVOICE_TAGLINE = 'Conscious Pet Grooming & Wellness';
 const INVOICE_SINCE = 'Bengaluru · Since 2017';
 const INVOICE_STUDIO_ADDRESS = '#426, 5th Main Road, HRBR 2nd Block, Kalyan Nagar, Bengaluru – 560043, Karnataka, India';
 const INVOICE_CONTACT = ['+91 91484 43330', 'info@pawpad.in', 'www.pawpad.in'];
-const INVOICE_CIN = 'U96092KA2026PTC227754';
 const INVOICE_MAX_LINES = 40;
 
 /** "2026-27" for a date from April 2026 to March 2027. */
