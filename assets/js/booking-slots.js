@@ -82,18 +82,88 @@ const PawpadSlots = {
     return this.toDate(dateStr).toLocaleDateString("en-IN", opts || { weekday: "short", day: "numeric", month: "short" });
   },
 
+  /** The deposit for one service: ₹500, or its price when it costs less (0 when deposits are off). */
+  depositFor(availability, serviceId, price) {
+    const d = availability && availability.ok && availability.deposit;
+    if (!d || !d.active) return 0;
+    const known = (d.knownPrices || {})[serviceId];
+    const p = typeof price === "number" && price > 0 ? price : known;
+    return typeof p === "number" && p > 0 && p < d.amount ? p : d.amount;
+  },
+
+  /** Loads Razorpay Checkout (only when a deposit is paid). */
+  loadCheckout() {
+    if (window.Razorpay) return Promise.resolve(true);
+    if (!this._checkoutLoading) {
+      this._checkoutLoading = new Promise((resolve) => {
+        const s = document.createElement("script");
+        s.src = "https://checkout.razorpay.com/v1/checkout.js";
+        s.onload = () => resolve(Boolean(window.Razorpay));
+        s.onerror = () => { this._checkoutLoading = null; resolve(false); };
+        document.head.appendChild(s);
+      });
+    }
+    return this._checkoutLoading;
+  },
+
+  /** Opens Razorpay Checkout for the deposit. Resolves to { paid, response }. */
+  async payDeposit(payment) {
+    if (!(await this.loadCheckout())) return { paid: false, error: "The payment window could not open. Please check your internet connection and try again." };
+    return new Promise((resolve) => {
+      let done = false;
+      const rzp = new window.Razorpay({
+        key: payment.keyId,
+        order_id: payment.orderId,
+        amount: payment.amount,
+        currency: payment.currency || "INR",
+        name: payment.name || "Pawpad",
+        description: payment.description,
+        prefill: payment.prefill || {},
+        timeout: payment.timeout,
+        theme: { color: "#B18D4E" },
+        handler: (response) => { done = true; resolve({ paid: true, response }); },
+        modal: { ondismiss: () => { if (!done) resolve({ paid: false }); }, confirm_close: true }
+      });
+      rzp.open();
+    });
+  },
+
   /**
-   * Books one slot per pet. Resolves to { ok, ref, bookings, error, taken }.
+   * Books one time per pet. With deposits on, the times are held while the customer
+   * pays in Razorpay Checkout, and the booking is confirmed once the payment is verified.
+   * Resolves to { ok, ref, bookings, depositPaid, error, taken, notPaid }.
    */
   async book(payload) {
-    const result = await window.PawpadApi.call("create_booking", payload);
+    const key = JSON.stringify({ ...payload, botcheck: undefined });
+    let start = this._pending && this._pending.key === key && Date.now() < this._pending.until ? this._pending.start : null;
+    if (!start) {
+      const result = await window.PawpadApi.call("create_booking", payload);
+      this.forget();
+      if (!result.ok) {
+        return {
+          ok: false,
+          taken: (result.data && result.data.taken) || [],
+          error: (result.data && result.data.error) || "Could not reach the Pawpad server. Please check your internet connection, or WhatsApp us on +91 91484 43330."
+        };
+      }
+      if (!result.data.payment) return { ok: true, ...result.data };
+      start = result.data;
+      // Pressing the button again within the hold opens the same payment (no second hold).
+      this._pending = { key, start, until: Date.now() + (start.holdMinutes || 15) * 60000 };
+    }
+    const paid = await this.payDeposit(start.payment);
+    if (!paid.paid) {
+      const left = Math.max(1, Math.round((this._pending.until - Date.now()) / 60000));
+      return { ok: false, notPaid: true, error: paid.error || `The deposit wasn't paid, so the booking isn't confirmed yet. Your time is held for about ${left} more minute${left === 1 ? "" : "s"}: press the button again to pay.` };
+    }
+    const r = paid.response;
+    const confirm = await window.PawpadApi.call("confirm_payment", { orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature });
+    this._pending = null;
     this.forget();
-    if (result.ok) return { ok: true, ...result.data };
-    return {
-      ok: false,
-      taken: (result.data && result.data.taken) || [],
-      error: (result.data && result.data.error) || "Could not reach the Pawpad server. Please check your internet connection, or WhatsApp us on +91 91484 43330."
-    };
+    if (!confirm.ok) {
+      return { ok: false, error: (confirm.data && confirm.data.error) || "Your payment went through, but we couldn't confirm it here. Don't pay again: we'll confirm by email, or WhatsApp us on +91 91484 43330." };
+    }
+    return { ok: true, ...confirm.data };
   }
 };
 

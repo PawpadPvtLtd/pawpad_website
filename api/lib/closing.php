@@ -64,7 +64,9 @@ function closing_rows(string $date): array
         $b['closing'] = [
             'saved' => $saved,
             'status' => $saved ? $row['c_status'] : ($row['status'] === 'cancelled' ? 'cancelled' : ''),
-            'amount' => $saved && $row['c_amount'] !== null ? (float) $row['c_amount'] : ($saved ? null : $b['price']),
+            // What is still to pay at the studio: the price less a deposit paid online.
+            'amount' => $saved && $row['c_amount'] !== null ? (float) $row['c_amount']
+                : ($saved ? null : ($b['price'] !== null ? max(0, $b['price'] - ($b['depositStatus'] === 'paid' ? (float) $b['deposit'] : 0)) : null)),
             'mode' => $saved ? $row['c_mode'] : '',
             'reference' => $saved ? $row['c_reference'] : '',
             'note' => $saved ? $row['c_note'] : '',
@@ -228,7 +230,13 @@ function save_closing(array $admin, array $input): array
     )->execute([$booking['id'], $status, $amount, $mode, $reference, $note, $admin['email'], now_utc()]);
 
     // Completed and the payment mode chosen: the invoice is made (and emailed) once every pet of this booking is done.
-    $invoice = $status === 'completed' && $mode !== '' ? auto_invoice($admin, (int) $booking['id']) : null;
+    // A no-show keeps the deposit (Leena's rule); changing it back makes it "paid" again.
+    if (in_array($booking['deposit_status'] ?? '', ['paid', 'kept'], true)) {
+        db()->prepare('UPDATE bookings SET deposit_status = ? WHERE id = ?')->execute([$status === 'no_show' ? 'kept' : 'paid', $booking['id']]);
+        $booking['deposit_status'] = $status === 'no_show' ? 'kept' : 'paid';
+    }
+    $paidUp = $mode !== '' || ($amount !== null && $amount <= 0 && ($booking['deposit_status'] ?? '') === 'paid');
+    $invoice = $status === 'completed' && $paidUp ? auto_invoice($admin, (int) $booking['id']) : null;
     $group = invoice_group_rows($booking['ref'], $booking['slot_date']);
     foreach (closing_rows($booking['slot_date']) as $row) {
         if ($row['id'] === (int) $booking['id']) {
@@ -256,8 +264,12 @@ function add_walkin(array $admin, array $input): array
     }
     $name = clean_text($input['customerName'] ?? '', 255);
     $phone = clean_text($input['phone'] ?? '', 60);
+    $email = clean_text($input['email'] ?? '', 255);
     if ($name === '') {
         json_error('Please enter the customer\'s name.');
+    }
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        json_error('The email address doesn\'t look right.');
     }
     $serviceTitle = clean_text($input['serviceTitle'] ?? '', 255) ?: 'Grooming';
     $serviceId = substr(strtolower(preg_replace('/[^A-Za-z0-9-]/', '', (string) ($input['serviceId'] ?? ''))), 0, 60) ?: 'grooming-unspecified';
@@ -286,6 +298,12 @@ function add_walkin(array $admin, array $input): array
     $past = $day < studio_today();
     // Earlier days are only recorded for the closing: no clash check.
     $force = !empty($input['force']) || $past;
+    // Phone / WhatsApp bookings: a Razorpay payment link for the deposit; the time is held until it is paid.
+    $depositLink = !empty($input['depositLink']) && deposits_active() && !$past && $status === '';
+    if ($depositLink && $phone === '' && $email === '') {
+        json_error('To send a deposit link, please enter the customer\'s phone number or email.');
+    }
+    $deposit = $depositLink ? deposit_for($amount ?? server_service_price($serviceId)) : null;
 
     // Calendar events added by hand (read fresh). If it can't be read, the team's time is still checked.
     $calendar = $past ? ['ok' => true, 'busy' => []] : calendar_busy($day, $day->modify('+1 day'), true);
@@ -309,10 +327,11 @@ function add_walkin(array $admin, array $input): array
             $log = json_encode([['date' => to_iso($now), 'by' => $admin['email'], 'text' => $logText]], JSON_UNESCAPED_UNICODE);
             $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status, matted)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            )->execute([$ref, $date, $time, 'booked', $serviceId, $serviceTitle, json_encode($pet, JSON_UNESCAPED_UNICODE),
-                $name, '', $phone, '', 'walk-in', $notes, $now, $amount, 'walkin', $log, 'not_needed', $matted ? 1 : 0]);
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status, matted, deposit, deposit_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([$ref, $date, $time, $depositLink ? 'pending' : 'booked', $serviceId, $serviceTitle, json_encode($pet, JSON_UNESCAPED_UNICODE),
+                $name, $email, $phone, '', 'walk-in', $notes, $now, $amount, 'walkin', $log, $email !== '' && $depositLink ? 'pending' : 'not_needed', $matted ? 1 : 0,
+                $deposit, $depositLink ? 'awaiting' : '']);
             $id = (int) $pdo->lastInsertId();
             save_segments($pdo, $id, $date, $fit['segments']);
             if ($status !== '' || $amount !== null || $mode !== '') {
@@ -331,6 +350,36 @@ function add_walkin(array $admin, array $input): array
             }
             throw $e;
         }
+    }
+
+    $link = null;
+    if ($depositLink) {
+        // Valid 2 hours (never past the appointment, never under Razorpay's 15-minute minimum).
+        $nowTs = time();
+        $expiresTs = max($nowTs + 16 * 60, min($nowTs + (int) round(deposit_link_hours() * 3600), slot_start($date, $time)->getTimestamp()));
+        $expires = (new DateTimeImmutable('@' . $expiresTs))->setTimezone(studio_tz());
+        $link = create_razorpay_link((float) $deposit, 'Pawpad booking deposit ' . $ref . ' (' . $serviceTitle . ', ' . friendly_slot($date, $time) . ')',
+            ['name' => $name, 'phone' => $phone, 'email' => $email], $expires, $ref, ['ref' => $ref, 'purpose' => 'grooming']);
+        if ($link) {
+            $paymentRow = new_payment('link', 'grooming', $link['id'], $ref, (float) $deposit, $expires, $link['url']);
+            $pdo->prepare('UPDATE bookings SET payment_ref = ? WHERE id = ?')->execute([$paymentRow, $id]);
+            // The calendar event and confirmation follow when the deposit is paid.
+            return closing_day(['date' => $date]) + [
+                'added' => ['id' => $id, 'ref' => $ref],
+                'slotBlocked' => true,
+                'calendarSynced' => false,
+                'warning' => trim(($fit['clash'] !== '' ? 'Booked despite a clash: ' . $fit['clash'] . '. ' : '') . $fit['warning']),
+                'invoiceNotice' => '',
+                'depositLink' => ['url' => $link['url'], 'amount' => (float) $deposit, 'expires' => $expires->format('g:i A, j M'), 'phone' => $phone,
+                    'message' => 'Hi ' . $name . ', please pay the booking deposit of ' . inr((float) $deposit) . ' to confirm ' . $serviceTitle . ' on '
+                        . friendly_slot($date, $time) . ' at Pawpad: ' . $link['url'] . ' (the link is valid until ' . $expires->format('g:i A, j M') . '). The deposit is deducted from your bill.'],
+                'slotMessage' => 'Team time held until ' . $expires->format('g:i A, j M') . ' for the deposit (' . inr((float) $deposit) . '). '
+                    . ($phone !== '' || $email !== '' ? 'Razorpay is sending the payment link' . ($phone !== '' ? ' by SMS' : '') . ($email !== '' ? ($phone !== '' ? ' and email' : ' by email') : '') . '.' : ''),
+            ];
+        }
+        // Razorpay couldn't be reached: keep the booking, without a deposit.
+        $pdo->prepare("UPDATE bookings SET status = 'booked', deposit = NULL, deposit_status = '' WHERE id = ?")->execute([$id]);
+        $fit['warning'] = trim($fit['warning'] . ' Razorpay could not make the deposit link, so the booking was saved without a deposit.');
     }
 
     $href = '';

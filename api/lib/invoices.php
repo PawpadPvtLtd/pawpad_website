@@ -118,9 +118,13 @@ function invoice_draft(array $rows): array
     $lines = [];
     $modes = [];
     $paidAll = true;
+    $deposits = 0.0;
     foreach ($rows as $b) {
         $c = $b['closing'];
-        $amount = $c['amount'] !== null ? (float) $c['amount'] : (float) ($b['price'] ?? 0);
+        // A deposit paid online is part of the service's price and is deducted at the end.
+        $deposit = ($b['depositStatus'] ?? '') === 'paid' ? (float) $b['deposit'] : 0.0;
+        $deposits += $deposit;
+        $amount = $c['amount'] !== null ? (float) $c['amount'] + $deposit : (float) ($b['price'] ?? 0);
         $matted = !empty($b['matted']) ? (float) ($b['mattedPrice'] ?? 0) : 0.0;
         $pet = trim(($b['pet']['name'] ?? '') . (($b['pet']['type'] ?? '') !== '' ? ' (' . $b['pet']['type'] . ')' : ''));
         $detail = trim(($pet !== '' ? $pet . ' · ' : '') . friendly_slot($b['date'], $b['time']));
@@ -130,15 +134,16 @@ function invoice_draft(array $rows): array
         }
         if ($c['mode'] !== '' && $c['mode'] !== 'not_paid') {
             $modes[$c['mode']] = closing_modes()[$c['mode']] . ($c['reference'] !== '' ? ' (ref ' . $c['reference'] . ')' : '');
-        } else {
-            $paidAll = false;
+        } elseif (!($deposit > 0 && $c['amount'] !== null && (float) $c['amount'] <= 0)) {
+            $paidAll = false; // nothing left to pay when the deposit covered it all
         }
     }
     return [
         'customer' => ['name' => $first['customer']['name'], 'phone' => $first['customer']['phone'], 'email' => $first['customer']['email']],
         'lines' => $lines,
         'paidInFull' => $paidAll,
-        'payment' => $paidAll ? 'Paid by ' . implode(', ', $modes) : '',
+        'payment' => $paidAll ? trim(($modes ? 'Paid by ' . implode(', ', $modes) : 'Paid') . ($deposits > 0 ? ' (deposit online via Razorpay)' : '')) : '',
+        'deposit' => round($deposits, 2),
         'bookingIds' => array_map(function (array $b): int {
             return (int) $b['id'];
         }, $rows),
@@ -288,7 +293,8 @@ function auto_invoice(array $admin, int $bookingId): ?array
     $group = invoice_group_rows($booking['ref'], $booking['slot_date']);
     foreach ($group as $b) {
         $c = $b['closing'];
-        if (($b['status'] === 'booked' && $c['status'] === '') || ($c['status'] === 'completed' && $c['mode'] === '')) {
+        $coveredByDeposit = ($b['depositStatus'] ?? '') === 'paid' && $c['amount'] !== null && (float) $c['amount'] <= 0;
+        if ((in_array($b['status'], ['booked', 'pending'], true) && $c['status'] === '') || ($c['status'] === 'completed' && $c['mode'] === '' && !$coveredByDeposit)) {
             return ['waiting' => true, 'message' => 'The invoice will be made when every pet of ' . $booking['ref'] . ' has a status and a payment mode.'];
         }
     }
@@ -353,7 +359,7 @@ function save_invoice(array $admin, array $input): array
         json_error('This booking already has an invoice. Please reload the page.', 409);
     }
     $base = get_invoice(['bookingId' => $booking['id']])['draft'];
-    $draft += ['bookingIds' => $base['bookingIds'], 'date' => $base['date'], 'bookingRef' => $base['bookingRef']];
+    $draft += ['bookingIds' => $base['bookingIds'], 'date' => $base['date'], 'bookingRef' => $base['bookingRef'], 'deposit' => $base['deposit']];
     return store_invoice($admin, $draft, null, $send);
 }
 

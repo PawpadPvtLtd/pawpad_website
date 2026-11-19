@@ -935,6 +935,8 @@ function CheckoutModal({ open, onClose }) {
   const [bookingError, setBookingError] = useStateC("");
   const [placing, setPlacing] = useStateC(false);
   const [availability, reloadAvailability] = typeof useSlotAvailability === "function" ? useSlotAvailability(open) : [null, () => {}];
+  // Deposits (Razorpay): ₹500 per grooming pet, or the service's price when it costs less.
+  const depositAmount = (availability && availability.deposit && availability.deposit.amount) || 500;
   // Nights already full or nearly full (confirmed stays), so a full night is flagged before sending.
   const [boardingNights, setBoardingNights] = useStateC(null);
   useEffectC(() => {
@@ -1015,6 +1017,9 @@ function CheckoutModal({ open, onClose }) {
 
   // Pets whose service takes a real grooming slot, with their index in pets/petSlots.
   const slotPetIndexes = petSlots.map((s, idx) => (s.takesSlot ? idx : -1)).filter((idx) => idx !== -1);
+  const depositTotal = typeof PawpadSlots !== "undefined"
+    ? slotPetIndexes.reduce((sum, idx) => sum + PawpadSlots.depositFor(availability, petSlots[idx].serviceId, petSlots[idx].price), 0)
+    : 0;
   const hasSlotPets = slotPetIndexes.length > 0;
   // Boarding and course/consulting items are still enquiries with a preferred date.
   const hasEnquiryItems = items.some((i) => typeof PawpadSlots === "undefined" || !PawpadSlots.takesSlot(i));
@@ -1317,6 +1322,7 @@ function CheckoutModal({ open, onClose }) {
       orderPayload.orderId = result.ref;
       orderPayload.confirmedSlots = result.bookings;
       orderPayload.confirmationEmailSent = result.emailSent;
+      orderPayload.depositPaid = result.depositPaid || 0;
       orderPayload.appointment = {
         date: result.bookings.map((b) => b.label).join(" | "),
         time: "Confirmed",
@@ -1415,7 +1421,9 @@ function CheckoutModal({ open, onClose }) {
               completedOrder.confirmationEmailSent
                 ? `A confirmation email is on its way to ${completedOrder.customer.email}.`
                 : "We'll send your confirmation shortly.",
-              " Payment is at the studio."
+              completedOrder.depositPaid
+                ? ` Deposit of ₹${formatInr(completedOrder.depositPaid)} paid: it is deducted from your bill, and the rest is paid at the studio.`
+                : " Payment is at the studio."
             )
             : React.createElement(
             "p",
@@ -2191,6 +2199,9 @@ function CheckoutModal({ open, onClose }) {
                 )
               ),
               bookingError && React.createElement("div", { className: "slot-status slot-error", role: "alert", style: { marginBottom: 16 } }, bookingError),
+              depositTotal > 0 && React.createElement("div", { className: "deposit-note", "data-deposit-note": depositTotal, style: { marginBottom: 16, padding: "14px 16px", borderRadius: 14, background: "color-mix(in oklab, var(--driftwood), transparent 88%)", fontSize: 14, lineHeight: 1.55 } },
+                React.createElement("strong", null, `Booking deposit: ₹${formatInr(depositTotal)} now`),
+                ` (₹${formatInr(depositAmount)} per pet, or the service's price if it costs less). It is deducted from your bill; the rest is paid at the studio. Refunded in full if you cancel at least 24 hours before; not refunded for a no-show or a later cancellation. Rescheduling keeps your deposit.`),
               React.createElement(
                 "div",
                 { className: "review-summary-grid" },
@@ -2342,7 +2353,9 @@ function CheckoutModal({ open, onClose }) {
                     "div",
                     { className: "studio-payment-badge" },
                     React.createElement("span", null, "📍 Payment Mode:"),
-                    React.createElement("p", null, "No advance payment required today. Pay at studio via UPI, Card, or Cash after your pet's comfortable session.")
+                    React.createElement("p", null, depositTotal > 0
+                      ? `A booking deposit of ₹${formatInr(depositTotal)} is paid now online (deducted from your bill). Pay the rest at the studio via UPI, Card, or Cash after your pet's comfortable session.`
+                      : "No advance payment required today. Pay at studio via UPI, Card, or Cash after your pet's comfortable session.")
                   )
                 )
               )
@@ -2372,7 +2385,7 @@ function CheckoutModal({ open, onClose }) {
                   onClick: handlePlaceOrder,
                   disabled: placing
                 },
-                placing ? "Reserving your time… " : "Confirm Booking & Checkout ",
+                placing ? "Reserving your time… " : depositTotal > 0 ? `Pay ₹${formatInr(depositTotal)} deposit & confirm ` : "Confirm Booking & Checkout ",
                 React.createElement(Arrow, null)
               )
               : React.createElement(

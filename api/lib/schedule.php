@@ -152,7 +152,7 @@ function day_schedules(array $dates, bool $lock = false, ?array $calendar = null
     $forUpdate = $lock ? ' FOR UPDATE' : '';
 
     $stmt = db()->prepare("SELECT s.* FROM booking_segments s JOIN bookings b ON b.id = s.booking_id
-        WHERE b.status = 'booked' AND s.slot_date BETWEEN ? AND ? AND s.booking_id <> ? ORDER BY s.start_min" . $forUpdate);
+        WHERE b.status IN ('booked', 'pending') AND s.slot_date BETWEEN ? AND ? AND s.booking_id <> ? ORDER BY s.start_min" . $forUpdate);
     $stmt->execute([$first, $last, $exceptBooking]);
     foreach ($stmt->fetchAll() as $row) {
         if (isset($out[$row['slot_date']]['busy'][$row['staff']])) {

@@ -4,20 +4,21 @@
  *
  * Public:  health (GET), get_content (GET or POST), submit_application,
  *          booking_availability (GET or POST), service_plans (who does each service, how long), create_booking, boarding_availability, create_boarding_request,
- *          list_posts, get_post (Blog & Vlogs; GET or POST)
+ *          list_posts, get_post (Blog & Vlogs; GET or POST),
+ *          confirm_payment, razorpay_webhook (Razorpay deposits; signature-checked)
  * Staff (Owner, Administrator and Manager):
  *          login, logout, me, change_password,
  *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking, set_matted,
  *          list_applications, update_application (Manager: interviews, notes, enrol only),
  *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report,
- *          get_invoice, save_invoice, invoice_pdf, email_invoice, list_invoices,
+ *          get_invoice, save_invoice, invoice_pdf, email_invoice, list_invoices, send_boarding_deposit_link,
  *          list_boarding_requests, update_boarding_request
  * Owner and Administrator only:
  *          cleanup_calendar, block_slot, unblock_slot (whole studio, or Leena only),
  *          closure_preview, create_closure, list_closures, delete_closure,
  *          delete_applications, delete_payment, list_daily_reports, get_daily_report,
  *          save_content, upload_file, list_uploads, delete_upload, convert_uploads,
- *          admin_list_posts, save_post, delete_post,
+ *          admin_list_posts, save_post, delete_post, refund_deposit, refund_boarding_deposit,
  *          list_admins, add_admin, remove_admin (owner only: add/remove)
  * Staff actions need the X-Pawpad-Token header returned by "login". The role
  * is checked here on the server, so a hidden button can't be worked around.
@@ -41,6 +42,7 @@ require __DIR__ . '/lib/bookings.php';
 require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
 require __DIR__ . '/lib/invoices.php';
+require __DIR__ . '/lib/payments.php';
 require __DIR__ . '/lib/boarding.php';
 require __DIR__ . '/lib/blog.php';
 
@@ -52,6 +54,7 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 try {
     ensure_schema(db());
+    expire_payment_holds();
 } catch (PDOException $e) {
     error_log('Pawpad API schema update failed: ' . $e->getMessage());
     json_error('The database could not be prepared. Check the db_* settings in config.php.', 500);
@@ -86,6 +89,13 @@ try {
             break;
         case 'booking_availability':
             send_json(['ok' => true] + booking_availability());
+            break;
+        case 'confirm_payment':
+            rate_limit('payment', 60, 3600);
+            send_json(['ok' => true] + confirm_payment($input));
+            break;
+        case 'razorpay_webhook':
+            send_json(['ok' => true] + razorpay_webhook((string) file_get_contents('php://input')));
             break;
         case 'service_plans':
             send_json(['ok' => true] + public_plans());
@@ -139,6 +149,15 @@ try {
             break;
         case 'reschedule_booking':
             send_json(['ok' => true] + reschedule_booking(require_role(STAFF_ROLES), $input));
+            break;
+        case 'refund_deposit':
+            send_json(['ok' => true] + refund_deposit(require_role(ADMIN_ROLES), $input));
+            break;
+        case 'refund_boarding_deposit':
+            send_json(['ok' => true] + refund_boarding_deposit(require_role(ADMIN_ROLES), $input));
+            break;
+        case 'send_boarding_deposit_link':
+            send_json(['ok' => true] + send_boarding_deposit_link(require_role(STAFF_ROLES), $input));
             break;
         case 'set_matted':
             send_json(['ok' => true] + set_matted(require_role(STAFF_ROLES), $input));
