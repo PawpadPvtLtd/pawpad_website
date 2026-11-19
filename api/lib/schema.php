@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -43,6 +43,8 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'slot_blocks', 'staff', "VARCHAR(20) NOT NULL DEFAULT ''");
     add_column_if_missing($pdo, 'slot_blocks', 'end_time', "CHAR(5) NOT NULL DEFAULT ''");
     add_column_if_missing($pdo, 'bookings', 'matted', "TINYINT(1) NOT NULL DEFAULT 0");
+    // Invoices (schema 11): the Matted Dogs price on its own invoice line.
+    add_column_if_missing($pdo, 'bookings', 'matted_price', "DECIMAL(10,2) NULL");
     replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
     blog_go_live($pdo);
     if (!function_exists('backfill_booking_segments')) {
@@ -228,6 +230,31 @@ function create_tables(PDO $pdo): void
         kind VARCHAR(20) NOT NULL DEFAULT 'service',
         INDEX idx_day (slot_date, staff),
         INDEX idx_booking (booking_id)
+    ) $opts");
+
+    // Grooming invoices (numbers per financial year; the items are kept as issued).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS invoices (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        number VARCHAR(30) NOT NULL UNIQUE,
+        invoice_date DATE NOT NULL,
+        booking_ref VARCHAR(20) NOT NULL DEFAULT '',
+        data MEDIUMTEXT NOT NULL,
+        revision SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+        email_status VARCHAR(20) NOT NULL DEFAULT 'not_sent',
+        emailed_to VARCHAR(255) NOT NULL DEFAULT '',
+        emailed_at DATETIME NULL,
+        created_by VARCHAR(190) NOT NULL DEFAULT '',
+        created_at DATETIME NOT NULL,
+        updated_by VARCHAR(190) NOT NULL DEFAULT '',
+        updated_at DATETIME NOT NULL,
+        INDEX idx_ref (booking_ref, invoice_date)
+    ) $opts");
+
+    // Which bookings each invoice covers (a booking is on one invoice at most).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS invoice_bookings (
+        invoice_id INT UNSIGNED NOT NULL,
+        booking_id INT UNSIGNED NOT NULL PRIMARY KEY,
+        INDEX idx_invoice (invoice_id)
     ) $opts");
 
     // One row per day, locked while a booking for that day is saved (so two can't overlap).

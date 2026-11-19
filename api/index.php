@@ -10,6 +10,7 @@
  *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking, set_matted,
  *          list_applications, update_application (Manager: interviews, notes, enrol only),
  *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report,
+ *          get_invoice, save_invoice, invoice_pdf, email_invoice, list_invoices,
  *          list_boarding_requests, update_boarding_request
  * Owner and Administrator only:
  *          cleanup_calendar, block_slot, unblock_slot (whole studio, or Leena only),
@@ -39,6 +40,7 @@ require __DIR__ . '/lib/schedule.php';
 require __DIR__ . '/lib/bookings.php';
 require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
+require __DIR__ . '/lib/invoices.php';
 require __DIR__ . '/lib/boarding.php';
 require __DIR__ . '/lib/blog.php';
 
@@ -157,6 +159,25 @@ try {
             break;
         case 'save_closing':
             send_json(['ok' => true] + save_closing(require_role(STAFF_ROLES), $input));
+            break;
+        case 'get_invoice':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + get_invoice($input));
+            break;
+        case 'save_invoice':
+            send_json(['ok' => true] + save_invoice(require_role(STAFF_ROLES), $input));
+            break;
+        case 'invoice_pdf':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + invoice_pdf($input));
+            break;
+        case 'email_invoice':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + email_invoice($input));
+            break;
+        case 'list_invoices':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + list_invoices($input));
             break;
         case 'add_walkin':
             send_json(['ok' => true] + add_walkin(require_role(STAFF_ROLES), $input), 201);
