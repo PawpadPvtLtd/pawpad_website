@@ -1,0 +1,44 @@
+# Builds the Blog's pages for Google (blog/<post>.html) and its sitemap entries
+# from the posts published in the admin panel. Runs every 30 minutes, or now:
+# GitHub → Actions → "Blog pages" → Run workflow. Changes nothing while the
+# Blog is switched off in Website Content CMS → Blog & Vlogs.
+name: Blog pages
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: blog-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build blog pages from api.pawpad.in
+        run: node scripts/build-blog.mjs
+      - name: Save the changes and refresh the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$(git status --porcelain -- blog sitemap.xml)" ]; then
+            echo "No changes."
+            exit 0
+          fi
+          git config user.name "pawpad-blog-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A blog sitemap.xml
+          git commit -m "Blog: update published posts"
+          git push
+          # A push by this workflow doesn't start a GitHub Pages build by itself, so ask for one.
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages/builds" >/dev/null || echo "Pages will update on the next push."

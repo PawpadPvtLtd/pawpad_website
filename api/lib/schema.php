@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -232,6 +232,30 @@ function create_tables(PDO $pdo): void
     ) $opts");
 
     // Boarding requests from the website checkout (confirmed by the team, not instantly).
+    // Blog & Vlogs (Website Content CMS → Blog & Vlogs).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS blog_posts (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        slug VARCHAR(120) NOT NULL UNIQUE,
+        kind VARCHAR(10) NOT NULL DEFAULT 'article',
+        status VARCHAR(10) NOT NULL DEFAULT 'draft',
+        title VARCHAR(200) NOT NULL DEFAULT '',
+        summary VARCHAR(400) NOT NULL DEFAULT '',
+        body MEDIUMTEXT NOT NULL,
+        cover VARCHAR(500) NOT NULL DEFAULT '',
+        cover_alt VARCHAR(200) NOT NULL DEFAULT '',
+        video_url VARCHAR(500) NOT NULL DEFAULT '',
+        keywords VARCHAR(400) NOT NULL DEFAULT '',
+        seo_title VARCHAR(200) NOT NULL DEFAULT '',
+        seo_description VARCHAR(300) NOT NULL DEFAULT '',
+        author VARCHAR(120) NOT NULL DEFAULT '',
+        published_at DATETIME NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        created_by VARCHAR(190) NOT NULL DEFAULT '',
+        updated_by VARCHAR(190) NOT NULL DEFAULT '',
+        INDEX idx_blog_status (status, published_at)
+    ) $opts");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS boarding_requests (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         ref VARCHAR(20) NOT NULL,
