@@ -4,8 +4,8 @@
  * (Website Content CMS → Blog & Vlogs).
  *
  * Posts live in their own table (not in the page content every visitor loads).
- * Nothing is public until the "Show the Blog on the website" switch is on:
- * until then only signed-in staff see posts (a preview).
+ * The Blog is public while the "Show the Blog on the website" switch is on (the
+ * default since it went live). Switched off, only signed-in staff see posts (a preview).
  */
 
 declare(strict_types=1);
@@ -18,13 +18,16 @@ if (!defined('PAWPAD_API')) {
 const BLOG_KINDS = ['article', 'video'];
 const BLOG_STATUSES = ['draft', 'published'];
 
-/** The "Show the Blog on the website" switch (Website Content CMS → Blog & Vlogs). */
+/**
+ * The "Show the Blog on the website" switch (Website Content CMS → Blog & Vlogs).
+ * On unless it has been switched off (the Blog went live in November 2026).
+ */
 function blog_enabled(): bool
 {
     $stmt = db()->prepare('SELECT data FROM site_content WHERE page_key = ?');
     $stmt->execute(['blog']);
     $data = json_decode((string) $stmt->fetchColumn(), true);
-    return is_array($data) && !empty($data['enabled']);
+    return !is_array($data) || !array_key_exists('enabled', $data) || !empty($data['enabled']);
 }
 
 /**

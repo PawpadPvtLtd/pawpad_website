@@ -153,7 +153,7 @@
     },
     // Blog & Vlogs page (posts themselves are saved on the server, one by one).
     blog: {
-      enabled: false,
+      enabled: true,
       eyebrow: "Blog & Vlogs",
       title: "Notes from ",
       titleAccent: "the studio",

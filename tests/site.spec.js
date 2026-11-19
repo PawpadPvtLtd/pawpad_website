@@ -73,7 +73,7 @@ test.describe("Interactive Features & User Flows", () => {
     await page.goto("/index.html");
     const navLinks = page.locator(".nav-links.desktop-only .nav-link");
     // Pages wait briefly for published content before drawing, so wait for the links.
-    await expect(navLinks).toHaveCount(8); // Home, About, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Contact
+    await expect(navLinks).toHaveCount(9); // Home, About, Grooming, Courses, Studio Setup, Boarding, Myotherapy, Blog, Contact
 
     const studioSetupLink = page.locator('.nav-links.desktop-only a[href="studio-setup.html"]');
     await expect(studioSetupLink).toBeVisible();

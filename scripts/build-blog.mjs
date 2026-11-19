@@ -107,9 +107,10 @@ async function main() {
   let enabled;
   let posts;
   try {
-    const content = await get("get_content");
-    enabled = Boolean(content.content && content.content.blog && content.content.blog.enabled);
-    posts = enabled ? (await get("list_posts", "&full=1")).posts || [] : [];
+    // The server decides whether the Blog is on (it is, unless switched off in the CMS).
+    const list = await get("list_posts", "&full=1");
+    enabled = list.enabled === true;
+    posts = enabled ? list.posts || [] : [];
   } catch (err) {
     console.error(`The Pawpad server could not be read (${err.message}). Nothing was changed.`);
     process.exit(1);

@@ -44,6 +44,7 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'slot_blocks', 'end_time', "CHAR(5) NOT NULL DEFAULT ''");
     add_column_if_missing($pdo, 'bookings', 'matted', "TINYINT(1) NOT NULL DEFAULT 0");
     replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
+    blog_go_live($pdo);
     if (!function_exists('backfill_booking_segments')) {
         return; // setup.php: the API finishes this on its next request
     }
@@ -59,6 +60,24 @@ function add_column_if_missing(PDO $pdo, string $table, string $column, string $
     if ((int) $stmt->fetchColumn() === 0) {
         $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
     }
+}
+
+/**
+ * The Blog goes live with schema 10 (November 2026): if its switch was saved as
+ * off while it was being prepared, it is switched on once. It can be switched off
+ * again in Website Content CMS → Blog & Vlogs.
+ */
+function blog_go_live(PDO $pdo): void
+{
+    $stmt = $pdo->prepare('SELECT data FROM site_content WHERE page_key = ?');
+    $stmt->execute(['blog']);
+    $data = json_decode((string) $stmt->fetchColumn(), true);
+    if (!is_array($data) || !empty($data['enabled'])) {
+        return;
+    }
+    $data['enabled'] = true;
+    $pdo->prepare('UPDATE site_content SET data = ?, updated_at = ?, updated_by = ? WHERE page_key = ?')
+        ->execute([json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), gmdate('Y-m-d H:i:s'), 'Blog launch (automatic)', 'blog']);
 }
 
 /** Swaps a unique key for another one (only if the old one is still there). */
