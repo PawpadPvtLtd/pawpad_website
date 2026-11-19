@@ -200,6 +200,7 @@ function booking_to_array(array $row): array
         'emailStatus' => $row['email_status'],
         'price' => isset($row['price']) ? (float) $row['price'] : null,
         'source' => $row['source'] ?? 'website',
+        'whatsappOptIn' => !empty($row['whatsapp_optin']),
         'matted' => !empty($row['matted']),
         'deposit' => isset($row['deposit']) && $row['deposit'] !== null ? (float) $row['deposit'] : null,
         'depositStatus' => (string) ($row['deposit_status'] ?? ''),
@@ -385,8 +386,8 @@ function create_booking(array $input): array
             $ref = 'PAW-' . str_pad((string) next_sequence($pdo, '#GROOMING'), 4, '0', STR_PAD_LEFT);
             $insert = $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, deposit, deposit_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, deposit, deposit_status, whatsapp_optin)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             foreach ($items as $i => $item) {
                 $insert->execute([
@@ -395,6 +396,7 @@ function create_booking(array $input): array
                     clean_text($customer['area'] ?? '', 255), clean_text($customer['contactMethod'] ?? '', 30),
                     clean_text($input['notes'] ?? '', 2000), $now, $item['price'], 'website',
                     $withDeposit ? deposit_for_service($item['serviceId']) : null, $withDeposit ? 'awaiting' : '',
+                    !empty($customer['whatsappOptIn']) ? 1 : 0,
                 ]);
                 $id = (int) $pdo->lastInsertId();
                 save_segments($pdo, $id, $item['date'], $fits['segments'][$i]);

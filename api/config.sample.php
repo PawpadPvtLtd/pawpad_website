@@ -65,6 +65,18 @@ return [
     'deposit_hold_minutes'    => 15,    // website: how long a time is held while the customer pays
     'deposit_link_hours'      => 2,     // phone / WhatsApp bookings and boarding: how long a payment link is valid
 
+    // WhatsApp review request after each visit (Meta WhatsApp Cloud API, number +91 91484 43330).
+    // Meta → your app → WhatsApp → API Setup (Phone number ID); the token is a permanent
+    // System User token (Business Settings → System users). Type them on the server only.
+    'whatsapp_token'             => '',
+    'whatsapp_phone_number_id'   => '',
+    'whatsapp_app_secret'        => '',  // App settings → Basic → App secret (checks delivery updates)
+    'whatsapp_verify_token'      => '',  // any phrase; the same one goes in the webhook setup at Meta
+    'whatsapp_review_template'   => 'pawpad_review_request',
+    'whatsapp_template_language' => 'en',
+    'whatsapp_review_params'     => ['name', 'pet', 'pet'], // what fills {{1}}, {{2}}, {{3}}
+    'whatsapp_reviews_enabled'   => true,
+
     // Admin uploads (images and PDFs) are saved in the uploads/ folder.
     // The hosting has 1 GB in total, so uploads are capped well below that.
     'public_base_url'     => 'https://api.pawpad.in',

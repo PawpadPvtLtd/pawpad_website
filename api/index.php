@@ -5,13 +5,14 @@
  * Public:  health (GET), get_content (GET or POST), submit_application,
  *          booking_availability (GET or POST), service_plans (who does each service, how long), create_booking, boarding_availability, create_boarding_request,
  *          list_posts, get_post (Blog & Vlogs; GET or POST),
- *          confirm_payment, razorpay_webhook (Razorpay deposits; signature-checked)
+ *          confirm_payment, razorpay_webhook (Razorpay deposits; signature-checked),
+ *          whatsapp_webhook (Meta: GET check, POST delivery updates; signature-checked)
  * Staff (Owner, Administrator and Manager):
  *          login, logout, me, change_password,
  *          list_bookings, list_upcoming_bookings, cancel_booking, reschedule_booking, set_matted,
  *          list_applications, update_application (Manager: interviews, notes, enrol only),
  *          record_payment, closing_day, save_closing, add_walkin, preview_report, send_report,
- *          get_invoice, save_invoice, invoice_pdf, email_invoice, list_invoices, send_boarding_deposit_link,
+ *          get_invoice, save_invoice, invoice_pdf, email_invoice, list_invoices, send_boarding_deposit_link, send_review_whatsapp,
  *          list_boarding_requests, update_boarding_request
  * Owner and Administrator only:
  *          cleanup_calendar, block_slot, unblock_slot (whole studio, or Leena only),
@@ -43,6 +44,7 @@ require __DIR__ . '/lib/closures.php';
 require __DIR__ . '/lib/closing.php';
 require __DIR__ . '/lib/invoices.php';
 require __DIR__ . '/lib/payments.php';
+require __DIR__ . '/lib/whatsapp.php';
 require __DIR__ . '/lib/boarding.php';
 require __DIR__ . '/lib/blog.php';
 
@@ -58,6 +60,11 @@ try {
 } catch (PDOException $e) {
     error_log('Pawpad API schema update failed: ' . $e->getMessage());
     json_error('The database could not be prepared. Check the db_* settings in config.php.', 500);
+}
+
+// Meta checks the WhatsApp webhook address with a GET when it is set up.
+if ($action === 'whatsapp_webhook' && $method === 'GET') {
+    whatsapp_webhook_verify();
 }
 
 if ($action === 'health') {
@@ -93,6 +100,9 @@ try {
         case 'confirm_payment':
             rate_limit('payment', 60, 3600);
             send_json(['ok' => true] + confirm_payment($input));
+            break;
+        case 'whatsapp_webhook':
+            send_json(['ok' => true] + whatsapp_webhook((string) file_get_contents('php://input')));
             break;
         case 'razorpay_webhook':
             send_json(['ok' => true] + razorpay_webhook((string) file_get_contents('php://input')));
@@ -149,6 +159,10 @@ try {
             break;
         case 'reschedule_booking':
             send_json(['ok' => true] + reschedule_booking(require_role(STAFF_ROLES), $input));
+            break;
+        case 'send_review_whatsapp':
+            require_role(STAFF_ROLES);
+            send_json(['ok' => true] + send_review_whatsapp($input));
             break;
         case 'refund_deposit':
             send_json(['ok' => true] + refund_deposit(require_role(ADMIN_ROLES), $input));
