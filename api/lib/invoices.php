@@ -97,6 +97,7 @@ function invoice_to_array(array $row): array
         'createdAt' => to_iso($row['created_at']),
         'updatedBy' => $row['updated_by'],
         'updatedAt' => to_iso($row['updated_at']),
+        'review' => review_message_to_array(review_message_for_invoice((int) $row['id'])),
     ];
 }
 
@@ -252,7 +253,12 @@ function store_invoice(array $admin, array $draft, ?array $existing, bool $send)
         $pdo->prepare("UPDATE invoices SET email_status = 'no_email' WHERE id = ?")->execute([$id]);
         $invoice['emailStatus'] = 'no_email';
     }
-    return ['invoice' => $invoice, 'emailSent' => $mail['sent'], 'emailError' => $mail['error']];
+    // A new visit's invoice: the WhatsApp review request goes out (once; only with the customer's consent).
+    $review = $existing ? null : send_review_request($invoice);
+    if ($review) {
+        $invoice['review'] = $review;
+    }
+    return ['invoice' => $invoice, 'emailSent' => $mail['sent'], 'emailError' => $mail['error'], 'review' => $review];
 }
 
 function invoice_filename(array $invoice): string
@@ -311,7 +317,9 @@ function auto_invoice(array $admin, int $bookingId): ?array
         'message' => 'Invoice ' . $inv['number'] . ' made'
             . ($result['emailSent'] ? ' and emailed to ' . $inv['customer']['email'] . '.'
                 : ($inv['customer']['email'] === '' ? ' (no email address: download the PDF to share it on WhatsApp).'
-                    : ', but the email could not be sent: ' . $result['emailError'])),
+                    : ', but the email could not be sent: ' . $result['emailError']))
+            . (($result['review']['status'] ?? '') === 'sent' ? ' WhatsApp review request sent.'
+                : (($result['review']['status'] ?? '') === 'failed' ? ' WhatsApp review request failed: ' . $result['review']['error'] . '.' : '')),
         'emailSent' => $result['emailSent'],
     ];
 }

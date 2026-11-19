@@ -921,6 +921,7 @@ function CheckoutModal({ open, onClose }) {
     phone: "",
     area: "",
     contactMethod: "WhatsApp",
+    whatsappOptIn: false,
     date: null,
     endDate: null,
     time: null,
@@ -1276,7 +1277,8 @@ function CheckoutModal({ open, onClose }) {
         email: customerData.email,
         phone: customerData.phone,
         area: customerData.area,
-        contactMethod: customerData.contactMethod
+        contactMethod: customerData.contactMethod,
+        whatsappOptIn: Boolean(customerData.whatsappOptIn)
       },
       pets: resolvedPets,
       pet: resolvedPets.length > 0 ? resolvedPets[0] : null,
@@ -1645,6 +1647,13 @@ function CheckoutModal({ open, onClose }) {
                       )
                     )
                   )
+                ),
+                // Consent for WhatsApp messages (Meta requires it; never ticked in advance).
+                React.createElement(
+                  "label",
+                  { className: "field full-span whatsapp-optin", "data-whatsapp-optin": true, style: { display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, cursor: "pointer" } },
+                  React.createElement("input", { type: "checkbox", checked: Boolean(customerData.whatsappOptIn), onChange: (e) => updCustomer("whatsappOptIn", e.target.checked), style: { marginTop: 4 } }),
+                  React.createElement("span", null, "Yes, Pawpad may send me WhatsApp messages on this number (for example a short note after the visit).")
                 )
               )
             ),

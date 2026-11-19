@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -52,6 +52,8 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'boarding_requests', 'deposit', "DECIMAL(10,2) NULL");
     add_column_if_missing($pdo, 'boarding_requests', 'deposit_status', "VARCHAR(20) NOT NULL DEFAULT ''");
     add_column_if_missing($pdo, 'boarding_requests', 'payment_ref', "INT UNSIGNED NULL");
+    // WhatsApp review request (schema 13): the customer agreed to WhatsApp messages.
+    add_column_if_missing($pdo, 'bookings', 'whatsapp_optin', "TINYINT(1) NOT NULL DEFAULT 0");
     replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
     blog_go_live($pdo);
     if (!function_exists('backfill_booking_segments')) {
@@ -282,6 +284,23 @@ function create_tables(PDO $pdo): void
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
         INDEX idx_hold (status, hold_until)
+    ) $opts");
+
+    // WhatsApp messages (the review request after a visit): one per invoice, with what happened.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_messages (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        invoice_id INT UNSIGNED NULL UNIQUE,
+        booking_ref VARCHAR(20) NOT NULL DEFAULT '',
+        kind VARCHAR(20) NOT NULL DEFAULT 'review',
+        phone VARCHAR(20) NOT NULL DEFAULT '',
+        status VARCHAR(20) NOT NULL,
+        reason VARCHAR(255) NOT NULL DEFAULT '',
+        error VARCHAR(255) NOT NULL DEFAULT '',
+        wamid VARCHAR(120) NOT NULL DEFAULT '',
+        sent_at DATETIME NULL,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        INDEX idx_wamid (wamid)
     ) $opts");
 
     // One row per day, locked while a booking for that day is saved (so two can't overlap).

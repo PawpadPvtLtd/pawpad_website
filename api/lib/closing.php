@@ -51,11 +51,13 @@ function closing_rows(string $date): array
     $rows = $stmt->fetchAll();
     // The invoice each booking is on, if any.
     $invoices = [];
-    $inv = db()->prepare('SELECT ib.booking_id, i.id, i.number, i.email_status, i.revision FROM invoice_bookings ib
-        JOIN invoices i ON i.id = ib.invoice_id JOIN bookings b ON b.id = ib.booking_id WHERE b.slot_date = ?');
+    $inv = db()->prepare('SELECT ib.booking_id, i.id, i.number, i.email_status, i.revision, w.status AS w_status, w.reason AS w_reason, w.error AS w_error
+        FROM invoice_bookings ib JOIN invoices i ON i.id = ib.invoice_id JOIN bookings b ON b.id = ib.booking_id
+        LEFT JOIN whatsapp_messages w ON w.invoice_id = i.id WHERE b.slot_date = ?');
     $inv->execute([$date]);
     foreach ($inv->fetchAll() as $r) {
-        $invoices[(int) $r['booking_id']] = ['id' => (int) $r['id'], 'number' => $r['number'], 'emailStatus' => $r['email_status'], 'revision' => (int) $r['revision']];
+        $invoices[(int) $r['booking_id']] = ['id' => (int) $r['id'], 'number' => $r['number'], 'emailStatus' => $r['email_status'], 'revision' => (int) $r['revision'],
+            'review' => $r['w_status'] !== null ? ['status' => $r['w_status'], 'reason' => $r['w_reason'], 'error' => $r['w_error']] : null];
     }
     return array_map(function (array $row) use ($invoices): array {
         $b = booking_to_array($row);
@@ -327,11 +329,11 @@ function add_walkin(array $admin, array $input): array
             $log = json_encode([['date' => to_iso($now), 'by' => $admin['email'], 'text' => $logText]], JSON_UNESCAPED_UNICODE);
             $pdo->prepare(
                 'INSERT INTO bookings (ref, slot_date, slot_time, status, service_id, service_title, pet, customer_name,
-                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status, matted, deposit, deposit_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    customer_email, customer_phone, customer_area, contact_method, notes, created_at, price, source, admin_log, email_status, matted, deposit, deposit_status, whatsapp_optin)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([$ref, $date, $time, $depositLink ? 'pending' : 'booked', $serviceId, $serviceTitle, json_encode($pet, JSON_UNESCAPED_UNICODE),
                 $name, $email, $phone, '', 'walk-in', $notes, $now, $amount, 'walkin', $log, $email !== '' && $depositLink ? 'pending' : 'not_needed', $matted ? 1 : 0,
-                $deposit, $depositLink ? 'awaiting' : '']);
+                $deposit, $depositLink ? 'awaiting' : '', !empty($input['whatsappOptIn']) ? 1 : 0]);
             $id = (int) $pdo->lastInsertId();
             save_segments($pdo, $id, $date, $fit['segments']);
             if ($status !== '' || $amount !== null || $mode !== '') {

@@ -5895,6 +5895,7 @@
   // -------------------------------------------------------------
   // INVOICES (PDF on the letterhead; emailed from info@, or downloaded to share on WhatsApp)
   // -------------------------------------------------------------
+  const REVIEW_LABEL = { sent: "WhatsApp review sent", delivered: "WhatsApp review delivered", read: "WhatsApp review read ✓", failed: "⚠️ WhatsApp review failed", skipped: "No WhatsApp review" };
   const INVOICE_EMAIL_LABEL = { sent: "Emailed", failed: "⚠️ Email failed", no_email: "No email: share the PDF", not_sent: "Not emailed" };
 
   /** Saves the invoice PDF to the computer (or phone). */
@@ -6023,6 +6024,7 @@
   /** The invoice buttons on a booking: number, PDF, email again, edit. Or "Make invoice". */
   function InvoiceActions({ booking, invoice, canMake, onOpen, onNotice, onChanged }) {
     const small = { padding: "3px 8px", fontSize: "11px" };
+    const [confirmReview, setConfirmReview] = useState(false);
     if (!invoice) {
       return canMake
         ? React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, "data-make-invoice": booking.ref, onClick: () => onOpen({ bookingId: booking.id }) }, "Make invoice")
@@ -6033,9 +6035,23 @@
       onNotice(r.ok ? `✓ Invoice ${invoice.number} emailed again.` : "⚠️ " + ((r.data && r.data.error) || "Not sent."));
       if (r.ok) onChanged();
     };
+    const review = invoice.review;
+    const sendReview = async () => {
+      const r = await window.PawpadApi.call("send_review_whatsapp", { invoiceId: invoice.id, consent: true });
+      setConfirmReview(false);
+      onNotice(r.ok ? `✓ WhatsApp review request sent for ${invoice.number}.` : "⚠️ " + ((r.data && r.data.error) || "Not sent."));
+      if (r.ok) onChanged();
+    };
     return React.createElement("div", { "data-invoice": invoice.number, style: { display: "flex", flexDirection: "column", gap: "4px", fontSize: "11px" } },
       React.createElement("strong", null, invoice.number),
       React.createElement("span", { style: { color: invoice.emailStatus === "failed" ? "var(--admin-danger)" : "var(--admin-text-muted)" } }, INVOICE_EMAIL_LABEL[invoice.emailStatus] || invoice.emailStatus),
+      review && React.createElement("span", { "data-review": review.status, title: review.reason || review.error || "", style: { color: review.status === "failed" ? "var(--admin-danger)" : review.status === "skipped" ? "var(--admin-text-faint)" : "var(--admin-success)" } },
+        REVIEW_LABEL[review.status] || review.status, review.status === "skipped" && review.reason ? `: ${review.reason.toLowerCase()}` : "", review.status === "failed" && review.error ? `: ${review.error}` : ""),
+      review && (review.status === "skipped" || review.status === "failed") && (confirmReview
+        ? React.createElement("span", { style: { display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" } }, "Customer agreed to WhatsApp?",
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-primary", style: small, onClick: sendReview }, "Yes, send"),
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: () => setConfirmReview(false) }, "No"))
+        : React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, "data-send-review": invoice.number, onClick: () => setConfirmReview(true) }, "Send WhatsApp review")),
       React.createElement("div", { style: { display: "flex", gap: "4px", flexWrap: "wrap" } },
         React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: async () => { const e = await downloadInvoicePdf(invoice.id); if (e) onNotice("⚠️ " + e); } }, "PDF"),
         invoice.emailStatus !== "no_email" && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, onClick: resend }, "Email again"),
@@ -6081,7 +6097,7 @@
 
   function WalkinForm({ date, isFuture, onAdded }) {
     const packages = groomingPackages();
-    const [f, setF] = useState({ time: "", customerName: "", phone: "", email: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "", matted: false, depositLink: true });
+    const [f, setF] = useState({ time: "", customerName: "", phone: "", email: "", petName: "", petType: "Dog", serviceId: "", serviceTitle: "", amount: "", mode: "", status: isFuture ? "" : "completed", reference: "", matted: false, depositLink: true, whatsappOptIn: false });
     const [error, setError] = useState("");
     const [clash, setClash] = useState("");
     const [saving, setSaving] = useState(false);
@@ -6153,6 +6169,9 @@
         field("phone", "Phone", { type: "tel" }),
         field("email", "Email (optional)", { type: "email" }),
         field("petName", "Pet name")),
+      React.createElement("label", { "data-walkin-optin": true, style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" } },
+        React.createElement("input", { type: "checkbox", checked: f.whatsappOptIn, onChange: (e) => set({ whatsappOptIn: e.target.checked }), "aria-label": "Customer agreed to WhatsApp messages" }),
+        "The customer agreed to WhatsApp messages (Leena's review request is sent after the visit)."),
       day && day.depositsActive && f.status === "" && React.createElement("label", { "data-deposit-option": true, style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" } },
         React.createElement("input", { type: "checkbox", checked: f.depositLink, onChange: (e) => set({ depositLink: e.target.checked }), "aria-label": "Send a deposit payment link" }),
         `Send a Razorpay deposit link (₹${day.depositAmount} per pet, or the price if lower). The time is held ${day.linkHours} hour${day.linkHours === 1 ? "" : "s"} and confirmed once paid.`),
