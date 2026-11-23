@@ -32,7 +32,7 @@ async function get(action, query = "") {
 }
 
 function descriptionOf(post) {
-  const d = post.seoDescription || post.summary || F.plainText(post.body);
+  const d = post.seoDescription || post.summary || F.plainText(F.postText(post));
   return d.length > 160 ? d.slice(0, 157).replace(/\s+\S*$/, "") + "…" : d;
 }
 
@@ -51,7 +51,7 @@ function staticBody(post) {
       <p class="blog-post-meta">${esc([F.formatDate(post.publishedAt), post.author ? "By " + post.author : ""].filter(Boolean).join(" · "))}</p>
       ${post.summary ? `<p class="lead">${esc(post.summary)}</p>` : ""}
       ${media}
-      <div class="blog-post-body">${F.render(post.body)}</div>
+      <div class="blog-post-body">${F.render(post.body)}${F.renderSections(post.sections)}</div>
     </div></article>
   `;
 }

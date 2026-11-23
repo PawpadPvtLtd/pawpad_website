@@ -121,7 +121,7 @@ function invoice_draft(array $rows): array
     $deposits = 0.0;
     foreach ($rows as $b) {
         $c = $b['closing'];
-        // A deposit paid online is part of the service's price and is deducted at the end.
+        // What was paid online is part of the service's price; the invoice shows it as paid online.
         $deposit = ($b['depositStatus'] ?? '') === 'paid' ? (float) $b['deposit'] : 0.0;
         $deposits += $deposit;
         $amount = $c['amount'] !== null ? (float) $c['amount'] + $deposit : (float) ($b['price'] ?? 0);
@@ -142,7 +142,7 @@ function invoice_draft(array $rows): array
         'customer' => ['name' => $first['customer']['name'], 'phone' => $first['customer']['phone'], 'email' => $first['customer']['email']],
         'lines' => $lines,
         'paidInFull' => $paidAll,
-        'payment' => $paidAll ? trim(($modes ? 'Paid by ' . implode(', ', $modes) : 'Paid') . ($deposits > 0 ? ' (deposit online via Razorpay)' : '')) : '',
+        'payment' => $paidAll ? ($modes ? 'Paid by ' . implode(', ', $modes) . ($deposits > 0 ? ' (and online via Razorpay)' : '') : ($deposits > 0 ? 'Paid online via Razorpay' : 'Paid')) : '',
         'deposit' => round($deposits, 2),
         'bookingIds' => array_map(function (array $b): int {
             return (int) $b['id'];
@@ -272,7 +272,8 @@ function email_invoice_to(array $invoice, string $email): array
     $revised = $invoice['revision'] > 1;
     $body = 'Dear ' . $c['name'] . ",\n\n"
         . 'Thank you for choosing Pawpad! Your ' . ($revised ? 'revised ' : '') . 'invoice ' . $invoice['number'] . " is attached.\n\n"
-        . 'Total: ' . inr($invoice['total']) . "\n"
+        . 'Total: ' . inr($invoice['subtotal']) . "\n"
+        . ($invoice['deposit'] > 0 ? 'Paid online: ' . inr($invoice['deposit']) . "\n" . ($invoice['paid'] > 0 ? 'Paid at the studio: ' . inr($invoice['paid']) . "\n" : '') : '')
         . ($invoice['balance'] > 0 ? 'Amount due: ' . inr($invoice['balance']) . "\n" : ($invoice['payment'] !== '' ? $invoice['payment'] . "\n" : ''))
         . "\nFor any questions, WhatsApp us on " . STUDIO_WHATSAPP . " or reply to this email.\n\n"
         . "Warm regards,\nPawpad Grooming Studio\nhttps://pawpad.in\n";

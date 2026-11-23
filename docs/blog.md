@@ -17,7 +17,7 @@ It can be hidden again with the switch **Show the Blog on the website** (untick,
 1. Click **+ New article**.
 2. Fill in the **Title** and a **Short summary** (one or two sentences; it shows on the Blog page and in Google).
 3. Add a **Cover photo** and describe it in a few words (for example "A shih tzu relaxing after a bath").
-4. Write the text in **Article text**. Simple formatting:
+4. Write the introduction (or the whole article) in **Article text**. Simple formatting:
 
    | Type this | You get |
    |---|---|
@@ -31,9 +31,17 @@ It can be hidden again with the switch **Show the Blog on the website** (untick,
    | `[text](https://…)` | a link |
 
    Leave a blank line between paragraphs. To put a photo inside the text, click **+ Add a photo**, then change "Describe the photo here" to a short description.
-5. Click **Preview** to see how it will look.
-6. Add **Keywords & phrases**: what someone would type into Google to find this, separated by commas.
-7. Click **Save draft** (visitors don't see it) or **Publish**.
+5. **More sections (optional):** for a longer article, click **+ Add a section** under the text.
+   Each section has its own **Heading**, **Photo** (with a short description), and **Text**
+   (the same simple formatting as above). Add as many as you need; **↑** and **↓** change the
+   order and **Remove** deletes a section. Empty sections are left out. On the website the
+   sections follow the introduction text, in order.
+6. Click **Preview** to see how it will look.
+7. Add **Keywords & phrases**: what someone would type into Google to find this, separated by commas.
+8. Click **Save draft** (visitors don't see it) or **Publish**.
+
+Article text is **justified** (straight edges on both sides) automatically. Headings and
+photo descriptions stay as they are.
 
 ## Add a video (vlog)
 
@@ -57,7 +65,7 @@ Within about 30 minutes of publishing a ready-made page is created for each publ
 
 ## For the developer
 
-- Posts are stored in the `blog_posts` table (schema version 9, created automatically on deploy).
+- Posts are stored in the `blog_posts` table (schema version 9, created automatically on deploy). Sections are a JSON list in its `sections` column (schema 14): `{heading, image, imageAlt, text}`, at most 40. `assets/js/blog-format.js` (`renderSections`) shows them on the Blog page and in the built pages.
 - `scripts/build-blog.mjs` builds `blog/<slug>.html` and the Blog part of `sitemap.xml` (between `<!-- blog:start -->` and `<!-- blog:end -->`) from `api.pawpad.in`. When the Blog is switched off it removes the built pages. If the server can't be reached it changes nothing.
 - `.github/workflows/blog-pages.yml` runs it every 30 minutes, and can also be started by hand: GitHub → Actions → **Blog pages** → **Run workflow**. It commits to `main`, so it needs permission to push there (see "Workflow permissions" under Settings → Actions → General). GitHub pauses scheduled workflows after 60 days with no activity in the repository; start it by hand once to turn it back on.
 - `blog/post.html?slug=<slug>` shows any post straight away, before its page has been built.

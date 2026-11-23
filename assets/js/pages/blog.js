@@ -182,7 +182,7 @@ function BlogPostPage() {
     if (state.missing || state.preview) keepOutOfGoogle();
     if (!post) return;
     const title = post.seoTitle || `${post.title} | Pawpad Blog`;
-    const desc = post.seoDescription || post.summary || (F ? F.plainText(post.body).slice(0, 155) : "");
+    const desc = post.seoDescription || post.summary || (F ? F.plainText(F.postText(post)).slice(0, 155) : "");
     document.title = title;
     setHeadTag('meta[name="description"]', { tag: "meta", attrs: { name: "description" } }, "content", desc);
     setHeadTag('link[rel="canonical"]', { tag: "link", attrs: { rel: "canonical" } }, "href", `https://pawpad.in/blog/${post.slug}.html`);
@@ -211,10 +211,10 @@ function BlogPostPage() {
         hb(BlogTypeBadge, { kind: post.kind, draft: post.status === "draft" }),
         hb("h1", { className: "h-1 blog-post-title" }, post.title),
         hb("p", { className: "blog-post-meta" },
-          [post.publishedAt && F ? F.formatDate(post.publishedAt) : "", post.author ? `By ${post.author}` : "", post.kind === "article" && F ? `${F.readingMinutes(post.body)} min read` : ""].filter(Boolean).join(" · ")),
+          [post.publishedAt && F ? F.formatDate(post.publishedAt) : "", post.author ? `By ${post.author}` : "", post.kind === "article" && F ? `${F.readingMinutes(F.postText(post))} min read` : ""].filter(Boolean).join(" · ")),
         post.summary && hb("p", { className: "lead blog-post-summary" }, post.summary),
         post.kind === "video" ? hb(BlogVideo, { post }) : (post.cover && hb("figure", { className: "blog-post-cover" }, hb("img", { src: post.cover, alt: post.coverAlt || post.title }))),
-        post.body && hb("div", { className: "blog-post-body", dangerouslySetInnerHTML: { __html: F ? F.render(post.body) : "" } }),
+        (post.body || (post.sections || []).length > 0) && hb("div", { className: "blog-post-body", dangerouslySetInnerHTML: { __html: F ? F.render(post.body) + F.renderSections(post.sections) : "" } }),
         topics.length > 0 && hb("p", { className: "blog-topics" }, topics.map((t) => hb("span", { key: t }, t))),
         hb("p", { className: "blog-share" }, "Share: ",
           hb("a", { href: "https://wa.me/?text=" + encodeURIComponent(post.title + " " + shareUrl), target: "_blank", rel: "noopener noreferrer" }, "WhatsApp"), " · ",
@@ -271,7 +271,11 @@ function BlogStyles() {
     .blog-post-body a { color: var(--driftwood-deep); }
     .blog-post-body ul, .blog-post-body ol { padding-left: 22px; }
     .blog-post-body blockquote { margin: 24px 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--driftwood); font-style: italic; color: var(--ink); }
-    .blog-post-body figcaption { font-size: 13px; color: var(--ink-mute); margin-top: 8px; }
+    .blog-post-body figcaption { font-size: 13px; color: var(--ink-mute); margin-top: 8px; text-align: center; }
+    .blog-post-body p, .blog-post-body li, .blog-post-body blockquote { text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+    .blog-post-body .blog-section { margin-top: 44px; }
+    .blog-post-body .blog-section > * + * { margin-top: 18px; }
+    .blog-post-body .blog-section h2 { margin-top: 0; }
     .blog-topics { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
     .blog-topics span { font-size: 13px; padding: 4px 12px; border-radius: 999px; background: var(--eagle-soft); color: var(--ink); }
     .blog-share { font-size: 14px; color: var(--ink-mute); margin: 8px 0 0; }

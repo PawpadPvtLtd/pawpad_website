@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
 }
 
 // Raise this whenever create_tables() gains a table, so servers add it on the next request.
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 /**
  * Creates any missing tables after an update, without needing setup.php again.
@@ -54,6 +54,8 @@ function ensure_schema(PDO $pdo): void
     add_column_if_missing($pdo, 'boarding_requests', 'payment_ref', "INT UNSIGNED NULL");
     // WhatsApp review request (schema 13): the customer agreed to WhatsApp messages.
     add_column_if_missing($pdo, 'bookings', 'whatsapp_optin', "TINYINT(1) NOT NULL DEFAULT 0");
+    // Blog sections (schema 14): each with its own heading, picture, description and text.
+    add_column_if_missing($pdo, 'blog_posts', 'sections', "MEDIUMTEXT NULL");
     replace_unique_key($pdo, 'slot_blocks', 'uniq_block', 'uniq_block_staff', 'slot_date, slot_time, staff');
     blog_go_live($pdo);
     if (!function_exists('backfill_booking_segments')) {

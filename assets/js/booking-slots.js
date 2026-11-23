@@ -82,13 +82,13 @@ const PawpadSlots = {
     return this.toDate(dateStr).toLocaleDateString("en-IN", opts || { weekday: "short", day: "numeric", month: "short" });
   },
 
-  /** The deposit for one service: ₹500, or its price when it costs less (0 when deposits are off). */
+  /** What is paid online for one service: its full price (0 when online payment is off). The server charges its own price. */
   depositFor(availability, serviceId, price) {
     const d = availability && availability.ok && availability.deposit;
     if (!d || !d.active) return 0;
     const known = (d.knownPrices || {})[serviceId];
     const p = typeof price === "number" && price > 0 ? price : known;
-    return typeof p === "number" && p > 0 && p < d.amount ? p : d.amount;
+    return typeof p === "number" && p > 0 ? p : 0;
   },
 
   /** Loads Razorpay Checkout (only when a deposit is paid). */
@@ -154,7 +154,7 @@ const PawpadSlots = {
     const paid = await this.payDeposit(start.payment);
     if (!paid.paid) {
       const left = Math.max(1, Math.round((this._pending.until - Date.now()) / 60000));
-      return { ok: false, notPaid: true, error: paid.error || `The deposit wasn't paid, so the booking isn't confirmed yet. Your time is held for about ${left} more minute${left === 1 ? "" : "s"}: press the button again to pay.` };
+      return { ok: false, notPaid: true, error: paid.error || `The payment wasn't made, so the booking isn't confirmed yet. Your time is held for about ${left} more minute${left === 1 ? "" : "s"}: press the button again to pay.` };
     }
     const r = paid.response;
     const confirm = await window.PawpadApi.call("confirm_payment", { orderId: r.razorpay_order_id, paymentId: r.razorpay_payment_id, signature: r.razorpay_signature });

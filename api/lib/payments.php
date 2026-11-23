@@ -1,14 +1,17 @@
 <?php
 /**
- * Booking deposits through Razorpay (rules from Leena, 10 Nov 2026):
- * - ₹500 per pet (or the service's full price when it costs less, e.g. Nail Clipping),
- *   for grooming and boarding. Deducted from the final bill.
+ * Online payment through Razorpay (Leena, 23 Nov 2026: the full price, no ₹500 token):
+ * - Every grooming booking is paid in full online at booking, at the service's own price
+ *   (Website Content CMS → Grooming, or the default price list below). Boarding stays are
+ *   paid in full through a payment link when the team confirms them.
  * - Website: the time is held 15 minutes while the customer pays (Razorpay Checkout).
  * - Phone / WhatsApp bookings and boarding stays: a Razorpay payment link, valid 2 hours.
- *   The booking is confirmed once the deposit is paid; unpaid, the time is released.
- * - Refunded in full for a cancellation at least 24 hours before; kept for a no-show
- *   or a later cancellation. A reschedule keeps the deposit on the booking.
+ *   Confirmed once paid; unpaid, the time is released.
+ * - Cancelled 24 hours or more before: refunded in full. Later, or a no-show: staff decide
+ *   (refund all, refund all but ₹500, or keep it). A reschedule keeps the payment.
+ * - Extras decided at the studio (Matted Dogs, add-ons) are paid at the studio.
  *
+ * (The database columns are still called "deposit": the amount paid online.)
  * Nothing changes until the Razorpay keys are in config.php on the server
  * (razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret).
  * Every payment is checked with Razorpay's signature (and on Razorpay's servers)
@@ -22,9 +25,16 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
+// Kept on a late cancellation when staff choose "refund all but ₹500" (config: deposit_amount).
 const DEPOSIT_DEFAULT = 500;
-// Prices the server knows, for deposits on cheap services (the CMS price is used when it has one).
-const DEPOSIT_KNOWN_PRICES = ['nail-clipping' => 250];
+// The grooming price list as on the website (Website Content CMS → Grooming changes it; the CMS price wins).
+const DEPOSIT_KNOWN_PRICES = [
+    'puppy-short' => 1000, 'puppy-long' => 1500, 'dog-short' => 1600, 'dog-long' => 2000,
+    'dog-grooming-long-hair' => 2500, 'breed-specific-haircut' => 3500, 'hand-stripping' => 4500,
+    'matted-dogs' => 850, 'cat-short' => 1500, 'cat-long' => 2000, 'cat-haircut' => 1500,
+    'hygiene-clip' => 850, 'nail-clipping' => 250, 'massage' => 1500,
+    'bath-brush-dogs' => 999, 'bath-brush-cats' => 999, 'bath-brush-subscription' => 3496.5,
+];
 const REFUND_NOTICE_HOURS = 24;
 
 function razorpay_settings(): array
@@ -82,16 +92,29 @@ function server_service_price(string $serviceId): ?float
     return $prices[$serviceId] ?? null;
 }
 
-/** ₹500, or the full price when the service costs less. */
-function deposit_for(?float $price): float
+/** What is paid online: the full price (null when the price isn't known). */
+function deposit_for(?float $price): ?float
 {
-    $deposit = deposit_amount_setting();
-    return ($price !== null && $price > 0 && $price < $deposit) ? round($price, 2) : $deposit;
+    return ($price !== null && $price > 0) ? round($price, 2) : null;
 }
 
+/** The full price of a grooming service, paid online; stops with a message when it isn't known. */
 function deposit_for_service(string $serviceId): float
 {
-    return deposit_for(server_service_price($serviceId));
+    if ($serviceId === 'grooming-unspecified') {
+        json_error('Please choose the grooming service, so its price can be paid online.');
+    }
+    $price = deposit_for(server_service_price($serviceId));
+    if ($price === null) {
+        json_error('This service has no price yet. Please WhatsApp us on ' . STUDIO_WHATSAPP . ' to book it.');
+    }
+    return $price;
+}
+
+/** On "refund all but ₹500": what Pawpad keeps (₹500, or the whole amount when it is less). */
+function kept_on_partial_refund(float $paid): float
+{
+    return min($paid, deposit_amount_setting());
 }
 
 // ---------------------------------------------------------------------------
@@ -295,7 +318,7 @@ function expire_payment_holds(): void
             $b->execute([(int) $p['boarding_id']]);
             if ($row = $b->fetch()) {
                 $log = json_decode((string) ($row['admin_log'] ?? ''), true) ?: [];
-                $log[] = ['date' => to_iso($now), 'by' => 'Pawpad server', 'text' => 'The deposit link expired unpaid: back to "New".'];
+                $log[] = ['date' => to_iso($now), 'by' => 'Pawpad server', 'text' => 'The payment link expired unpaid: back to "New".'];
                 db()->prepare("UPDATE boarding_requests SET status = 'new', deposit_status = 'expired', admin_log = ?, updated_at = ? WHERE id = ?")
                     ->execute([json_encode($log, JSON_UNESCAPED_UNICODE), $now, $row['id']]);
             }
@@ -376,7 +399,7 @@ function confirm_paid_bookings(array $p): array
         foreach ($lost as $row) {
             $pdo->prepare('UPDATE bookings SET deposit_status = ?, admin_log = ? WHERE id = ?')
                 ->execute([$refundId !== '' ? 'refunded' : 'refund_failed', booking_log_entry($row, ['email' => 'Pawpad server'],
-                    'Deposit paid after the hold ran out and the time was taken: ' . ($refundId !== '' ? 'refunded.' : 'REFUND FAILED, please refund in Razorpay.')), $row['id']]);
+                    'Paid after the hold ran out and the time was taken: ' . ($refundId !== '' ? 'refunded.' : 'REFUND FAILED, please refund in Razorpay.')), $row['id']]);
         }
     }
 
@@ -500,36 +523,53 @@ function settle_deposit_on_cancel(array $row, string $choice): array
         }
         return ['text' => '', 'refunded' => false];
     }
-    $refund = $choice === 'refund' || ($choice !== 'keep' && hours_until_booking($row) >= REFUND_NOTICE_HOURS);
     $amount = (float) $row['deposit'];
-    if (!$refund) {
+    if ($choice === 'auto') {
+        $choice = hours_until_booking($row) >= REFUND_NOTICE_HOURS ? 'refund' : 'keep';
+    }
+    if ($choice === 'keep') {
         db()->prepare("UPDATE bookings SET deposit_status = 'kept' WHERE id = ?")->execute([$row['id']]);
-        return ['text' => 'The booking deposit of ' . inr($amount) . ' is not refundable (cancelled less than 24 hours before the appointment).', 'refunded' => false, 'kept' => true];
+        return ['text' => 'The payment of ' . inr($amount) . ' is not refunded' . (hours_until_booking($row) < REFUND_NOTICE_HOURS ? ' (cancelled less than 24 hours before the appointment).' : '.'), 'refunded' => false, 'kept' => true];
+    }
+    $refundAmount = $choice === 'partial' ? round($amount - kept_on_partial_refund($amount), 2) : $amount;
+    if ($refundAmount <= 0) {
+        db()->prepare("UPDATE bookings SET deposit_status = 'kept' WHERE id = ?")->execute([$row['id']]);
+        return ['text' => 'The payment of ' . inr($amount) . ' is not refundable.', 'refunded' => false, 'kept' => true];
     }
     $p = payment_row((int) $row['payment_ref']);
-    $refundId = $p ? razorpay_refund($p, $amount, 'Booking ' . $row['ref'] . ' cancelled') : '';
-    db()->prepare('UPDATE bookings SET deposit_status = ? WHERE id = ?')->execute([$refundId !== '' ? 'refunded' : 'refund_failed', $row['id']]);
-    return $refundId !== ''
-        ? ['text' => 'Your booking deposit of ' . inr($amount) . ' has been refunded. It usually reaches your account in 5 to 7 working days.', 'refunded' => true]
-        : ['text' => '', 'refunded' => false, 'error' => 'The refund could not be made in Razorpay. Please refund ' . inr($amount) . ' in the Razorpay Dashboard.'];
+    $refundId = $p ? razorpay_refund($p, $refundAmount, 'Booking ' . $row['ref'] . ' cancelled') : '';
+    $status = $refundId === '' ? 'refund_failed' : ($refundAmount < $amount ? 'partly_refunded' : 'refunded');
+    db()->prepare('UPDATE bookings SET deposit_status = ? WHERE id = ?')->execute([$status, $row['id']]);
+    if ($refundId === '') {
+        return ['text' => '', 'refunded' => false, 'error' => 'The refund could not be made in Razorpay. Please refund ' . inr($refundAmount) . ' in the Razorpay Dashboard.'];
+    }
+    return ['text' => ($refundAmount < $amount
+            ? inr($refundAmount) . ' of your payment of ' . inr($amount) . ' has been refunded (' . inr($amount - $refundAmount) . ' is kept for the late cancellation).'
+            : 'Your payment of ' . inr($amount) . ' has been refunded.')
+        . ' It usually reaches your account in 5 to 7 working days.', 'refunded' => true, 'partial' => $refundAmount < $amount, 'amount' => $refundAmount];
 }
 
-/** Admin: refund a kept or paid deposit by hand (e.g. a goodwill refund). */
+/** Admin: refund a payment by hand (all, or all but ₹500), e.g. after a no-show or as goodwill. */
 function refund_deposit(array $admin, array $input): array
 {
     $row = find_booking((int) ($input['id'] ?? 0));
     if (!in_array($row['deposit_status'] ?? '', ['paid', 'kept', 'refund_failed'], true) || empty($row['payment_ref'])) {
-        json_error('This booking has no deposit to refund.');
+        json_error('This booking has no payment to refund.');
     }
     $p = payment_row((int) $row['payment_ref']);
-    $amount = (float) $row['deposit'];
+    $paid = (float) $row['deposit'];
+    $partial = ($input['mode'] ?? 'all') === 'all_but_500';
+    $amount = $partial ? round($paid - kept_on_partial_refund($paid), 2) : $paid;
+    if ($amount <= 0) {
+        json_error('There is nothing to refund after keeping ' . inr(kept_on_partial_refund($paid)) . '.');
+    }
     $refundId = $p ? razorpay_refund($p, $amount, 'Refunded by ' . $admin['email']) : '';
     if ($refundId === '') {
         json_error('Razorpay could not make the refund. Please try again, or refund it in the Razorpay Dashboard.', 502);
     }
-    db()->prepare("UPDATE bookings SET deposit_status = 'refunded', admin_log = ? WHERE id = ?")
-        ->execute([booking_log_entry($row, $admin, 'Deposit of ' . inr($amount) . ' refunded'), $row['id']]);
-    return ['booking' => bookings_with_segments([find_booking((int) $row['id'])])[0]];
+    db()->prepare('UPDATE bookings SET deposit_status = ?, admin_log = ? WHERE id = ?')
+        ->execute([$partial ? 'partly_refunded' : 'refunded', booking_log_entry($row, $admin, inr($amount) . ' of the online payment refunded' . ($partial ? ' (' . inr($paid - $amount) . ' kept)' : '')), $row['id']]);
+    return ['booking' => bookings_with_segments([find_booking((int) $row['id'])])[0], 'refunded' => $amount];
 }
 
 // ---------------------------------------------------------------------------
@@ -547,28 +587,28 @@ function confirm_paid_boarding(array $p): array
     }
     $now = now_utc();
     $log = json_decode((string) ($row['admin_log'] ?? ''), true) ?: [];
-    $log[] = ['date' => to_iso($now), 'by' => 'Razorpay', 'text' => 'Deposit of ' . inr((float) $p['amount']) . ' paid: stay confirmed.'];
+    $log[] = ['date' => to_iso($now), 'by' => 'Razorpay', 'text' => inr((float) $p['amount']) . ' paid online: stay confirmed.'];
     db()->prepare("UPDATE boarding_requests SET status = 'confirmed', deposit_status = 'paid', admin_log = ?, updated_at = ? WHERE id = ?")
         ->execute([json_encode($log, JSON_UNESCAPED_UNICODE), $now, $row['id']]);
     $mail = ['sent' => false];
     if ($row['customer_email'] !== '') {
         $mail = send_mail('info', $row['customer_email'], $row['customer_name'], 'Your Pawpad boarding stay is confirmed (' . $row['ref'] . ')',
-            'Dear ' . $row['customer_name'] . ",\n\nThank you! We received your booking deposit of " . inr((float) $p['amount'])
-            . ' and your boarding stay (' . $row['ref'] . ") is confirmed. The deposit is deducted from your final bill.\n\n"
-            . 'Cancellation: the deposit is refunded in full if you cancel at least 24 hours before the stay begins.' . "\n\n"
+            'Dear ' . $row['customer_name'] . ",\n\nThank you! We received your payment of " . inr((float) $p['amount'])
+            . ' and your boarding stay (' . $row['ref'] . ") is confirmed.\n\n"
+            . 'Cancellation: your payment is refunded in full if you cancel at least 24 hours before check-in.' . "\n\n"
             . 'For any questions, WhatsApp us on ' . STUDIO_WHATSAPP . ".\n\nWarm regards,\nPawpad\nhttps://pawpad.in\n");
     }
     return ['ref' => $row['ref'], 'boarding' => true, 'emailSent' => $mail['sent']];
 }
 
 /**
- * Staff: confirm a boarding request by sending a ₹500-per-dog deposit link (valid 2 hours).
+ * Staff: confirm a boarding request by sending a payment link for the full stay (valid 2 hours).
  * The nights are held while the link is valid; paid, the stay is confirmed.
  */
 function send_boarding_deposit_link(array $admin, array $input): array
 {
     if (!deposits_active()) {
-        json_error('Deposits are not switched on yet (Razorpay keys in config.php).');
+        json_error('Online payments are not switched on yet (Razorpay keys in config.php).');
     }
     $stmt = db()->prepare('SELECT * FROM boarding_requests WHERE id = ?');
     $stmt->execute([(int) ($input['id'] ?? 0)]);
@@ -577,7 +617,7 @@ function send_boarding_deposit_link(array $admin, array $input): array
         json_error('Boarding request not found.', 404);
     }
     if (in_array($row['status'], ['confirmed', 'awaiting_deposit'], true)) {
-        json_error('This stay is already confirmed or waiting for its deposit.');
+        json_error('This stay is already confirmed or waiting for its payment.');
     }
     $dogs = max(1, (int) $row['dogs']);
     if (!empty($row['check_in']) && !empty($row['check_out'])) {
@@ -586,39 +626,48 @@ function send_boarding_deposit_link(array $admin, array $input): array
             json_error('Boarding is full on ' . boarding_nights_text($full) . '.', 409);
         }
     }
-    $amount = deposit_amount_setting() * $dogs;
+    // The full stay (the estimate shown to the customer), unless staff typed another amount.
+    $amount = parse_amount($input['amount'] ?? '') ?? parse_amount((string) $row['total']);
+    if ($amount === null || $amount <= 0) {
+        json_error('Please type the amount for this stay (nights × price per dog, plus the trial day fee if any).');
+    }
     $expires = (new DateTimeImmutable('now', studio_tz()))->modify('+' . (int) round(deposit_link_hours() * 60) . ' minutes');
-    $link = create_razorpay_link($amount, 'Pawpad boarding deposit (' . $row['ref'] . ', ' . $dogs . ' dog' . ($dogs > 1 ? 's' : '') . ')',
+    $link = create_razorpay_link($amount, 'Pawpad boarding stay (' . $row['ref'] . ', ' . $dogs . ' dog' . ($dogs > 1 ? 's' : '') . ')',
         ['name' => $row['customer_name'], 'phone' => $row['customer_phone'], 'email' => $row['customer_email']], $expires, $row['ref'], ['ref' => $row['ref'], 'purpose' => 'boarding']);
     if (!$link) {
         json_error('Razorpay could not make the payment link. Please try again in a minute.', 502);
     }
     $paymentId = new_payment('link', 'boarding', $link['id'], $row['ref'], $amount, $expires, $link['url'], (int) $row['id']);
     $log = json_decode((string) ($row['admin_log'] ?? ''), true) ?: [];
-    $log[] = ['date' => to_iso(now_utc()), 'by' => $admin['email'], 'text' => 'Deposit link of ' . inr($amount) . ' sent (valid until ' . $expires->format('g:i A, j M') . ').'];
+    $log[] = ['date' => to_iso(now_utc()), 'by' => $admin['email'], 'text' => 'Payment link of ' . inr($amount) . ' sent (valid until ' . $expires->format('g:i A, j M') . ').'];
     db()->prepare("UPDATE boarding_requests SET status = 'awaiting_deposit', deposit = ?, deposit_status = 'awaiting', payment_ref = ?, admin_log = ?, updated_at = ? WHERE id = ?")
         ->execute([$amount, $paymentId, json_encode($log, JSON_UNESCAPED_UNICODE), now_utc(), $row['id']]);
     return ['link' => $link['url'], 'amount' => $amount, 'expires' => $expires->format('g:i A, j M')] + list_boarding_requests();
 }
 
-/** Staff (Owner / Administrator): refund a boarding stay's deposit (e.g. cancelled in time). */
+/** Owner / Administrator: refund a boarding stay's payment, all or all but ₹500 (cancelled in time, or staff's choice). */
 function refund_boarding_deposit(array $admin, array $input): array
 {
     $stmt = db()->prepare('SELECT * FROM boarding_requests WHERE id = ?');
     $stmt->execute([(int) ($input['id'] ?? 0)]);
     $row = $stmt->fetch();
     if (!$row || ($row['deposit_status'] ?? '') !== 'paid' || empty($row['payment_ref'])) {
-        json_error('This stay has no paid deposit to refund.');
+        json_error('This stay has no online payment to refund.');
     }
     $p = payment_row((int) $row['payment_ref']);
-    $amount = (float) $row['deposit'];
+    $paid = (float) $row['deposit'];
+    $partial = ($input['mode'] ?? 'all') === 'all_but_500';
+    $amount = $partial ? round($paid - kept_on_partial_refund($paid), 2) : $paid;
+    if ($amount <= 0) {
+        json_error('There is nothing to refund after keeping ' . inr(kept_on_partial_refund($paid)) . '.');
+    }
     $refundId = $p ? razorpay_refund($p, $amount, 'Boarding ' . $row['ref'] . ' refunded by ' . $admin['email']) : '';
     if ($refundId === '') {
         json_error('Razorpay could not make the refund. Please try again, or refund it in the Razorpay Dashboard.', 502);
     }
     $log = json_decode((string) ($row['admin_log'] ?? ''), true) ?: [];
-    $log[] = ['date' => to_iso(now_utc()), 'by' => $admin['email'], 'text' => 'Deposit of ' . inr($amount) . ' refunded.'];
-    db()->prepare("UPDATE boarding_requests SET deposit_status = 'refunded', admin_log = ?, updated_at = ? WHERE id = ?")
+    $log[] = ['date' => to_iso(now_utc()), 'by' => $admin['email'], 'text' => inr($amount) . ' refunded' . ($partial ? ' (' . inr($paid - $amount) . ' kept).' : '.')];
+    db()->prepare("UPDATE boarding_requests SET deposit_status = '" . ($partial ? 'partly_refunded' : 'refunded') . "', admin_log = ?, updated_at = ? WHERE id = ?")
         ->execute([json_encode($log, JSON_UNESCAPED_UNICODE), now_utc(), $row['id']]);
     return list_boarding_requests();
 }

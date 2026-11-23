@@ -10,6 +10,7 @@
  *   A blank line starts a new paragraph.
  *
  * Everything is escaped first, so nothing typed can add code to the page.
+ * A post can also have sections, each with its own heading, picture (+ description) and text.
  * Used by the website (window.PawpadBlogFormat) and by scripts/build-blog.mjs (Node).
  */
 (function (root, factory) {
@@ -90,6 +91,28 @@
     return out.join("\n");
   }
 
+  /**
+   * The post's sections as HTML: each one its heading, its picture with the picture's
+   * description under it, and its text (same writing format as the article text).
+   */
+  function renderSections(sections) {
+    return (Array.isArray(sections) ? sections : []).map((s) => {
+      if (!s) return "";
+      const src = safeUrl(s.image);
+      const parts = [];
+      if (s.heading) parts.push(`<h2>${escapeHtml(s.heading)}</h2>`);
+      if (src) parts.push(`<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(s.imageAlt || s.heading || "")}" loading="lazy">${s.imageAlt ? `<figcaption>${escapeHtml(s.imageAlt)}</figcaption>` : ""}</figure>`);
+      if (s.text && String(s.text).trim()) parts.push(render(s.text));
+      return parts.length ? `<section class="blog-section">${parts.join("\n")}</section>` : "";
+    }).join("\n");
+  }
+
+  /** The whole post's text (article text, then every section), as one plain string. */
+  function postText(post) {
+    const secs = (post && Array.isArray(post.sections) ? post.sections : []).map((s) => [s.heading, s.text].filter(Boolean).join("\n\n"));
+    return [post && post.body, ...secs].filter(Boolean).join("\n\n");
+  }
+
   /** Plain text (for descriptions and reading time). */
   function plainText(text) {
     return String(text || "")
@@ -132,5 +155,5 @@
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
   }
 
-  return { escapeHtml, render, plainText, readingMinutes, video, formatDate, safeUrl };
+  return { escapeHtml, render, renderSections, postText, plainText, readingMinutes, video, formatDate, safeUrl };
 });

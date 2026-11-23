@@ -1,36 +1,51 @@
-# Booking deposits (Razorpay)
+# Online payments (Razorpay)
+
+Since November 2026 there is **no ₹500 token / deposit**. Customers pay the **full price**
+of the service online when they book.
 
 ## The rules
 
-- **₹500 per pet**, or the service's full price when it costs less (Nail Clipping: ₹250).
-  For grooming and boarding.
-- **Deducted from the final bill.** Today's Closing shows the deposit and pre-fills only
-  what is left to pay; the invoice shows "Less: booking deposit paid".
-- **Cancelled 24 hours or more before** (for boarding: before check-in): refunded in full.
-  **No-show, or cancelled later:** kept. The same rule is on the website's Refund Policy.
-  A reschedule keeps the deposit on the booking.
+- **Grooming:** the full price of each service (as on the website's price list) is paid
+  online at booking. Two pets: the two prices together. A customer must choose a service
+  to book a time.
+- **Extras** decided at the studio (Matted, add-ons, anything not booked online) are paid
+  at the studio. Today's Closing shows "₹X paid online" and pre-fills only what is left
+  to pay (normally ₹0). The invoice shows "Paid online (Razorpay)" and "Paid at the studio".
+- **Boarding:** Boarding Requests → check the **Stay amount** (pre-filled from the
+  estimated total; correct it if needed) → **Confirm with payment link (full stay)**.
+  The nights are held for 2 hours; once paid, the stay is **Confirmed** and the customer
+  is emailed.
+- **Cancelled 24 hours or more before** (boarding: before check-in): refunded in full.
+- **Cancelled later, or a no-show:** the staff decide each time: **Refund all**,
+  **Refund all but ₹500**, or **Keep the whole payment**. The website's Refund Policy says
+  a late refund is at Pawpad's discretion (partial or none).
+- A reschedule keeps the payment on the booking.
 - **Website:** the customer pays in the Razorpay window at checkout. The time is held for
   **15 minutes** while they pay. If they close the window, pressing the button again opens
   the same payment. Unpaid, the time is released.
 - **Phone and WhatsApp bookings:** Today's Closing → **+ Add walk-in / phone booking** →
-  keep **Send a Razorpay deposit link** ticked. The time is held for **2 hours**. Razorpay
-  sends the link by SMS (and email, if one is entered). You can also **Copy link** or
+  keep **Send a Razorpay payment link** ticked. The link is for the full price of the
+  chosen service (or the amount typed). The time is held for **2 hours**. Razorpay sends the
+  link by SMS (and email, if one is entered). You can also **Copy link** or
   **Send on WhatsApp**. Once paid, the booking is confirmed: calendar event, and email if
   there is an address.
-- **Boarding:** Boarding Requests → **Confirm with deposit link** (₹500 per dog). The nights
-  are held for 2 hours; once paid, the stay is **Confirmed** and the customer is emailed.
 
-Nothing changes until the Razorpay keys are on the server. Before that, bookings work
+Nothing changes until the Razorpay keys are on the server. Without them, bookings work
 as before (payment at the studio).
 
 ## In the admin panel
 
-- Each booking shows its deposit: *Awaiting deposit* (with the link), *Deposit paid*,
-  *Deposit refunded*, *Deposit kept*, or *Deposit not paid (released)*.
-- **Cancel booking:** when a deposit was paid, choose **Refund** or **Keep**. It is
-  pre-selected by the 24-hour rule. Refunds go back through Razorpay (5 to 7 working days).
-- **Refund deposit** (Owner / Administrator) refunds a deposit by hand, for example as a goodwill gesture.
-- A **No-show** in Today's Closing marks the deposit as kept.
+- Each booking shows its payment: *Awaiting payment* (with the link), *Paid online*,
+  *Refunded*, *Partly refunded*, *Payment kept*, or *Not paid (released)*.
+- **Cancel booking:** when the booking was paid online, choose **Refund all**,
+  **Refund all but ₹500**, or **Keep the whole payment**. 24 hours or more ahead,
+  "Refund all" is pre-selected; later, nothing is pre-selected and you must choose.
+  Refunds go back through Razorpay (5 to 7 working days). The customer's email says what
+  was refunded.
+- **Refund all** / **Refund all but ₹500** buttons (Owner / Administrator) refund a payment
+  by hand, for example after a no-show or as a goodwill gesture. You are asked to confirm.
+- A **No-show** in Today's Closing marks the payment as kept (it can still be refunded with
+  the buttons above).
 
 ## Setting up Razorpay (one time)
 
@@ -52,24 +67,22 @@ Razorpay's test cards. Then repeat the steps in **Live Mode**.
        'razorpay_key_secret'     => '…',
        'razorpay_webhook_secret' => '…',
    ```
-   Save. Deposits start straight away.
-4. **Try it:** book a grooming time on pawpad.in, pay the deposit, and check that the
-   booking shows *Deposit paid* in Grooming Bookings. Then cancel it to see the refund.
+   Save. Online payment starts straight away.
+4. **Try it:** book a grooming time on pawpad.in, pay, and check that the booking shows
+   *Paid online* in Grooming Bookings. Then cancel it to see the refund.
 
-To switch deposits off again without removing the keys, add `'deposits_enabled' => false,`.
-Other settings (optional): `deposit_amount` (500), `deposit_hold_minutes` (15),
-`deposit_link_hours` (2).
-
-## Payment links and part payments
-
-Leena asked whether Razorpay payment links can take a part payment. They can (the
-"Accept partial payments" option). Pawpad doesn't need it here, because each link is
-made for exactly the deposit amount.
+To switch online payment off without removing the keys, add `'deposits_enabled' => false,`.
+Other settings (optional): `deposit_amount` (500: what "Refund all but ₹500" keeps),
+`deposit_hold_minutes` (15), `deposit_link_hours` (2).
 
 ## For the developer
 
 - Code: `api/lib/payments.php`. Table `payments` (schema 12), plus `deposit`,
-  `deposit_status` and `payment_ref` on `bookings` and `boarding_requests`.
+  `deposit_status` and `payment_ref` on `bookings` and `boarding_requests`. The names
+  still say "deposit" but hold the full amount paid online.
+- Prices: the service's price from the CMS when known on the server, else
+  `DEPOSIT_KNOWN_PRICES` in `payments.php` (keep it in step with the price list).
+  A service with no known price can't be booked online while payments are on.
 - A held booking has status `pending`. It counts as busy team time until its payment's
   `hold_until` time. Expired holds are released at the start of every API request.
 - Every payment is checked by its Razorpay signature. The server then fetches it from
