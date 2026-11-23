@@ -2712,6 +2712,9 @@
               React.createElement(CmsField, { label: "Phone (for calling, e.g. +919148443330)", value: formData.phone, onChange: (v) => updateField("phone", v) }),
               React.createElement(CmsField, { label: "Email (optional)", value: formData.email, onChange: (v) => updateField("email", v) })),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
+              React.createElement(CmsField, { label: "Second phone (as shown)", value: formData.phone2Display, onChange: (v) => updateField("phone2Display", v) }),
+              React.createElement(CmsField, { label: "Second phone (for calling, e.g. +919663077496)", value: formData.phone2, onChange: (v) => updateField("phone2", v) })),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" } },
               React.createElement(CmsField, { label: "Instagram link (empty = hide)", value: formData.instagram, onChange: (v) => updateField("instagram", v) }),
               React.createElement(CmsField, { label: "Facebook link (empty = hide)", value: formData.facebook, onChange: (v) => updateField("facebook", v) }),
               React.createElement(CmsField, { label: "X / Twitter link (empty = hide)", value: formData.twitter, onChange: (v) => updateField("twitter", v) }))

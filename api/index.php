@@ -116,6 +116,9 @@ try {
         case 'boarding_availability':
             send_json(['ok' => true] + boarding_availability());
             break;
+        case 'notify_studio':
+            send_json(['ok' => true] + notify_studio($input));
+            break;
         case 'create_boarding_request':
             send_json(['ok' => true] + create_boarding_request($input), 201);
             break;

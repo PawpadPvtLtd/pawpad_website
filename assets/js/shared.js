@@ -258,6 +258,8 @@ const FOOTER_DEFAULTS = {
   addressLines: ["#426, 5th Main Road,", "HRBR 2nd Block, Kalyan Nagar", "Bangalore - 560043 India"],
   phoneDisplay: "+91 91484 43330",
   phone: "+919148443330",
+  phone2Display: "+91 96630 77496",
+  phone2: "+919663077496",
   email: "",
   instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
   facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
@@ -291,7 +293,8 @@ function Footer({ onBook }) {
           /* @__PURE__ */ React.createElement("div", null,
             /* @__PURE__ */ React.createElement("h4", { className: "f-h" }, f.addressTitle),
             /* @__PURE__ */ React.createElement("p", null, withBreaks(lines(f.addressLines, FOOTER_DEFAULTS.addressLines))),
-            f.phoneDisplay && /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:" + String(f.phone || f.phoneDisplay).replace(/[^+\d]/g, "") }, f.phoneDisplay)),
+            f.phoneDisplay && /* @__PURE__ */ React.createElement("p", { style: { marginTop: 14 } }, "Ph: ", /* @__PURE__ */ React.createElement("a", { href: "tel:" + String(f.phone || f.phoneDisplay).replace(/[^+\d]/g, "") }, f.phoneDisplay),
+              f.phone2Display && " / ", f.phone2Display && /* @__PURE__ */ React.createElement("a", { href: "tel:" + String(f.phone2 || f.phone2Display).replace(/[^+\d]/g, "") }, f.phone2Display)),
             f.email && /* @__PURE__ */ React.createElement("p", { style: { marginTop: 6 } }, /* @__PURE__ */ React.createElement("a", { href: "mailto:" + f.email }, f.email)),
             socials.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "socials" },
               socials.map(([k, label, Icon]) => /* @__PURE__ */ React.createElement("a", { key: k, href: f[k], "aria-label": label, target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement(Icon, { size: 16 })))

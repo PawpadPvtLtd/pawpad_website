@@ -198,7 +198,7 @@ function send_review_request(array $invoice, bool $staffConsent = false): array
     if ($status >= 200 && $status < 300 && $wamid !== '') {
         record_review_message((int) $invoice['id'], $ref, $phone, 'sent', '', '', $wamid);
     } else {
-        $error = (string) ($data['error']['error_user_msg'] ?? $data['error']['message'] ?? ($curlError ?: 'HTTP ' . $status));
+        $error = whatsapp_error_text($data, $curlError, $status);
         error_log('Pawpad API WhatsApp review failed for ' . $ref . ': ' . $error);
         record_review_message((int) $invoice['id'], $ref, $phone, 'failed', '', substr($error, 0, 250));
     }
@@ -269,4 +269,28 @@ function whatsapp_webhook(string $raw): array
         }
     }
     return ['updated' => $updated];
+}
+
+/** Meta's error in plain words, with its code (and what usually fixes it) so it can be looked up. */
+function whatsapp_error_text(array $data, string $curlError, int $status): string
+{
+    $e = is_array($data['error'] ?? null) ? $data['error'] : [];
+    $text = (string) ($e['error_user_msg'] ?? $e['message'] ?? ($curlError ?: 'HTTP ' . $status));
+    $code = isset($e['code']) ? (int) $e['code'] : 0;
+    $codes = array_filter([$code ?: null, isset($e['error_subcode']) ? (int) $e['error_subcode'] : null]);
+    if ($codes) {
+        $text .= ' (Meta code ' . implode('/', $codes) . ')';
+    }
+    $hints = [
+        190 => 'the token has expired or was revoked: make a new permanent System User token',
+        200 => 'Meta blocked the app or token: check the app and the Business account in Meta for restrictions, and that the System User has the WhatsApp account and the app assigned',
+        10 => 'the token lacks the whatsapp_business_messaging permission',
+        131042 => 'add a payment method in WhatsApp Manager',
+        131031 => 'the WhatsApp account is locked: see Account Quality in WhatsApp Manager',
+        132001 => 'the template name or language does not match an approved template',
+    ];
+    if (isset($hints[$code])) {
+        $text .= ': ' . $hints[$code];
+    }
+    return $text;
 }

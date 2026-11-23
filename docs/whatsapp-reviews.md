@@ -97,6 +97,25 @@ From then on, review requests are sent. If the template's language shows as
 3. Meta only sends live updates to a **published** app: **Publish** the app. For the
    privacy policy URL, use `https://pawpad.in/policies.html`.
 
+## When it fails
+
+The error shown in Today's Closing includes Meta's code, for example
+"API access blocked. (Meta code 200)".
+
+- **Code 200, "API access blocked":** Meta is refusing the app or the token. Check, in order:
+  1. Meta Business Suite → **Business settings** → **Security Center** / **Account Quality**:
+     any restriction on the business or the WhatsApp account. Business verification may be asked for.
+  2. **developers.facebook.com** → your app: a banner saying the app is restricted or disabled.
+  3. **Business settings** → **Users** → **System users** → the Pawpad system user →
+     **Assigned assets**: the **app** and the **WhatsApp account** must both be there (full control).
+  4. Generate a new token for that system user with **whatsapp_business_messaging** and
+     **whatsapp_business_management** ticked, and put it in `config.php` (`whatsapp_token`).
+- **Code 190:** the token expired or was revoked. Make a new permanent token (step 2 above).
+- **Code 131042:** add a payment method in WhatsApp Manager.
+- **Code 132001:** the template name or language in `config.php` doesn't match the approved template.
+
+After fixing it, click **Send WhatsApp review** → **Yes, send** on the visit to try again.
+
 ## Costs
 
 Meta charges per message sent from a template. The price list is in WhatsApp Manager →

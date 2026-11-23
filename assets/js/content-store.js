@@ -176,6 +176,8 @@
       addressLines: ["#426, 5th Main Road,", "HRBR 2nd Block, Kalyan Nagar", "Bangalore - 560043 India"],
       phoneDisplay: "+91 91484 43330",
       phone: "+919148443330",
+      phone2Display: "+91 96630 77496",
+      phone2: "+919663077496",
       email: "",
       instagram: "https://www.instagram.com/pawpad_grooming_studio?igsi=MTRranltYzh1cnVuZw%3D%3D&utm_source=qr",
       facebook: "https://www.facebook.com/share/19KxDx35E5/?mibextid=wwXIfr",
@@ -1143,8 +1145,8 @@
       email: "info@pawpad.in",
       phone: "9148443330",
       phoneDisplay: "9148443330",
-      phone2: "",
-      phone2Display: "",
+      phone2: "9663077496",
+      phone2Display: "9663077496",
       addressLines: [
         "#426, 5th Main Road,",
         "HRBR 2nd Block, Kalyan Nagar",
@@ -1552,7 +1554,7 @@
 
       // Old studio numbers saved earlier: everything now uses +91 91484 43330.
       const OLD_WHATSAPP = ["918885349267", "919663077496", "919845001809"];
-      const OLD_PHONES = ["9663077496", "+919663077496", "96630 77496", "+91 96630 77496", "+91 88853 49267"];
+      const OLD_PHONES = ["+91 88853 49267"];
       if (parsed && parsed.branding) {
         if (OLD_WHATSAPP.includes(parsed.branding.whatsapp)) parsed.branding.whatsapp = DEFAULT_CONTENT.branding.whatsapp;
         if (OLD_PHONES.includes(parsed.branding.phone)) parsed.branding.phone = DEFAULT_CONTENT.branding.phone;
@@ -1569,6 +1571,16 @@
           parsed.contact.phone2 = "";
           parsed.contact.phone2Display = "";
         }
+      }
+      // Second studio number (November 2026): shown on the Contact page and in the footer
+      // unless another second number was saved.
+      if (parsed && parsed.contact && !parsed.contact.phone2) {
+        parsed.contact.phone2 = DEFAULT_CONTENT.contact.phone2;
+        parsed.contact.phone2Display = DEFAULT_CONTENT.contact.phone2Display;
+      }
+      if (parsed && parsed.footer && !parsed.footer.phone2) {
+        parsed.footer.phone2 = DEFAULT_CONTENT.footer.phone2;
+        parsed.footer.phone2Display = DEFAULT_CONTENT.footer.phone2Display;
       }
       if (parsed && parsed.contact && parsed.contact.socials && parsed.contact.socials.twitter === "https://twitter.com") {
         parsed.contact.socials.twitter = DEFAULT_CONTENT.contact.socials.twitter;

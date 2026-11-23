@@ -132,39 +132,46 @@
       return;
     }
 
-    // Bookings, boarding and other studio enquiries go to info@pawpad.in. The courses@ key
-    // (Website Content CMS -> Courses) is only for course applications, which send their own.
-    // The info@ key is the one the Myotherapy waitlist uses (Website Content CMS -> Myotherapy).
-    var INFO_KEY = 'ce70cafb-d84c-42f7-b57e-d320ff768866';
-    var COURSES_KEY = 'a9a21b4b-47ee-4889-b709-9f101c59874d';
-    var myoKey = window.PawpadContentStore && window.PawpadContentStore.get('myotherapy') && window.PawpadContentStore.get('myotherapy').web3FormsAccessKey;
-    var web3Key = (myoKey && myoKey !== 'YOUR_ACCESS_KEY_HERE' && myoKey !== COURSES_KEY) ? myoKey : INFO_KEY;
-
     var web3Subject = (type === 'checkout')
       ? 'New Booking / Order Request: ' + (data.orderId || 'Direct Checkout') + ' (' + (rawName || 'Customer') + ')'
       : 'Pawpad Enquiry: ' + type.toUpperCase() + ' - ' + (rawName || 'Customer');
+    var details = lines.join('\n');
 
-    var web3Payload = {
-      access_key: web3Key,
-      subject: web3Subject,
-      from_name: 'Pawpad ' + type.charAt(0).toUpperCase() + type.slice(1) + ' Enquiry',
-      name: rawName || 'Not specified',
-      email: rawEmail || 'Not provided',
-      phone: rawPhone || 'Not provided',
-      enquiry_type: type,
-      details: lines.join('\n'),
-      botcheck: ''
-    };
+    // 2. Email the studio at info@pawpad.in, sent by the Pawpad server (from info@ to info@).
+    //    Course applications use courses@ and send their own (see above).
+    //    Only if the Pawpad server can't be reached, Web3Forms is used as a backup.
+    function sendWeb3Backup() {
+      var myoKey = window.PawpadContentStore && window.PawpadContentStore.get('myotherapy') && window.PawpadContentStore.get('myotherapy').web3FormsAccessKey;
+      var web3Key = (myoKey && myoKey !== 'YOUR_ACCESS_KEY_HERE' && myoKey !== 'a9a21b4b-47ee-4889-b709-9f101c59874d') ? myoKey : 'ce70cafb-d84c-42f7-b57e-d320ff768866';
+      var web3Payload = {
+        access_key: web3Key,
+        subject: web3Subject,
+        from_name: 'Pawpad ' + type.charAt(0).toUpperCase() + type.slice(1) + ' Enquiry',
+        name: rawName || 'Not specified',
+        email: rawEmail || 'Not provided',
+        phone: rawPhone || 'Not provided',
+        enquiry_type: type,
+        details: lines.join('\n'),
+        botcheck: ''
+      };
 
-    var fd = new FormData();
-    Object.keys(web3Payload).forEach(function (k) { fd.append(k, web3Payload[k]); });
+      var fd = new FormData();
+      Object.keys(web3Payload).forEach(function (k) { fd.append(k, web3Payload[k]); });
 
-    fetch('https://api.web3forms.com/submit', {
-      method: 'POST',
-      body: fd
-    }).catch(function (err) {
-      console.warn('Pawpad: Web3Forms submission notice:', err);
-    });
+      fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        body: fd
+      }).catch(function (err) {
+        console.warn('Pawpad: Web3Forms submission notice:', err);
+      });
+    }
+
+    if (window.PawpadApi && window.PawpadApi.isEnabled()) {
+      window.PawpadApi.call('notify_studio', { type: type, subject: web3Subject, name: rawName, email: rawEmail, phone: rawPhone, details: details })
+        .then(function (r) { if (!r.ok) sendWeb3Backup(); });
+    } else {
+      sendWeb3Backup();
+    }
   };
 })();
 
