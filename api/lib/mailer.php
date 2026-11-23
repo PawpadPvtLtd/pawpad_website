@@ -181,3 +181,36 @@ function send_candidate_email(string $toEmail, string $toName, string $subject, 
 {
     return send_mail('courses', $toEmail, $toName, $subject, $body);
 }
+
+/**
+ * Website → studio notification (a new order, booking or enquiry), sent from and to
+ * info@pawpad.in by the Pawpad server. Public, so it only ever goes to info@ and is
+ * rate-limited.
+ */
+function notify_studio(array $input): array
+{
+    rate_limit('notify', 20, 3600);
+    $line = function ($value, int $max): string {
+        return trim(preg_replace('/[\r\n]+/', ' ', clean_text($value, $max)));
+    };
+    $type = preg_replace('/[^a-z_-]/', '', strtolower($line($input['type'] ?? '', 30))) ?: 'enquiry';
+    $name = $line($input['name'] ?? '', 120);
+    $email = $line($input['email'] ?? '', 200);
+    $phone = $line($input['phone'] ?? '', 40);
+    $subject = $line($input['subject'] ?? '', 200) ?: 'New website ' . $type . ' (' . ($name ?: 'customer') . ')';
+    $details = clean_text($input['details'] ?? '', 20000);
+    if ($name === '' && $email === '' && $phone === '' && trim($details) === '') {
+        json_error('There is nothing to send.');
+    }
+    $body = "A new " . $type . " came in on pawpad.in.\n\n"
+        . 'Name: ' . ($name ?: 'Not specified') . "\n"
+        . 'Email: ' . ($email ?: 'Not provided') . "\n"
+        . 'Phone: ' . ($phone ?: 'Not provided') . "\n\n"
+        . $details . "\n\n--\nSent by the Pawpad website (pawpad.in).\n";
+    $info = (string) (pawpad_config()['info_email'] ?? 'info@pawpad.in');
+    $mail = send_mail('info', $info, 'Pawpad', $subject, $body);
+    if (!$mail['sent']) {
+        json_error('The notification could not be emailed: ' . $mail['error'], 502);
+    }
+    return ['sent' => true];
+}
