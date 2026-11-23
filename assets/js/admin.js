@@ -2125,7 +2125,7 @@
   // BLOG & VLOGS (Website Content CMS → Blog & Vlogs)
   // Posts are saved one by one on the server (not with "Save Live Changes").
   // -------------------------------------------------------------
-  const BLOG_EMPTY_POST = { id: 0, kind: "article", status: "draft", title: "", slug: "", summary: "", body: "", cover: "", coverAlt: "", videoUrl: "", keywords: "", seoTitle: "", seoDescription: "", author: "" };
+  const BLOG_EMPTY_POST = { id: 0, kind: "article", status: "draft", title: "", slug: "", summary: "", body: "", sections: [], cover: "", coverAlt: "", videoUrl: "", keywords: "", seoTitle: "", seoDescription: "", author: "" };
 
   /** Uploads a photo chosen in the editor and returns its address on the Pawpad server. */
   async function uploadBlogImage(fileOrDataUrl, name) {
@@ -2138,6 +2138,49 @@
     }
     if (!/^data:/.test(dataUrl)) return { ok: true, url: dataUrl };
     return window.PawpadApi.uploadFile("image", (name || "blog-photo").replace(/\.[a-z0-9]+$/i, "") + ".webp", dataUrl);
+  }
+
+  const BLOG_EMPTY_SECTION = { heading: "", image: "", imageAlt: "", text: "" };
+
+  /**
+   * The post's sections: as many as needed, each with its own heading, picture,
+   * picture description and text. Move them up or down, or remove them.
+   */
+  function BlogSectionsEditor({ sections, onChange }) {
+    const list = Array.isArray(sections) ? sections : [];
+    const label = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--admin-text-muted)", marginBottom: "4px" };
+    const small = { padding: "4px 10px", fontSize: "12px" };
+    const setAt = (i, patch) => onChange(list.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+    const move = (i, d) => {
+      const next = [...list];
+      const [item] = next.splice(i, 1);
+      next.splice(i + d, 0, item);
+      onChange(next);
+    };
+    return React.createElement("div", { "data-section": "blog-sections", style: { display: "flex", flexDirection: "column", gap: "12px" } },
+      React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
+        React.createElement("span", { style: { ...label, marginBottom: 0, fontSize: "13px" } }, `Sections (${list.length})`),
+        React.createElement("span", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Each section has its own heading, picture, picture description and text. They appear in this order, after the text above.")),
+      list.map((sec, i) => React.createElement("div", { key: i, "data-blog-section": i, style: { border: "1px solid var(--admin-border)", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", background: "var(--admin-bg)" } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
+          React.createElement("strong", { style: { fontSize: "13px" } }, `Section ${i + 1}`),
+          React.createElement("div", { style: { display: "flex", gap: "6px" } },
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, disabled: i === 0, onClick: () => move(i, -1), "aria-label": `Move section ${i + 1} up` }, "↑"),
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: small, disabled: i === list.length - 1, onClick: () => move(i, 1), "aria-label": `Move section ${i + 1} down` }, "↓"),
+            React.createElement("button", { type: "button", className: "btn-admin btn-admin-danger", style: small, onClick: () => onChange(list.filter((_, j) => j !== i)), "aria-label": `Remove section ${i + 1}` }, "Remove"))),
+        React.createElement("div", null,
+          React.createElement("label", { style: label, htmlFor: `blog-sec-${i}-heading` }, "Section heading"),
+          React.createElement("input", { id: `blog-sec-${i}-heading`, className: "input-field", value: sec.heading || "", placeholder: "e.g. Before the groom", onChange: (e) => setAt(i, { heading: e.target.value }) })),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", alignItems: "end" } },
+          React.createElement(ImageUploadWidget, { label: "Section picture (optional)", currentUrl: sec.image || "", onSelectUrl: (url) => setAt(i, { image: url }) }),
+          React.createElement("div", null,
+            React.createElement("label", { style: label, htmlFor: `blog-sec-${i}-alt` }, "Picture description (shown under the picture)"),
+            React.createElement("input", { id: `blog-sec-${i}-alt`, className: "input-field", value: sec.imageAlt || "", placeholder: "e.g. Bruno relaxing after his bath", onChange: (e) => setAt(i, { imageAlt: e.target.value }) }))),
+        React.createElement("div", null,
+          React.createElement("label", { style: label, htmlFor: `blog-sec-${i}-text` }, "Section text"),
+          React.createElement("textarea", { id: `blog-sec-${i}-text`, className: "input-field", rows: 7, value: sec.text || "", onChange: (e) => setAt(i, { text: e.target.value }), style: { fontFamily: "inherit", lineHeight: 1.6 } })))),
+      React.createElement("div", null,
+        React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", "data-add-section": true, onClick: () => onChange([...list, { ...BLOG_EMPTY_SECTION }]) }, "+ Add a section")));
   }
 
   function BlogPostEditor({ initial, onSaved, onCancel }) {
@@ -2187,7 +2230,19 @@
         if (!up.ok) { setSaving(false); return setMessage("⚠️ " + up.error); }
         cover = up.url;
       }
-      const result = await window.PawpadApi.call("save_post", { ...post, cover, status });
+      // Pictures chosen for sections are uploaded now (they stay in the browser until saving).
+      const sections = [];
+      for (const [i, sec] of (post.sections || []).entries()) {
+        let image = sec.image || "";
+        if (/^data:/.test(image)) {
+          setMessage(`Uploading the picture of section ${i + 1}…`);
+          const up = await uploadBlogImage(image, `blog-section-${i + 1}`);
+          if (!up.ok) { setSaving(false); return setMessage("⚠️ " + up.error); }
+          image = up.url;
+        }
+        sections.push({ ...sec, image });
+      }
+      const result = await window.PawpadApi.call("save_post", { ...post, cover, sections, status });
       setSaving(false);
       if (!result.ok) return setMessage("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
       setPost(result.data.post);
@@ -2217,18 +2272,19 @@
         field("coverAlt", "Describe the cover photo (for Google and screen readers)", { placeholder: "e.g. A shih tzu relaxing after a bath" })),
       React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" } },
-          React.createElement("label", { style: { ...label, marginBottom: 0 }, htmlFor: "blog-body" }, isVideo ? "Text under the video (optional)" : "Article text *"),
+          React.createElement("label", { style: { ...label, marginBottom: 0 }, htmlFor: "blog-body" }, isVideo ? "Text under the video (optional)" : "Introduction / article text (add more below as sections)"),
           React.createElement("div", { style: { display: "flex", gap: "6px" } },
             React.createElement("input", { ref: photoRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: addPhoto, "aria-label": "Add a photo to the text" }),
             React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px" }, disabled: photoBusy, onClick: () => photoRef.current && photoRef.current.click() }, photoBusy ? "Uploading…" : "+ Add a photo"),
             React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "5px 12px", fontSize: "12px" }, onClick: () => setShowPreview((v) => !v) }, showPreview ? "Back to writing" : "Preview"))),
         showPreview
-          ? React.createElement("div", { "data-blog-preview": true, className: "input-field", style: { minHeight: "220px", lineHeight: 1.7, background: "var(--admin-bg)" }, dangerouslySetInnerHTML: { __html: F ? F.render(post.body) : "" } })
+          ? React.createElement("div", { "data-blog-preview": true, className: "input-field blog-admin-preview", style: { minHeight: "220px", lineHeight: 1.7, background: "var(--admin-bg)", textAlign: "justify" }, dangerouslySetInnerHTML: { __html: F ? F.render(post.body) + F.renderSections(post.sections) : "" } })
           : React.createElement("textarea", { id: "blog-body", ref: bodyRef, className: "input-field", rows: 14, value: post.body || "", onChange: (e) => set({ body: e.target.value }), style: { fontFamily: "inherit", lineHeight: 1.6 } }),
         React.createElement("details", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginTop: "6px" } },
           React.createElement("summary", { style: { cursor: "pointer" } }, "How to format the text"),
           React.createElement("pre", { style: { whiteSpace: "pre-wrap", fontFamily: "inherit", margin: "6px 0 0" } },
-            "A blank line starts a new paragraph.\n## Heading      ### Smaller heading\n**bold**   *italic*   [link text](https://pawpad.in/grooming.html)\n- bullet point      1. numbered point\n> a quote\nPhotos: use \"+ Add a photo\"; it adds a line like ![description](address)."))),
+            "A blank line starts a new paragraph.\n## Heading      ### Smaller heading\n**bold**   *italic*   [link text](https://pawpad.in/grooming.html)\n- bullet point      1. numbered point\n> a quote\nPhotos: use \"+ Add a photo\"; it adds a line like ![description](address).\nThe same format works in each section's text. Paragraphs are justified on the website."))),
+      React.createElement(BlogSectionsEditor, { sections: post.sections, onChange: (list) => set({ sections: list }) }),
       field("keywords", "Keywords & phrases (separated by commas, e.g. dog grooming Bengaluru, nervous dog, shih tzu haircut)", { placeholder: "What would someone type into Google to find this?" }),
       React.createElement("details", null,
         React.createElement("summary", { style: { cursor: "pointer", fontSize: "13px", fontWeight: 600 } }, "More options: address, Google title and description, author"),
@@ -5019,7 +5075,12 @@
   // -------------------------------------------------------------
   // DEPOSITS (Razorpay): status on a booking, payment links to share
   // -------------------------------------------------------------
-  const DEPOSIT_LABEL = { awaiting: "Awaiting deposit", paid: "Deposit paid", refunded: "Deposit refunded", kept: "Deposit kept", expired: "Deposit not paid (released)", refund_failed: "⚠️ Refund failed" };
+  /** "₹4,500" / "Rs. 4500 approx" → "4500" (the stay amount the team can correct before sending the link). */
+  const boardingAmountOf = (total) => {
+    const m = String(total || "").replace(/,/g, "").match(/\d+(\.\d{1,2})?/);
+    return m ? m[0] : "";
+  };
+  const DEPOSIT_LABEL = { awaiting: "Awaiting payment", paid: "Paid online", refunded: "Refunded", partly_refunded: "Partly refunded", kept: "Payment kept", expired: "Not paid (released)", refund_failed: "⚠️ Refund failed" };
 
   /** A Razorpay payment link: copy it, or open WhatsApp with a ready message. */
   function DepositLinkActions({ url, phone, message }) {
@@ -5032,10 +5093,10 @@
         try { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {}
       } }, copied ? "Copied ✓" : "Copy link"),
       React.createElement("a", { className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px", textDecoration: "none" }, target: "_blank", rel: "noopener noreferrer",
-        href: `https://wa.me/${wa}?text=${encodeURIComponent(message || `Please pay the Pawpad booking deposit here: ${url}`)}` }, "Send on WhatsApp"));
+        href: `https://wa.me/${wa}?text=${encodeURIComponent(message || `Please pay for your Pawpad booking here: ${url}`)}` }, "Send on WhatsApp"));
   }
 
-  /** The deposit line under a booking (status, link while waiting, refund for admins). */
+  /** The online payment line under a booking (status, link while waiting, refunds for admins). */
   function DepositInfo({ booking, canAdmin, onRefund }) {
     const st = booking.depositStatus;
     if (!st) return null;
@@ -5046,8 +5107,9 @@
       `${DEPOSIT_LABEL[st] || st} ${amount}`,
       st === "awaiting" && p.holdUntil ? ` · time held until ${new Date(p.holdUntil).toLocaleString("en-IN", { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}` : "",
       st === "awaiting" && p.linkUrl && React.createElement(DepositLinkActions, { url: p.linkUrl, phone: booking.customer.phone,
-        message: `Hi ${booking.customer.name}, please pay the Pawpad booking deposit of ${amount} to confirm your booking: ${p.linkUrl}` }),
-      canAdmin && ["paid", "kept", "refund_failed"].includes(st) && onRefund && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, onClick: () => onRefund(booking) }, "Refund deposit"));
+        message: `Hi ${booking.customer.name}, please pay ${amount} to confirm your Pawpad booking: ${p.linkUrl}` }),
+      canAdmin && ["paid", "kept", "refund_failed"].includes(st) && onRefund && React.createElement("button", { type: "button", "data-refund": "all", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, onClick: () => onRefund(booking, "all") }, `Refund all (${amount})`),
+      canAdmin && ["paid", "kept", "refund_failed"].includes(st) && onRefund && booking.deposit > 500 && React.createElement("button", { type: "button", "data-refund": "all_but_500", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, onClick: () => onRefund(booking, "all_but_500") }, `Refund all but ₹500 (${formatRupees(booking.deposit - 500)})`));
   }
 
   // -------------------------------------------------------------
@@ -5083,9 +5145,9 @@
   function BookingChangeModal({ mode, booking, onClose, onDone }) {
     const isReschedule = mode === "reschedule";
     const [reason, setReason] = useState("");
-    // Paid deposit: refunded when cancelled 24 hours or more before the appointment (the admin can change it).
+    // Paid online: refunded in full when cancelled 24 hours or more before; later, the staff choose each time.
     const hoursLeft = (new Date(`${booking.date}T${booking.time}:00+05:30`).getTime() - Date.now()) / 3600000;
-    const [depositChoice, setDepositChoice] = useState(hoursLeft >= 24 ? "refund" : "keep");
+    const [depositChoice, setDepositChoice] = useState(hoursLeft >= 24 ? "refund" : "");
     const hasPaidDeposit = !isReschedule && booking.depositStatus === "paid";
     const [date, setDate] = useState(booking.date);
     const [time, setTime] = useState("");
@@ -5105,7 +5167,7 @@
     }, [date]);
 
     const who = `${booking.pet.name || "Pet"} (${booking.serviceTitle}) for ${booking.customer.name}`;
-    const canSubmit = !saving && (isReschedule ? reason.trim() && date && time : true);
+    const canSubmit = !saving && (isReschedule ? reason.trim() && date && time : (!hasPaidDeposit || depositChoice !== ""));
 
     const submit = async (force) => {
       if (!canSubmit) return;
@@ -5127,8 +5189,9 @@
       const d = result.data;
       const parts = [isReschedule ? "✓ Booking rescheduled." : "✓ Booking cancelled."];
       if (d.warning) parts.push(`⚠️ ${d.warning}.`);
-      if (d.deposit === "refunded") parts.push(`Deposit of ${formatRupees(booking.deposit)} refunded.`);
-      if (d.deposit === "kept") parts.push(`Deposit of ${formatRupees(booking.deposit)} kept.`);
+      if (d.deposit === "refunded") parts.push(`${formatRupees(booking.deposit)} refunded.`);
+      if (d.deposit === "partly_refunded") parts.push(`${formatRupees(d.refunded)} refunded, ${formatRupees(booking.deposit - d.refunded)} kept.`);
+      if (d.deposit === "kept") parts.push(`Payment of ${formatRupees(booking.deposit)} kept.`);
       if (d.depositError) parts.push(`⚠️ ${d.depositError}`);
       if (isReschedule ? d.calendarSynced === false : d.calendarRemoved === false) {
         parts.push("⚠️ The info@ calendar could not be updated; please check it on the phone.");
@@ -5162,13 +5225,15 @@
         clash && React.createElement("div", { role: "alert", "data-clash": true, style: { border: "1px solid var(--admin-danger)", borderRadius: "8px", padding: "10px 12px", marginBottom: "12px", fontSize: "13px" } },
           React.createElement("p", { style: { color: "var(--admin-danger)", fontWeight: 600, marginBottom: "8px" } }, `⚠️ This time clashes: ${clash}.`),
           React.createElement("button", { type: "button", className: "btn-admin btn-admin-danger", disabled: saving, onClick: () => submit(true) }, "Move anyway")),
-        isReschedule && booking.depositStatus === "paid" && React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginBottom: "12px" } }, `The deposit of ${formatRupees(booking.deposit)} moves with the booking.`),
+        isReschedule && booking.depositStatus === "paid" && React.createElement("p", { style: { fontSize: "12px", color: "var(--admin-text-muted)", marginBottom: "12px" } }, `The payment of ${formatRupees(booking.deposit)} moves with the booking.`),
         hasPaidDeposit && React.createElement("fieldset", { "data-deposit-choice": true, style: { border: "1px solid var(--admin-border)", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px", fontSize: "13px" } },
-          React.createElement("legend", { style: { fontWeight: 600, padding: "0 4px" } }, `Deposit paid: ${formatRupees(booking.deposit)}`),
+          React.createElement("legend", { style: { fontWeight: 600, padding: "0 4px" } }, `Paid online: ${formatRupees(booking.deposit)}`),
           React.createElement("p", { style: { color: "var(--admin-text-muted)", marginBottom: "6px" } }, hoursLeft >= 24
-            ? "Cancelled 24 hours or more before the appointment: the rule is to refund it."
-            : "Cancelled less than 24 hours before the appointment: the rule is to keep it."),
-          [["refund", `Refund ${formatRupees(booking.deposit)} to the customer (Razorpay, 5–7 working days)`], ["keep", "Keep the deposit"]].map(([v, l]) =>
+            ? "Cancelled 24 hours or more before the appointment: the rule is a full refund."
+            : "Cancelled less than 24 hours before the appointment: please choose what to refund."),
+          [["refund", `Refund all: ${formatRupees(booking.deposit)} (Razorpay, 5–7 working days)`],
+            ...(booking.deposit > 500 ? [["partial", `Refund all but ₹500: ${formatRupees(booking.deposit - 500)} back, ₹500 kept`]] : []),
+            ["keep", "Keep the whole payment (no refund)"]].map(([v, l]) =>
             React.createElement("label", { key: v, style: { display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" } },
               React.createElement("input", { type: "radio", name: "deposit-choice", value: v, checked: depositChoice === v, onChange: () => setDepositChoice(v) }), l))),
         error && React.createElement("p", { role: "alert", style: { color: "var(--admin-danger)", fontSize: "13px", fontWeight: 600, marginBottom: "12px" } }, error),
@@ -5298,11 +5363,13 @@
       flash("✓ Unblocked.");
     };
 
-    const handleRefund = async (b) => {
-      const result = await window.PawpadApi.call("refund_deposit", { id: b.id });
+    const handleRefund = async (b, mode) => {
+      const what = mode === "all_but_500" ? `${formatRupees(b.deposit - 500)} (all but ₹500)` : formatRupees(b.deposit);
+      if (!window.confirm(`Refund ${what} to ${b.customer.name}? Razorpay sends it back in 5–7 working days.`)) return;
+      const result = await window.PawpadApi.call("refund_deposit", { id: b.id, mode: mode || "all" });
       if (!result.ok) return flash("⚠️ " + serverError(result));
       load();
-      flash(`✓ Deposit of ${formatRupees(b.deposit)} refunded to ${b.customer.name}.`);
+      flash(`✓ ${formatRupees(result.data.refunded)} refunded to ${b.customer.name}.`);
     };
 
     const handleMatted = async (b, on) => {
@@ -5802,7 +5869,7 @@
       notice && React.createElement("div", { className: "card", role: "status", style: { fontWeight: 600, fontSize: "14px", color: notice.startsWith("⚠️") ? "var(--admin-danger)" : "var(--admin-success)" } }, notice),
       invoiceOpen && React.createElement(InvoiceModal, { ...invoiceOpen, onClose: () => setInvoiceOpen(null), onSaved: (inv, text) => { setInvoiceOpen(null); setNotice(text); load(); } }),
       depositLink && React.createElement("div", { className: "card", "data-section": "deposit-link", style: { display: "flex", flexDirection: "column", gap: "8px", border: "1px solid var(--admin-gold)" } },
-        React.createElement("strong", null, `Deposit link for ${depositLink.ref}: ${formatRupees(depositLink.amount)}, valid until ${depositLink.expires}`),
+        React.createElement("strong", null, `Payment link for ${depositLink.ref}: ${formatRupees(depositLink.amount)}, valid until ${depositLink.expires}`),
         React.createElement("span", { style: { fontSize: "12px", color: "var(--admin-text-muted)" } }, "Razorpay also sends it by SMS / email. The booking is confirmed (calendar and email) as soon as it is paid."),
         React.createElement(DepositLinkActions, { url: depositLink.url, phone: depositLink.phone, message: depositLink.message }),
         React.createElement("div", null, React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { fontSize: "12px" }, onClick: () => setDepositLink(null) }, "Done"))),
@@ -5844,7 +5911,7 @@
                       React.createElement("div", { style: { fontWeight: 600 } }, b.customer.name, b.source === "walkin" ? " · walk-in" : ""),
                       React.createElement("div", null, `${b.pet.name || "Pet"}${b.pet.type ? ` (${b.pet.type})` : ""} — ${b.serviceTitle}`),
                       React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-faint)" } }, `Ref ${b.ref}${b.status === "cancelled" ? " · cancelled in the admin panel" : ""}`),
-                      b.depositStatus === "paid" && React.createElement("div", { "data-closing-deposit": b.ref, style: { fontSize: "11px", color: "var(--admin-success)" } }, `Deposit ${formatRupees(b.deposit)} paid online: the amount is what is left to pay.`),
+                      b.depositStatus === "paid" && React.createElement("div", { "data-closing-deposit": b.ref, style: { fontSize: "11px", color: "var(--admin-success)" } }, `${formatRupees(b.deposit)} paid online: the amount is only what is left to pay (extras).`),
                       b.depositStatus && b.depositStatus !== "paid" && React.createElement("div", { style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, `${DEPOSIT_LABEL[b.depositStatus] || b.depositStatus} ${b.deposit != null ? formatRupees(b.deposit) : ""}`)),
                     React.createElement("td", { style: cell },
                       React.createElement("select", { className: "input-field", style: small, disabled: isFuture, "aria-label": `Status ${b.ref}`, value: f.status, onChange: (e) => change(b.id, { status: e.target.value }, true) },
@@ -6173,8 +6240,8 @@
         React.createElement("input", { type: "checkbox", checked: f.whatsappOptIn, onChange: (e) => set({ whatsappOptIn: e.target.checked }), "aria-label": "Customer agreed to WhatsApp messages" }),
         "The customer agreed to WhatsApp messages (Leena's review request is sent after the visit)."),
       day && day.depositsActive && f.status === "" && React.createElement("label", { "data-deposit-option": true, style: { display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" } },
-        React.createElement("input", { type: "checkbox", checked: f.depositLink, onChange: (e) => set({ depositLink: e.target.checked }), "aria-label": "Send a deposit payment link" }),
-        `Send a Razorpay deposit link (₹${day.depositAmount} per pet, or the price if lower). The time is held ${day.linkHours} hour${day.linkHours === 1 ? "" : "s"} and confirmed once paid.`),
+        React.createElement("input", { type: "checkbox", checked: f.depositLink, onChange: (e) => set({ depositLink: e.target.checked }), "aria-label": "Send a payment link" }),
+        `Send a Razorpay payment link for the full price of the service. The time is held ${day.linkHours} hour${day.linkHours === 1 ? "" : "s"} and confirmed once paid.`),
       React.createElement("div", { style: { display: "flex", gap: "12px", flexWrap: "wrap" } },
         field("amount", "Amount (₹)", { inputMode: "decimal" }),
         React.createElement("div", { style: { minWidth: "140px" } },
@@ -6286,7 +6353,7 @@
   // -------------------------------------------------------------
   function BoardingRequestsTab() {
     const [requests, setRequests] = useState(null);
-    const [statuses, setStatuses] = useState({ new: "New", awaiting_deposit: "Awaiting deposit", confirmed: "Confirmed", declined: "Declined", completed: "Completed", cancelled: "Cancelled" });
+    const [statuses, setStatuses] = useState({ new: "New", awaiting_deposit: "Awaiting payment", confirmed: "Confirmed", declined: "Declined", completed: "Completed", cancelled: "Cancelled" });
     const [filter, setFilter] = useState("open");
     const [drafts, setDrafts] = useState({});
     const [saving, setSaving] = useState(null);
@@ -6321,16 +6388,20 @@
       showNotice(`✓ ${r.ref} saved.`);
     };
 
-    const depositAction = async (action, r) => {
+    const depositAction = async (action, r, extra) => {
+      if (action === "refund_boarding_deposit") {
+        const what = extra && extra.mode === "all_but_500" ? `${formatRupees(r.deposit - 500)} (all but ₹500)` : formatRupees(r.deposit);
+        if (!window.confirm(`Refund ${what} for ${r.ref}? Razorpay sends it back in 5–7 working days.`)) return;
+      }
       setSaving(r.id);
-      const result = await window.PawpadApi.call(action, { id: r.id });
+      const result = await window.PawpadApi.call(action, { id: r.id, ...(extra || {}) });
       setSaving(null);
       if (!result.ok) return showNotice("⚠️ " + ((result.data && result.data.error) || "The Pawpad server could not be reached."));
       setRequests(result.data.requests || []);
       window.PawpadApi.call("boarding_availability", {}).then((x) => { if (x.ok) setNightInfo(x.data); });
       showNotice(action === "send_boarding_deposit_link"
-        ? `✓ Deposit link sent for ${r.ref} (${formatRupees(result.data.amount)}, valid until ${result.data.expires}). The stay is confirmed when it is paid.`
-        : `✓ Deposit for ${r.ref} refunded.`);
+        ? `✓ Payment link sent for ${r.ref} (${formatRupees(result.data.amount)}, valid until ${result.data.expires}). The stay is confirmed when it is paid.`
+        : `✓ Payment for ${r.ref} refunded${extra && extra.mode === "all_but_500" ? " (₹500 kept)" : ""}.`);
     };
 
     const shown = (requests || []).filter((r) => filter === "all" || (filter === "open" ? (r.status === "new" || r.status === "confirmed" || r.status === "awaiting_deposit") : r.status === filter));
@@ -6382,17 +6453,24 @@
                   `${DEPOSIT_LABEL[r.depositStatus] || r.depositStatus} ${r.deposit != null ? formatRupees(r.deposit) : ""}`,
                   r.depositStatus === "awaiting" && r.payment && r.payment.holdUntil ? ` · nights held until ${new Date(r.payment.holdUntil).toLocaleString("en-IN", { hour: "numeric", minute: "2-digit", day: "numeric", month: "short" })}` : "",
                   r.depositStatus === "awaiting" && r.payment && r.payment.linkUrl && React.createElement(DepositLinkActions, { url: r.payment.linkUrl, phone: r.customer.phone,
-                    message: `Hi ${r.customer.name}, please pay the Pawpad boarding deposit of ${formatRupees(r.deposit)} to confirm your stay (${r.ref}): ${r.payment.linkUrl}` }),
-                  r.depositStatus === "paid" && React.createElement("button", { type: "button", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, disabled: saving === r.id, onClick: () => depositAction("refund_boarding_deposit", r), title: "Refund when the stay is cancelled 24 hours or more before check-in" }, "Refund deposit (cancelled 24 h+ before check-in)")),
+                    message: `Hi ${r.customer.name}, please pay ${formatRupees(r.deposit)} for your Pawpad boarding stay (${r.ref}) to confirm it: ${r.payment.linkUrl}` }),
+                  r.depositStatus === "paid" && React.createElement("button", { type: "button", "data-boarding-refund": "all", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, disabled: saving === r.id, onClick: () => depositAction("refund_boarding_deposit", r, { mode: "all" }), title: "Cancelled 24 hours or more before check-in: refund in full" }, `Refund all (${formatRupees(r.deposit)})`),
+                  r.depositStatus === "paid" && r.deposit > 500 && React.createElement("button", { type: "button", "data-boarding-refund": "all_but_500", className: "btn-admin btn-admin-secondary", style: { padding: "3px 8px", fontSize: "11px" }, disabled: saving === r.id, onClick: () => depositAction("refund_boarding_deposit", r, { mode: "all_but_500" }), title: "Late cancellation: refund everything except ₹500" }, `Refund all but ₹500 (${formatRupees(r.deposit - 500)})`)),
                 (r.adminLog || []).map((e, k) => React.createElement("span", { key: "l" + k, style: { fontSize: "11px", color: "var(--admin-text-muted)" } }, logLine(e)))),
               React.createElement("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" } },
                 React.createElement("select", { className: "input-field", style: { width: "auto" }, "aria-label": `Status ${r.ref}`, value: d.status || r.status, onChange: (e) => setDrafts((prev) => ({ ...prev, [r.id]: { ...d, status: e.target.value } })) },
                   Object.entries(statuses).map(([k, l]) => React.createElement("option", { key: k, value: k }, l))),
                 React.createElement("input", { className: "input-field", style: { flex: 1, minWidth: "200px" }, placeholder: "Add a note (e.g. confirmed on WhatsApp for 2–4 Oct)", "aria-label": `Note ${r.ref}`, value: d.note || "", onChange: (e) => setDrafts((prev) => ({ ...prev, [r.id]: { ...d, note: e.target.value } })) }),
                 React.createElement("button", { className: "btn-admin btn-admin-primary", disabled: saving === r.id || (!d.note && (!d.status || d.status === r.status)), onClick: () => save(r) }, saving === r.id ? "Saving…" : "Save"),
-                deposits.active && r.status === "new" && React.createElement("button", { className: "btn-admin btn-admin-secondary", "data-send-deposit": r.ref, disabled: saving === r.id, onClick: () => depositAction("send_boarding_deposit_link", r),
-                  title: `Holds the nights for ${deposits.hours} hours; paid, the stay is confirmed and the customer is emailed.` },
-                  `Confirm with deposit link (${formatRupees(deposits.amount)} per dog)`))
+                deposits.active && r.status === "new" && React.createElement("label", { style: { display: "inline-flex", gap: "6px", alignItems: "center", fontSize: "12px" } }, "Stay amount ₹",
+                  React.createElement("input", { className: "input-field", style: { width: "110px" }, inputMode: "decimal", "aria-label": `Amount to pay ${r.ref}`, "data-pay-amount": r.ref,
+                    value: d.payAmount != null ? d.payAmount : boardingAmountOf(r.total),
+                    onChange: (e) => setDrafts((prev) => ({ ...prev, [r.id]: { ...d, payAmount: e.target.value } })) })),
+                deposits.active && r.status === "new" && React.createElement("button", { className: "btn-admin btn-admin-secondary", "data-send-deposit": r.ref,
+                  disabled: saving === r.id || !(Number(String(d.payAmount != null ? d.payAmount : boardingAmountOf(r.total)).replace(/,/g, "")) > 0),
+                  onClick: () => depositAction("send_boarding_deposit_link", r, { amount: String(d.payAmount != null ? d.payAmount : boardingAmountOf(r.total)).replace(/,/g, "") }),
+                  title: `Sends a link for the full stay. Holds the nights for ${deposits.hours} hours; paid, the stay is confirmed and the customer is emailed.` },
+                  "Confirm with payment link (full stay)"))
             );
           })
     );

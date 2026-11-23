@@ -132,10 +132,13 @@
       return;
     }
 
-    var crsKey = window.PawpadContentStore && window.PawpadContentStore.get('courses') && window.PawpadContentStore.get('courses').web3FormsAccessKey;
-    var web3Key = (crsKey && crsKey !== 'YOUR_ACCESS_KEY_HERE' && crsKey !== 'ce70cafb-d84c-42f7-b57e-d320ff768866')
-      ? crsKey
-      : 'a9a21b4b-47ee-4889-b709-9f101c59874d';
+    // Bookings, boarding and other studio enquiries go to info@pawpad.in. The courses@ key
+    // (Website Content CMS -> Courses) is only for course applications, which send their own.
+    // The info@ key is the one the Myotherapy waitlist uses (Website Content CMS -> Myotherapy).
+    var INFO_KEY = 'ce70cafb-d84c-42f7-b57e-d320ff768866';
+    var COURSES_KEY = 'a9a21b4b-47ee-4889-b709-9f101c59874d';
+    var myoKey = window.PawpadContentStore && window.PawpadContentStore.get('myotherapy') && window.PawpadContentStore.get('myotherapy').web3FormsAccessKey;
+    var web3Key = (myoKey && myoKey !== 'YOUR_ACCESS_KEY_HERE' && myoKey !== COURSES_KEY) ? myoKey : INFO_KEY;
 
     var web3Subject = (type === 'checkout')
       ? 'New Booking / Order Request: ' + (data.orderId || 'Direct Checkout') + ' (' + (rawName || 'Customer') + ')'

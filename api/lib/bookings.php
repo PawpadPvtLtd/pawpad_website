@@ -280,7 +280,7 @@ function start_deposit_checkout(array $saved, array $customer): array
             'amount' => paise($amount),
             'currency' => 'INR',
             'name' => 'Pawpad',
-            'description' => 'Booking deposit ' . $ref . ' (deducted from your bill)',
+            'description' => 'Pawpad booking ' . $ref,
             'prefill' => ['name' => $customer['name'], 'email' => $customer['email'], 'contact' => $customer['phone']],
             'timeout' => $holdMinutes * 60,
         ],
@@ -329,6 +329,9 @@ function create_booking(array $input): array
         $time = (string) ($item['time'] ?? '');
         $day = parse_studio_date($date);
         $label = 'Pet ' . ($index + 1);
+        if (deposits_active()) {
+            deposit_for_service($serviceId); // paid in full online: the service and its price must be known
+        }
         if (in_array($serviceId, ONLINE_OFF_SERVICES, true)) {
             json_error($label . ': ' . $serviceTitle . ' is booked after a quick chat. Please WhatsApp us on ' . STUDIO_WHATSAPP . '.');
         }
@@ -489,8 +492,8 @@ function booking_confirmation_text(string $name, array $saved, string $estimated
         . 'Booking reference: ' . $saved[0]['ref'] . "\n"
         . ($estimatedTotal !== '' ? 'Estimated total: ' . $estimatedTotal . "\n" : '')
         . ($depositPaid > 0
-            ? 'Booking deposit paid: ' . inr($depositPaid) . ". It is deducted from your bill; the rest is paid at the studio after the session (UPI, card or cash).\n"
-                . "Cancellation: the deposit is refunded in full if you cancel at least 24 hours before your appointment. It is not refunded for a no-show or a later cancellation. Rescheduling keeps your deposit.\n\n"
+            ? 'Paid online: ' . inr($depositPaid) . ". Any extras decided at the studio are paid there.\n"
+                . "Cancellation: your payment is refunded in full if you cancel at least 24 hours before your appointment. Later cancellations and no-shows may not be refunded. Rescheduling keeps your payment.\n\n"
             : "Payment: at the studio after the session (UPI, card or cash). No advance payment needed.\n\n")
         . 'Studio: ' . STUDIO_ADDRESS . "\n"
         . 'Need to change or cancel? Reply to this email or WhatsApp us on ' . STUDIO_WHATSAPP . ".\n\n"
@@ -724,14 +727,15 @@ function cancel_booking(array $admin, array $input): array
         ->execute([$removed ? 'removed' : 'remove_failed', $row['id']]);
     forget_calendar_cache();
 
-    // The deposit: refunded when cancelled 24 hours or more before, else kept (the admin can choose).
+    // The online payment: refunded, partly refunded or kept, as the staff choose (or by the 24-hour rule).
     $deposit = settle_deposit_on_cancel($row, (string) ($input['deposit'] ?? 'auto'));
     $mail = $row['customer_email'] !== '' && $row['status'] === 'booked'
         ? booking_change_email($row, 'Your Pawpad grooming appointment has been cancelled (' . $row['ref'] . ')',
             'Your grooming appointment on ' . $when . ' has been cancelled.' . ($deposit['text'] !== '' ? "\n\n" . $deposit['text'] : ''), $reason)
-        : ['sent' => false, 'error' => $row['status'] === 'pending' ? 'the deposit was never paid, so no email is needed' : 'no email address (walk-in / phone booking)'];
+        : ['sent' => false, 'error' => $row['status'] === 'pending' ? 'the payment was never made, so no email is needed' : 'no email address (walk-in / phone booking)'];
     return ['calendarRemoved' => $removed, 'emailSent' => $mail['sent'], 'emailError' => $mail['error'],
-        'deposit' => $deposit['text'] !== '' ? ($deposit['refunded'] ? 'refunded' : 'kept') : '', 'depositError' => $deposit['error'] ?? ''];
+        'deposit' => $deposit['text'] !== '' ? ($deposit['refunded'] ? (!empty($deposit['partial']) ? 'partly_refunded' : 'refunded') : 'kept') : '',
+        'refunded' => $deposit['amount'] ?? 0, 'depositError' => $deposit['error'] ?? ''];
 }
 
 /**

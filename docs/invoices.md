@@ -55,4 +55,4 @@ financial year (1 April).
   Calibri). Both are in `api/lib/tFPDF` (licences in `api/lib/tFPDF/LICENSE.md`).
   Letterhead images: `api/lib/invoice/`.
 - The studio details on the invoice are at the top of `api/lib/invoices.php`.
-- The booking deposit (PR6) will show as "Less: booking deposit paid" on the invoice.
+- What was paid online (Razorpay) shows on the invoice as "Paid online (Razorpay)", and anything paid at the studio as "Paid at the studio".

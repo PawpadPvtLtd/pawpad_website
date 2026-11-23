@@ -54,14 +54,14 @@ return [
     'boarding_dogs_per_night' => 3, // the most dogs boarding on one night (counts confirmed stays)
     'booking_rate_limit_per_hour' => 20, // bookings from one network per hour (stops spam)
 
-    // Razorpay booking deposits (₹500 per pet, or the full price when the service costs less).
+    // Razorpay online payments: every grooming booking is paid in full online (boarding: by a payment link).
     // Razorpay Dashboard → Account & Settings → API Keys, and → Webhooks (the webhook secret).
-    // Type these on the server only. While they are empty, no deposit is taken.
+    // Type these on the server only. While they are empty, nothing is taken online (payment at the studio).
     'razorpay_key_id'         => '',
     'razorpay_key_secret'     => '',
     'razorpay_webhook_secret' => '',
-    'deposits_enabled'        => true,  // false switches deposits off without removing the keys
-    'deposit_amount'          => 500,   // per pet
+    'deposits_enabled'        => true,  // false switches online payment off without removing the keys
+    'deposit_amount'          => 500,   // kept when staff choose "Refund all but ₹500" for a late cancellation
     'deposit_hold_minutes'    => 15,    // website: how long a time is held while the customer pays
     'deposit_link_hours'      => 2,     // phone / WhatsApp bookings and boarding: how long a payment link is valid
 

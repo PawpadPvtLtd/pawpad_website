@@ -936,8 +936,7 @@ function CheckoutModal({ open, onClose }) {
   const [bookingError, setBookingError] = useStateC("");
   const [placing, setPlacing] = useStateC(false);
   const [availability, reloadAvailability] = typeof useSlotAvailability === "function" ? useSlotAvailability(open) : [null, () => {}];
-  // Deposits (Razorpay): ₹500 per grooming pet, or the service's price when it costs less.
-  const depositAmount = (availability && availability.deposit && availability.deposit.amount) || 500;
+  // Online payment (Razorpay): each grooming service is paid in full at booking.
   // Nights already full or nearly full (confirmed stays), so a full night is flagged before sending.
   const [boardingNights, setBoardingNights] = useStateC(null);
   useEffectC(() => {
@@ -1424,7 +1423,7 @@ function CheckoutModal({ open, onClose }) {
                 ? `A confirmation email is on its way to ${completedOrder.customer.email}.`
                 : "We'll send your confirmation shortly.",
               completedOrder.depositPaid
-                ? ` Deposit of ₹${formatInr(completedOrder.depositPaid)} paid: it is deducted from your bill, and the rest is paid at the studio.`
+                ? ` ₹${formatInr(completedOrder.depositPaid)} paid online. Any extras decided at the studio are paid there.`
                 : " Payment is at the studio."
             )
             : React.createElement(
@@ -2209,8 +2208,8 @@ function CheckoutModal({ open, onClose }) {
               ),
               bookingError && React.createElement("div", { className: "slot-status slot-error", role: "alert", style: { marginBottom: 16 } }, bookingError),
               depositTotal > 0 && React.createElement("div", { className: "deposit-note", "data-deposit-note": depositTotal, style: { marginBottom: 16, padding: "14px 16px", borderRadius: 14, background: "color-mix(in oklab, var(--driftwood), transparent 88%)", fontSize: 14, lineHeight: 1.55 } },
-                React.createElement("strong", null, `Booking deposit: ₹${formatInr(depositTotal)} now`),
-                ` (₹${formatInr(depositAmount)} per pet, or the service's price if it costs less). It is deducted from your bill; the rest is paid at the studio. Refunded in full if you cancel at least 24 hours before; not refunded for a no-show or a later cancellation. Rescheduling keeps your deposit.`),
+                React.createElement("strong", null, `Pay ₹${formatInr(depositTotal)} now`),
+                " (the full price of the grooming). Any extras decided at the studio are paid there. Cancel at least 24 hours before for a full refund; later cancellations and no-shows may not be refunded. Rescheduling keeps your payment."),
               React.createElement(
                 "div",
                 { className: "review-summary-grid" },
@@ -2363,7 +2362,7 @@ function CheckoutModal({ open, onClose }) {
                     { className: "studio-payment-badge" },
                     React.createElement("span", null, "📍 Payment Mode:"),
                     React.createElement("p", null, depositTotal > 0
-                      ? `A booking deposit of ₹${formatInr(depositTotal)} is paid now online (deducted from your bill). Pay the rest at the studio via UPI, Card, or Cash after your pet's comfortable session.`
+                      ? `₹${formatInr(depositTotal)} is paid now online (the full price). Extras decided at the studio are paid there via UPI, Card, or Cash.`
                       : "No advance payment required today. Pay at studio via UPI, Card, or Cash after your pet's comfortable session.")
                   )
                 )
@@ -2394,7 +2393,7 @@ function CheckoutModal({ open, onClose }) {
                   onClick: handlePlaceOrder,
                   disabled: placing
                 },
-                placing ? "Reserving your time… " : depositTotal > 0 ? `Pay ₹${formatInr(depositTotal)} deposit & confirm ` : "Confirm Booking & Checkout ",
+                placing ? "Reserving your time… " : depositTotal > 0 ? `Pay ₹${formatInr(depositTotal)} & confirm ` : "Confirm Booking & Checkout ",
                 React.createElement(Arrow, null)
               )
               : React.createElement(

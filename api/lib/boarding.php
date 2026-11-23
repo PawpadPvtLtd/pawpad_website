@@ -11,7 +11,7 @@ if (!defined('PAWPAD_API')) {
     exit;
 }
 
-const BOARDING_STATUSES = ['new' => 'New', 'awaiting_deposit' => 'Awaiting deposit', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
+const BOARDING_STATUSES = ['new' => 'New', 'awaiting_deposit' => 'Awaiting payment', 'confirmed' => 'Confirmed', 'declined' => 'Declined', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
 // Requests can be made from today up to this many days ahead; a stay is at most this many nights.
 const BOARDING_DAYS_AHEAD = 92;
 const BOARDING_MAX_NIGHTS = 60;

@@ -77,7 +77,7 @@
             /* @__PURE__ */ React.createElement("li", null, "To plan and customize calm, stress-free grooming and wellness sessions around your pet\u2019s specific temperament and physical needs."),
             /* @__PURE__ */ React.createElement("li", null, "To confirm bookings, schedule academy assessments, and provide appointment updates or emergency veterinary notifications."),
             /* @__PURE__ */ React.createElement("li", null, "To maintain internal health and vaccination compliance for all animals visiting our studio."),
-            /* @__PURE__ */ React.createElement("li", null, "To take booking deposits and refunds through Razorpay, our payment provider. Pawpad never sees or stores your card or bank details."),
+            /* @__PURE__ */ React.createElement("li", null, "To take booking payments and refunds through Razorpay, our payment provider. Pawpad never sees or stores your card or bank details."),
             /* @__PURE__ */ React.createElement("li", null, "Only if you tick the box when booking (or tell us): to send you a WhatsApp message after your visit, such as a request to review it. You can ask us to stop at any time by replying on WhatsApp.")
           ),
 
@@ -130,18 +130,18 @@
           /* @__PURE__ */ React.createElement("h2", null, "Refund Policy"),
           /* @__PURE__ */ React.createElement("p", null, "We understand that schedules and circumstances change. Our refund and cancellation guidelines balance flexibility for guardians with the reserved time and small cohorts of our studio."),
 
-          /* @__PURE__ */ React.createElement("h3", null, "1. Booking Deposit"),
+          /* @__PURE__ */ React.createElement("h3", null, "1. Payment at Booking"),
           /* @__PURE__ */ React.createElement("ul", null,
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Amount: "), "Every grooming booking and boarding stay is confirmed with a deposit of ", /* @__PURE__ */ React.createElement("strong", null, "\u20B9500 per pet"), ", or the full price when the service costs less (for example Nail Clipping)."),
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Paid: "), "online when you book (or through the payment link we send for phone and WhatsApp bookings and boarding stays). The deposit is deducted from your final bill."),
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Unpaid: "), "a time held for payment is released if the deposit isn't paid in time (15 minutes on the website, 2 hours for a payment link).")
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Amount: "), "Every grooming booking is confirmed by paying the ", /* @__PURE__ */ React.createElement("strong", null, "full price of the service"), " online. A boarding stay is confirmed by paying the full stay amount."),
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Paid: "), "online when you book (or through the payment link we send for phone and WhatsApp bookings and boarding stays). Any extras agreed at the studio (for example de-matting or add-ons) are paid at the studio."),
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Unpaid: "), "a time held for payment is released if it isn't paid in time (15 minutes on the website, 2 hours for a payment link).")
           ),
 
           /* @__PURE__ */ React.createElement("h3", null, "2. Grooming, Myotherapy & Boarding: Cancellations"),
           /* @__PURE__ */ React.createElement("ul", null,
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "24 hours or more before: "), "cancel and your deposit is refunded in full. For boarding, this is 24 hours before check-in."),
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Rescheduling: "), "with at least ", /* @__PURE__ */ React.createElement("strong", null, "24 hours notice"), ", your deposit moves to the new time."),
-            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Late Cancellations & No-Shows: "), "the deposit is not refunded for a cancellation less than 24 hours before the appointment or check-in, or a missed appointment.")
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "24 hours or more before: "), "cancel and your payment is refunded in full. For boarding, this is 24 hours before check-in."),
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Rescheduling: "), "with at least ", /* @__PURE__ */ React.createElement("strong", null, "24 hours notice"), ", your payment moves to the new time."),
+            /* @__PURE__ */ React.createElement("li", null, /* @__PURE__ */ React.createElement("strong", null, "Late Cancellations & No-Shows: "), "for a cancellation less than 24 hours before the appointment or check-in, or a missed appointment, a refund is at Pawpad's discretion: it may be partial (we may keep \u20B9500) or none.")
           ),
 
           /* @__PURE__ */ React.createElement("h3", null, "3. Academy & Certificate Programmes"),

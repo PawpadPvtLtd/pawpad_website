@@ -89,6 +89,30 @@ function blog_clean_image(string $url): string
     return '';
 }
 
+/**
+ * The post's sections (each with its own heading, picture, picture description and text),
+ * cleaned. Sections with nothing in them are dropped. At most 40.
+ */
+function blog_clean_sections($input): array
+{
+    $out = [];
+    foreach (is_array($input) ? array_slice(array_values($input), 0, 40) : [] as $s) {
+        if (!is_array($s)) {
+            continue;
+        }
+        $section = [
+            'heading' => clean_text($s['heading'] ?? '', 200),
+            'image' => blog_clean_image((string) ($s['image'] ?? '')),
+            'imageAlt' => clean_text($s['imageAlt'] ?? '', 300),
+            'text' => substr(str_replace("\r\n", "\n", (string) ($s['text'] ?? '')), 0, 30000),
+        ];
+        if ($section['heading'] !== '' || $section['image'] !== '' || trim($section['text']) !== '') {
+            $out[] = $section;
+        }
+    }
+    return $out;
+}
+
 function blog_post_to_array(array $row, bool $withBody): array
 {
     $post = [
@@ -110,6 +134,8 @@ function blog_post_to_array(array $row, bool $withBody): array
     ];
     if ($withBody) {
         $post['body'] = $row['body'];
+        $sections = json_decode((string) ($row['sections'] ?? ''), true);
+        $post['sections'] = is_array($sections) ? $sections : [];
     }
     return $post;
 }
@@ -199,7 +225,11 @@ function save_post(array $admin, array $input): array
     }
     $body = str_replace("\r\n", "\n", (string) ($input['body'] ?? ''));
     $body = substr($body, 0, 100000);
-    if ($kind === 'article' && $status === 'published' && trim($body) === '') {
+    $sections = blog_clean_sections($input['sections'] ?? []);
+    $sectionText = implode('', array_map(function (array $s): string {
+        return trim($s['text']) . $s['image'];
+    }, $sections));
+    if ($kind === 'article' && $status === 'published' && trim($body) === '' && $sectionText === '') {
         json_error('Please write the article before publishing it.');
     }
     $slug = blog_slugify((string) (($input['slug'] ?? '') !== '' ? $input['slug'] : $title));
@@ -237,6 +267,7 @@ function save_post(array $admin, array $input): array
         'title' => $title,
         'summary' => clean_text($input['summary'] ?? '', 400),
         'body' => $body,
+        'sections' => json_encode($sections, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         'cover' => blog_clean_image((string) ($input['cover'] ?? '')),
         'cover_alt' => clean_text($input['coverAlt'] ?? '', 200),
         'video_url' => $videoUrl,

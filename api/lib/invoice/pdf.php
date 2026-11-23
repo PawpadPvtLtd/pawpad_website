@@ -177,15 +177,21 @@ function build_invoice_pdf(array $invoice): string
         $color($ink);
         $pdf->Cell(42, $strong ? 8 : 6, $value, 0, 1, 'R');
     };
-    if ($invoice['deposit'] > 0 || count($invoice['lines']) > 1) {
-        $total('Subtotal', inr($invoice['subtotal']));
-    }
     if ($invoice['deposit'] > 0) {
-        $total('Less: booking deposit paid', '-' . inr($invoice['deposit']));
-    }
-    $total('Total', inr($invoice['total']), true);
-    if ($invoice['paid'] > 0) {
-        $total('Paid', inr($invoice['paid']));
+        // Paid online at booking: the full total, what was paid online, then what was paid at the studio.
+        $total('Total', inr($invoice['subtotal']), true);
+        $total('Paid online (Razorpay)', inr($invoice['deposit']));
+        if ($invoice['paid'] > 0) {
+            $total('Paid at the studio', inr($invoice['paid']));
+        }
+    } else {
+        if (count($invoice['lines']) > 1) {
+            $total('Subtotal', inr($invoice['subtotal']));
+        }
+        $total('Total', inr($invoice['total']), true);
+        if ($invoice['paid'] > 0) {
+            $total('Paid', inr($invoice['paid']));
+        }
     }
     if ($invoice['balance'] > 0) {
         $total('Balance due', inr($invoice['balance']), true);
