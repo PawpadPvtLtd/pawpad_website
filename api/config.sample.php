@@ -73,7 +73,7 @@ return [
     'whatsapp_app_secret'        => '',  // App settings → Basic → App secret (checks delivery updates)
     'whatsapp_verify_token'      => '',  // any phrase; the same one goes in the webhook setup at Meta
     'whatsapp_review_template'   => 'pawpad_review_request',
-    'whatsapp_template_language' => 'en',
+    'whatsapp_template_language' => 'en_US', // the template's language: English (US) = en_US, English = en
     'whatsapp_review_params'     => ['name', 'pet', 'pet'], // what fills {{1}}, {{2}}, {{3}}
     'whatsapp_reviews_enabled'   => true,
 

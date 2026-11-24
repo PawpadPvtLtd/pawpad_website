@@ -35,7 +35,7 @@ function whatsapp_settings(): array
         'app_secret' => trim((string) ($c['whatsapp_app_secret'] ?? '')),
         'verify_token' => trim((string) ($c['whatsapp_verify_token'] ?? '')),
         'template' => (string) ($c['whatsapp_review_template'] ?? 'pawpad_review_request'),
-        'language' => (string) ($c['whatsapp_template_language'] ?? 'en'),
+        'language' => (string) ($c['whatsapp_template_language'] ?? 'en_US'),
         'params' => is_array($params) ? array_values($params) : ['name', 'pet', 'pet'],
         'api' => rtrim((string) ($c['whatsapp_api'] ?? 'https://graph.facebook.com/v21.0'), '/'),
         'enabled' => ($c['whatsapp_reviews_enabled'] ?? true) !== false,
@@ -171,29 +171,13 @@ function send_review_request(array $invoice, bool $staffConsent = false): array
         return ['type' => 'text', 'text' => $values[$key] ?? ''];
     }, $s['params']);
 
-    $ch = curl_init($s['api'] . '/' . rawurlencode($s['phone_id']) . '/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $s['token'], 'Content-Type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode([
-            'messaging_product' => 'whatsapp',
-            'to' => $phone,
-            'type' => 'template',
-            'template' => [
-                'name' => $s['template'],
-                'language' => ['code' => $s['language']],
-                'components' => [['type' => 'body', 'parameters' => $parameters]],
-            ],
-        ], JSON_UNESCAPED_UNICODE),
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = $raw === false ? curl_error($ch) : '';
-    curl_close($ch);
-    $data = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+    [$status, $data, $curlError] = whatsapp_send_template($s, $phone, $s['language'], $parameters);
+    // 132001 = no approved template in that language. Meta lists "English (US)" as en_US and
+    // "English" as en, so try the other one once before giving up.
+    $other = ['en' => 'en_US', 'en_US' => 'en'][$s['language']] ?? '';
+    if ($other !== '' && (int) ($data['error']['code'] ?? 0) === 132001) {
+        [$status, $data, $curlError] = whatsapp_send_template($s, $phone, $other, $parameters);
+    }
     $wamid = (string) ($data['messages'][0]['id'] ?? '');
     if ($status >= 200 && $status < 300 && $wamid !== '') {
         record_review_message((int) $invoice['id'], $ref, $phone, 'sent', '', '', $wamid);
@@ -293,4 +277,32 @@ function whatsapp_error_text(array $data, string $curlError, int $status): strin
         $text .= ': ' . $hints[$code];
     }
     return $text;
+}
+
+/** One template message to Meta. Returns [HTTP status, decoded reply, connection error]. */
+function whatsapp_send_template(array $s, string $phone, string $language, array $parameters): array
+{
+    $ch = curl_init($s['api'] . '/' . rawurlencode($s['phone_id']) . '/messages');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $s['token'], 'Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode([
+            'messaging_product' => 'whatsapp',
+            'to' => $phone,
+            'type' => 'template',
+            'template' => [
+                'name' => $s['template'],
+                'language' => ['code' => $language],
+                'components' => [['type' => 'body', 'parameters' => $parameters]],
+            ],
+        ], JSON_UNESCAPED_UNICODE),
+    ]);
+    $raw = curl_exec($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = $raw === false ? curl_error($ch) : '';
+    curl_close($ch);
+    return [$status, is_string($raw) ? (json_decode($raw, true) ?: []) : [], $curlError];
 }
