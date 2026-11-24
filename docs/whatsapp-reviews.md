@@ -83,8 +83,8 @@ before the last `];`:
 The Phone Number ID is shown in the app under **WhatsApp → API Setup**. It is the one for
 +91 91484 43330 (1098575573337061 at the time of setup).
 
-From then on, review requests are sent. If the template's language shows as
-"English (US)", also add `'whatsapp_template_language' => 'en_US',`.
+From then on, review requests are sent. The template's language is taken as
+"English (US)" (`en_US`); the server also tries plain "English" (`en`) if Meta refuses it.
 
 ### 4. Delivered / read updates (optional)
 
